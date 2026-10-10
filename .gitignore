@@ -1,0 +1,19 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# env — never commit real secrets
+.env
+.env.local
+.env*.local
+
+# os / editor
+.DS_Store
+*.log
+npm-debug.log*
+
+# certs
+/certs/*.pem

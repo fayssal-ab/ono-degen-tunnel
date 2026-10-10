@@ -1,0 +1,39 @@
+{
+  "name": "ono-degen-tunnel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "migrate": "node --env-file-if-exists=.env.local --import tsx scripts/migrate.ts",
+    "seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3",
+    "lenis": "^1.1.17",
+    "lucide-react": "^0.456.0",
+    "motion": "^11.11.17",
+    "mysql2": "^3.23.3",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.169.0",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.169.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^2.1.4"
+  }
+}

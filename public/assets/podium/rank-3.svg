@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="RANK 3 placeholder">
+  <rect width="512" height="512" fill="#0B0B10"/>
+  <rect x="46.08000000000001" y="46.08000000000001" width="419.84" height="419.84" rx="58.7776" fill="none" stroke="#D9B46A" stroke-opacity="0.16"/><rect x="102.4" y="102.4" width="307.2" height="307.2" rx="43.008" fill="none" stroke="#D9B46A" stroke-opacity="0.13"/><rect x="153.6" y="153.6" width="204.8" height="204.8" rx="28.672000000000004" fill="none" stroke="#D9B46A" stroke-opacity="0.1"/><rect x="199.68" y="199.68" width="112.64" height="112.64" rx="15.769600000000002" fill="none" stroke="#D9B46A" stroke-opacity="0.07"/>
+  <rect x="0.5" y="0.5" width="511" height="511" fill="none" stroke="#D9B46A" stroke-opacity="0.5"/>
+  <text x="256" y="252" fill="#F4F1EA" font-family="monospace" font-size="32" font-weight="700" text-anchor="middle" letter-spacing="1">RANK 3</text>
+  <text x="256" y="288" fill="#6C6A78" font-family="monospace" font-size="20" text-anchor="middle" letter-spacing="1">512×512 · placeholder</text>
+</svg>

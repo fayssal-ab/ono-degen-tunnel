@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="500" viewBox="0 0 1600 500" role="img" aria-label="CASINO BANNER 1600×500 placeholder">
+  <rect width="1600" height="500" fill="#0B0B10"/>
+  <rect x="144" y="45" width="1312" height="410" rx="57.400000000000006" fill="none" stroke="#D9B46A" stroke-opacity="0.16"/><rect x="320" y="100" width="960" height="300" rx="42.00000000000001" fill="none" stroke="#D9B46A" stroke-opacity="0.13"/><rect x="480" y="150" width="640" height="200" rx="28.000000000000004" fill="none" stroke="#D9B46A" stroke-opacity="0.1"/><rect x="624" y="195" width="352" height="110" rx="15.400000000000002" fill="none" stroke="#D9B46A" stroke-opacity="0.07"/>
+  <rect x="0.5" y="0.5" width="1599" height="499" fill="none" stroke="#D9B46A" stroke-opacity="0.5"/>
+  <text x="800" y="246.2" fill="#F4F1EA" font-family="monospace" font-size="31" font-weight="700" text-anchor="middle" letter-spacing="1">CASINO BANNER 1600×500</text>
+  <text x="800" y="281" fill="#6C6A78" font-family="monospace" font-size="19" text-anchor="middle" letter-spacing="1">1600×500 · placeholder</text>
+</svg>

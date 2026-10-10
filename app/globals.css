@@ -1,0 +1,349 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────────────────────────────
+   ONO DEGEN TUNNEL — design tokens (prompt §3). These are the ONLY colors
+   allowed. gold = money/prizes/VIP · volt = live/wins/online ·
+   plasma = tunnel/3D only. Never three accents in one component.
+   ─────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-bg-0: #050507;
+  --color-bg-1: #0b0b10;
+  --color-bg-2: #12121a;
+  --color-bg-3: #1a1a25;
+
+  --color-line: rgba(255, 255, 255, 0.07);
+  --color-line-strong: rgba(255, 255, 255, 0.14);
+
+  --color-text-0: #f4f1ea;
+  --color-text-1: #a9a6b3;
+  --color-text-2: #6c6a78;
+
+  --color-gold: #d9b46a;
+  --color-gold-hi: #f3d898;
+  --color-volt: #8bff5a;
+  --color-cyan: #2ee6c8;
+  --color-plasma: #7b67ff;
+  --color-danger: #ff4d5e;
+
+  /* families come from next/font (app/layout.tsx) via these CSS variables */
+  --font-display: var(--font-unbounded), system-ui, sans-serif;
+  --font-sans: var(--font-inter-tight), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* strict type scale 12/14/16/20/28/40/64/96 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+  --text-3xl: 4rem;
+  --text-4xl: 6rem;
+
+  --radius-card: 16px;
+
+  --ease-tunnel: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --max-content: 1280px;
+}
+
+/* ── base ── */
+:root {
+  color-scheme: dark;
+  --sidebar-w: 264px;
+  --sidebar-w-rail: 72px;
+  --topbar-h: 64px;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  background: var(--color-bg-0);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-bg-0);
+  color: var(--color-text-0);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+}
+
+/* fine grain over the whole page (prompt §3.4) — 3% turbulence noise */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+/* numbers never jitter */
+.tabular, .font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* small caps label */
+.label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--color-text-2);
+}
+
+/* gold focus rings everywhere (prompt §10) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-gold) 35%, transparent);
+  color: var(--color-text-0);
+}
+
+/* thin, dark scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bg-3) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-bg-3);
+  border-radius: 8px;
+  border: 2px solid var(--color-bg-0);
+}
+
+/* perspective grid used in section backgrounds */
+.tunnel-grid {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 0%, transparent 75%);
+}
+
+/* card surface (prompt §3.4): bg-2, 1px line, inner top highlight */
+.surface {
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* animated conic gold border, hover only (prompt §3.4) */
+@property --conic-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.gold-border {
+  position: relative;
+}
+.gold-border::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* purely decorative ring — must never intercept clicks on the content below */
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--conic-a),
+    transparent 0deg, var(--color-gold) 90deg, transparent 180deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-tunnel);
+}
+.gold-border:hover::after {
+  opacity: 1;
+  animation: conic-spin 3s linear infinite;
+}
+@keyframes conic-spin {
+  to { --conic-a: 360deg; }
+}
+
+/* buttons press 1px (prompt §3.4) */
+.press:active {
+  transform: translateY(1px);
+}
+
+/* marquee for the wins ticker */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: inline-flex;
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* app-shell main offset — driven by the sidebar's <html> class so SSR layout
+   and the client sidebar stay in sync. Mobile has no fixed sidebar. */
+.app-main {
+  padding-top: var(--topbar-h);
+}
+@media (min-width: 1024px) {
+  .app-main {
+    padding-left: var(--sidebar-w);
+    transition: padding-left 0.2s var(--ease-tunnel);
+  }
+  html.sidebar-collapsed .app-main {
+    padding-left: var(--sidebar-w-rail);
+  }
+  .app-topbar {
+    left: var(--sidebar-w);
+    transition: left 0.2s var(--ease-tunnel);
+  }
+  html.sidebar-collapsed .app-topbar {
+    left: var(--sidebar-w-rail);
+  }
+}
+
+/* ── tunnel hero: concentric rings flying toward the viewer ── */
+.tunnel-stage {
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+.tunnel-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(72vmin, 640px);
+  height: min(72vmin, 640px);
+  margin-left: calc(min(72vmin, 640px) / -2);
+  margin-top: calc(min(72vmin, 640px) / -2);
+  border: 1px solid var(--color-gold);
+  border-radius: 22%;
+  opacity: 0;
+  animation: tunnel-fly 7s linear infinite;
+  will-change: transform, opacity;
+  box-shadow: 0 0 40px -14px var(--color-plasma);
+}
+@keyframes tunnel-fly {
+  0% {
+    transform: translateZ(-1200px) rotate(0deg) scale(0.12);
+    opacity: 0;
+    border-color: var(--color-plasma);
+  }
+  18% {
+    opacity: 0.55;
+  }
+  70% {
+    border-color: var(--color-gold);
+  }
+  100% {
+    transform: translateZ(220px) rotate(26deg) scale(1.7);
+    opacity: 0;
+  }
+}
+
+/* accordion chevron */
+.acc-open .acc-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── giveaway dashboard: reel + winner modal ── */
+@keyframes pop-in {
+  0% { transform: scale(0.86); opacity: 0; }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop-in { animation: pop-in 0.35s var(--ease-tunnel) both; }
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(240px) rotate(540deg); opacity: 0; }
+}
+.confetti-piece { animation: confetti-fall 1.4s ease-in forwards; }
+
+@keyframes entrant-in {
+  0% { transform: scale(0.6) translateY(6px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.entrant-in { animation: entrant-in 0.3s var(--ease-tunnel) both; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-volt) 55%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+.pulse-ring { animation: pulse-ring 1.6s ease-out infinite; }
+
+/* ── neon ambiance: soft colored glows baked into the page background so they
+   always sit behind content (fixed, never scroll) ── */
+body {
+  background:
+    radial-gradient(48rem 40rem at 10% -10%, color-mix(in srgb, var(--color-volt) 7%, transparent), transparent 60%),
+    radial-gradient(44rem 40rem at 100% -4%, color-mix(in srgb, var(--color-plasma) 9%, transparent), transparent 58%),
+    radial-gradient(46rem 44rem at 92% 110%, color-mix(in srgb, var(--color-cyan) 6%, transparent), transparent 60%),
+    var(--color-bg-0);
+  background-attachment: fixed;
+}
+
+/* glow + neon helpers */
+.glow-gold { box-shadow: 0 0 22px -8px var(--color-gold), 0 0 48px -26px var(--color-gold); }
+.glow-volt { box-shadow: 0 0 22px -6px color-mix(in srgb, var(--color-volt) 70%, transparent); }
+.glow-cyan { box-shadow: 0 0 22px -6px color-mix(in srgb, var(--color-cyan) 70%, transparent); }
+.neon-volt { text-shadow: 0 0 14px color-mix(in srgb, var(--color-volt) 55%, transparent); }
+.neon-gold { text-shadow: 0 0 16px color-mix(in srgb, var(--color-gold) 45%, transparent); }
+
+.text-gradient-gold {
+  background: linear-gradient(100deg, var(--color-gold-hi), var(--color-gold) 52%, #b98f49);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.text-gradient-neon {
+  background: linear-gradient(100deg, var(--color-volt), var(--color-cyan) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* smooth surface transitions + optional neon hover edge */
+.surface {
+  transition: border-color 0.2s var(--ease-tunnel), box-shadow 0.2s var(--ease-tunnel), transform 0.2s var(--ease-tunnel);
+}
+.surface-hover:hover {
+  border-color: color-mix(in srgb, var(--color-volt) 32%, var(--color-line-strong));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 26px -16px color-mix(in srgb, var(--color-volt) 65%, transparent);
+}
+
+/* respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee-track { animation: none; }
+  /* static, visible tunnel for reduced motion (no fly-through) */
+  .tunnel-ring {
+    animation: none !important;
+    opacity: 0.18 !important;
+    transform: scale(var(--ring-scale, 1)) !important;
+  }
+}
