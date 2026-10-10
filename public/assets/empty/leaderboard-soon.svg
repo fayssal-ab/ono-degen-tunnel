@@ -1,7 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" role="img" aria-label="EMPTY — LB SOON placeholder">
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" role="img" aria-label="Leaderboard soon">
   <rect width="400" height="300" fill="#0B0B10"/>
-  <rect x="36" y="27.000000000000014" width="328" height="245.99999999999997" rx="34.44" fill="none" stroke="#D9B46A" stroke-opacity="0.16"/><rect x="80" y="60" width="240" height="180" rx="25.200000000000003" fill="none" stroke="#D9B46A" stroke-opacity="0.13"/><rect x="120" y="90" width="160" height="120" rx="16.8" fill="none" stroke="#D9B46A" stroke-opacity="0.1"/><rect x="156" y="117" width="88" height="66" rx="9.24" fill="none" stroke="#D9B46A" stroke-opacity="0.07"/>
-  <rect x="0.5" y="0.5" width="399" height="299" fill="none" stroke="#D9B46A" stroke-opacity="0.5"/>
-  <text x="200" y="147.6" fill="#F4F1EA" font-family="monospace" font-size="19" font-weight="700" text-anchor="middle" letter-spacing="1">EMPTY — LB SOON</text>
-  <text x="200" y="169" fill="#6C6A78" font-family="monospace" font-size="12" text-anchor="middle" letter-spacing="1">400×300 · placeholder</text>
+  <ellipse cx="200" cy="150" rx="150" ry="110" fill="#d9b46a" opacity="0.07"/>
+  <g fill="none" stroke="#d9b46a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    
+    <path d="M150 95 H250 V140 a50 50 0 0 1 -100 0 Z"/>
+    <path d="M150 105 H120 a22 22 0 0 0 44 10"/>
+    <path d="M250 105 H280 a22 22 0 0 1 -44 10"/>
+    <path d="M185 190 h30 v18 h-30 Z"/>
+    <path d="M165 208 h70"/>
+    <circle cx="200" cy="120" r="4" fill="#d9b46a" stroke="none"/>
+  
+  </g>
 </svg>
