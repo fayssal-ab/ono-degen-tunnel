@@ -28,7 +28,13 @@ export function getPool(): Pool {
     user,
     password,
     database,
-    connectionLimit: 10,
+    // Low pool: on serverless (Netlify) every warm function instance keeps its
+    // own pool, and managed hosts like Aiven's free tier cap total connections
+    // (~20). A small limit + short idle timeout avoids "Too many connections".
+    connectionLimit: Number(process.env.DB_POOL_LIMIT ?? 3),
+    maxIdle: 2,
+    idleTimeout: 20000,
+    enableKeepAlive: true,
     // DECIMAL columns come back as strings, never JS numbers — money must
     // never round-trip through a float (golden rule 7).
     decimalNumbers: false,
