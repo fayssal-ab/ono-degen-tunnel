@@ -1,0 +1,10 @@
+# Netlify config. The Next.js runtime plugin handles build/publish.
+# Secret-scanning tuning below: the scanner flagged env values found only in
+# the Turbopack build cache (not served) plus the NEXT_PUBLIC_* vars (public by
+# design — Next inlines them into the browser on purpose). We exclude the cache
+# paths (so real secrets are still scanned in actual output) and omit the keys
+# that are public or non-sensitive identifiers.
+
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = ".next/cache/**,.netlify/.next/cache/**"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_RAINBET_URL,NEXT_PUBLIC_RAINBET_CODE,NEXT_PUBLIC_STAKE_URL,NEXT_PUBLIC_STAKE_CODE,NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_CASINO_NAME,NEXT_PUBLIC_CASINO_CODE,NEXT_PUBLIC_CASINO_URL,ADMIN_USERNAME,CASINO_PROVIDER,DB_PORT,DB_HOST,KICK_CLIENT_ID,KICK_CHATROOM_ID"
