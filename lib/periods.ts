@@ -54,31 +54,50 @@ export function percentageForRank(dist: PrizeDistEntry[], rank: number): number 
 
 // ── reads ──
 
+// Reads degrade gracefully: if the DB is unreachable or not migrated yet, they
+// return empty/null so public pages show their designed empty states instead
+// of crashing the whole site.
 export async function getActivePeriod(): Promise<Period | null> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT * FROM periods WHERE status = 'live' ORDER BY start_at ASC LIMIT 1"
-  );
-  return rows[0] ? hydratePeriod(rows[0]) : null;
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      "SELECT * FROM periods WHERE status = 'live' ORDER BY start_at ASC LIMIT 1"
+    );
+    return rows[0] ? hydratePeriod(rows[0]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getNextUpcomingPeriod(): Promise<Period | null> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT * FROM periods WHERE status = 'upcoming' ORDER BY start_at ASC LIMIT 1"
-  );
-  return rows[0] ? hydratePeriod(rows[0]) : null;
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      "SELECT * FROM periods WHERE status = 'upcoming' ORDER BY start_at ASC LIMIT 1"
+    );
+    return rows[0] ? hydratePeriod(rows[0]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPeriodById(id: number): Promise<Period | null> {
-  const [rows] = await getPool().query<RowDataPacket[]>("SELECT * FROM periods WHERE id = ? LIMIT 1", [id]);
-  return rows[0] ? hydratePeriod(rows[0]) : null;
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>("SELECT * FROM periods WHERE id = ? LIMIT 1", [id]);
+    return rows[0] ? hydratePeriod(rows[0]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getLiveEntries(periodId: number, limit = 100): Promise<BoardEntry[]> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT casino_id, username, wagered, `rank` FROM live_entries WHERE period_id = ? AND `rank` IS NOT NULL ORDER BY `rank` ASC LIMIT ?",
-    [periodId, limit]
-  );
-  return rows as BoardEntry[];
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      "SELECT casino_id, username, wagered, `rank` FROM live_entries WHERE period_id = ? AND `rank` IS NOT NULL ORDER BY `rank` ASC LIMIT ?",
+      [periodId, limit]
+    );
+    return rows as BoardEntry[];
+  } catch {
+    return [];
+  }
 }
 
 export interface ClosedPeriodSummary {
@@ -91,42 +110,59 @@ export interface ClosedPeriodSummary {
 }
 
 export async function getClosedPeriods(limit = 12): Promise<ClosedPeriodSummary[]> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT p.id, p.title, p.start_at, p.end_at, p.prize_pool,
-            (SELECT COUNT(*) FROM final_results fr WHERE fr.period_id = p.id) AS winner_count
-     FROM periods p WHERE p.status = 'closed'
-     ORDER BY p.end_at DESC LIMIT ?`,
-    [limit]
-  );
-  return rows as ClosedPeriodSummary[];
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      `SELECT p.id, p.title, p.start_at, p.end_at, p.prize_pool,
+              (SELECT COUNT(*) FROM final_results fr WHERE fr.period_id = p.id) AS winner_count
+       FROM periods p WHERE p.status = 'closed'
+       ORDER BY p.end_at DESC LIMIT ?`,
+      [limit]
+    );
+    return rows as ClosedPeriodSummary[];
+  } catch {
+    return [];
+  }
 }
 
 export async function getFinalResults(periodId: number, limit = 100): Promise<BoardEntry[]> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT casino_id, username, wagered, `rank`, prize FROM final_results WHERE period_id = ? ORDER BY `rank` ASC LIMIT ?",
-    [periodId, limit]
-  );
-  return rows as BoardEntry[];
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      "SELECT casino_id, username, wagered, `rank`, prize FROM final_results WHERE period_id = ? ORDER BY `rank` ASC LIMIT ?",
+      [periodId, limit]
+    );
+    return rows as BoardEntry[];
+  } catch {
+    return [];
+  }
 }
 
 export async function getBlacklistedIds(): Promise<Set<string>> {
-  const [rows] = await getPool().query<RowDataPacket[]>("SELECT casino_id FROM blacklist");
-  return new Set(rows.map((r) => r.casino_id as string));
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>("SELECT casino_id FROM blacklist");
+    return new Set(rows.map((r) => r.casino_id as string));
+  } catch {
+    return new Set();
+  }
 }
 
 export async function getLatestSuccessfulSync(
   periodId: number
 ): Promise<{ cache_updated_at: string | null; fetched_at: string } | null> {
-  const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT cache_updated_at, fetched_at FROM sync_log
-     WHERE period_id = ? AND status = 'success' ORDER BY fetched_at DESC LIMIT 1`,
-    [periodId]
-  );
-  return (rows[0] as { cache_updated_at: string | null; fetched_at: string } | undefined) ?? null;
+  try {
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      `SELECT cache_updated_at, fetched_at FROM sync_log
+       WHERE period_id = ? AND status = 'success' ORDER BY fetched_at DESC LIMIT 1`,
+      [periodId]
+    );
+    return (rows[0] as { cache_updated_at: string | null; fetched_at: string } | undefined) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Rank change since the previous snapshot, by casino_id: +n up, -n down, 0 new/same. */
 export async function getRankDeltas(periodId: number): Promise<Map<string, number>> {
+  try {
   const [snaps] = await getPool().query<RowDataPacket[]>(
     "SELECT DISTINCT snapshot_at FROM rank_snapshots WHERE period_id = ? ORDER BY snapshot_at DESC LIMIT 2",
     [periodId]
@@ -140,6 +176,9 @@ export async function getRankDeltas(periodId: number): Promise<Map<string, numbe
   const prevRank = new Map<string, number>();
   for (const r of rows) prevRank.set(r.casino_id as string, r.rank as number);
   return prevRank;
+  } catch {
+    return new Map();
+  }
 }
 
 // ── writes (cron path) ──
