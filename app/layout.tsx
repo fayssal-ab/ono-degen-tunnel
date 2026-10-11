@@ -1,21 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Unbounded, Inter_Tight, JetBrains_Mono, Bangers } from "next/font/google";
+import localFont from "next/font/local";
+import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { BRAND_NAME, STREAMER, SITE_URL } from "@/lib/constants";
 import { ASSETS } from "@/lib/assets";
 import "./globals.css";
 
-const unbounded = Unbounded({
-  subsets: ["latin"],
-  variable: "--font-unbounded",
+// Display + "bang" titles: Clash Display, self-hosted (the woff2 lives in the
+// repo under app/fonts and is bundled at build — no runtime Google/CSS fetch).
+const clash = localFont({
+  src: "./fonts/ClashDisplay-Variable.woff2",
+  variable: "--font-clash",
   display: "swap",
-  weight: ["400", "500", "700", "800"],
-});
-// Bold display / "bang" titles.
-const bangers = Bangers({
-  subsets: ["latin"],
-  variable: "--font-bangers",
-  display: "swap",
-  weight: "400",
+  weight: "200 700",
 });
 const interTight = Inter_Tight({
   subsets: ["latin"],
@@ -61,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${unbounded.variable} ${interTight.variable} ${jetbrainsMono.variable} ${bangers.variable}`}
+      className={`${clash.variable} ${interTight.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <body>{children}</body>
