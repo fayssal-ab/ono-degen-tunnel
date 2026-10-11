@@ -1,3 +1,4 @@
+import { LiveRefresh } from "./LiveRefresh";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { CommandPalette } from "./CommandPalette";
@@ -10,7 +11,7 @@ import { BackToTop } from "./BackToTop";
 import { PlanetGame } from "@/components/home/PlanetGame";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
-import { getSetting } from "@/lib/settings";
+import { getKickLive } from "@/lib/kickLive";
 import { getHiddenHrefs } from "@/lib/pages";
 
 // Server component. Reads the cached Kick live status (refreshed by
@@ -18,7 +19,7 @@ import { getHiddenHrefs } from "@/lib/pages";
 // so the shell never crashes. No user accounts — the admin reaches /login by
 // URL, so there is no login button in the chrome.
 async function getShellData(): Promise<{ live: boolean; viewers: number | null }> {
-  const kick = await getSetting("kick_live");
+  const kick = await getKickLive();
   return { live: kick.live, viewers: kick.viewers };
 }
 
@@ -27,6 +28,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <LiveRefresh />
       <Preloader />
       <ScrollProgress />
       <StarField />

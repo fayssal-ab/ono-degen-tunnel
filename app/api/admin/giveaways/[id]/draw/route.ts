@@ -1,5 +1,5 @@
 import { isAdminRequest } from "@/lib/admin";
-import { json, jsonError } from "@/lib/http";
+import { json, jsonError, isSameOrigin } from "@/lib/http";
 import { drawWinners } from "@/lib/giveaways";
 import { logAudit } from "@/lib/audit";
 
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isAdminRequest(request)) return jsonError("unauthorized", 401);
+  if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
   const { id } = await params;
   const giveawayId = Number(id);
   if (!Number.isInteger(giveawayId)) return jsonError("bad_id", 400);
@@ -16,12 +17,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let count = 1;
   try {
     const body = await request.json();
-    count = Math.max(1, Math.min(10, Number(body?.count) || 1));
+    count = Number(body?.count ?? 1);
   } catch {
     /* default 1 */
   }
 
-  const winners = await drawWinners(giveawayId, count);
+  if (!Number.isInteger(count) || count < 1 || count > 10) return jsonError("invalid_count", 400);
+  let winners;
+  try { winners = await drawWinners(giveawayId, count); }
+  catch (err) {
+    if (err instanceof Error && err.message === "round_finished") return jsonError("round_finished", 409);
+    throw err;
+  }
   if (winners.length === 0) return jsonError("no_eligible_entrants", 409);
   await logAudit("admin", "giveaway.draw", String(giveawayId), { winners: winners.map((w) => w.username) });
 

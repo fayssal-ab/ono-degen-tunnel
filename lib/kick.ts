@@ -1,5 +1,6 @@
 import "server-only";
 import { createVerify } from "node:crypto";
+import { fetchPublicLiveStatus } from "./kickChat";
 import { KICK_CHANNEL } from "./constants";
 
 // Server-only Kick client — ported from JBALLIN lib/kick.ts. App access token
@@ -34,7 +35,7 @@ async function getAppAccessToken(): Promise<string> {
       client_id: clientId,
       client_secret: clientSecret,
     }),
-    cache: "no-store",
+    cache: "no-store", signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Kick token request failed: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as { access_token: string; expires_in: number };
@@ -51,7 +52,7 @@ async function getChannel(slug: string): Promise<KickChannelData | null> {
   const token = await getAppAccessToken();
   const res = await fetch(`${API_BASE}/channels?slug=${encodeURIComponent(slug)}`, {
     headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
+    cache: "no-store", signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Kick channel lookup failed: ${res.status}`);
   const data = (await res.json()) as { data: KickChannelData[] };
@@ -69,19 +70,17 @@ export interface LiveStatus {
   viewers: number | null;
 }
 
-// Best-effort live status. Returns offline (not an error) when Kick isn't
-// configured or the call fails, so the cron route is always safe to call.
-export async function fetchLiveStatus(slug: string = KICK_CHANNEL): Promise<LiveStatus> {
-  if (!kickConfigured()) return { live: false, viewers: null };
-  try {
-    const channel = await getChannel(slug);
-    return {
-      live: Boolean(channel?.stream?.is_live),
-      viewers: channel?.stream?.viewer_count ?? null,
-    };
-  } catch {
-    return { live: false, viewers: null };
+// Return null on provider failure so callers retain the last known state.
+export async function fetchLiveStatus(slug: string = KICK_CHANNEL): Promise<LiveStatus | null> {
+  if (kickConfigured()) {
+    try {
+      const channel = await getChannel(slug);
+      if (typeof channel?.stream?.is_live === "boolean") return {
+        live: channel.stream.is_live, viewers: channel.stream.viewer_count ?? null,
+      };
+    } catch { /* try the public channel lookup */ }
   }
+  return fetchPublicLiveStatus(slug);
 }
 
 export async function subscribeToChatMessages(broadcasterUserId: number): Promise<unknown> {
@@ -94,7 +93,7 @@ export async function subscribeToChatMessages(broadcasterUserId: number): Promis
       events: [{ name: "chat.message.sent", version: 1 }],
       method: "webhook",
     }),
-    cache: "no-store",
+    cache: "no-store", signal: AbortSignal.timeout(8000),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(`Kick subscribe failed: ${res.status} ${JSON.stringify(data)}`);

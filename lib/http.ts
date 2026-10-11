@@ -30,15 +30,14 @@ export function isCronAuthorized(request: Request): boolean {
 /** Origin check for state-changing POSTs (CSRF-safe alongside SameSite=Lax). */
 export function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return true; // same-origin navigations omit Origin
+  if (!origin) return request.headers.get("sec-fetch-site") !== "cross-site";
   const site = process.env.NEXT_PUBLIC_SITE_URL;
   try {
     const o = new URL(origin);
     const allowed = new Set<string>();
-    if (site) allowed.add(new URL(site).host);
-    const host = request.headers.get("host");
-    if (host) allowed.add(host);
-    return allowed.has(o.host);
+    if (site) allowed.add(new URL(site).origin);
+    allowed.add(new URL(request.url).origin);
+    return allowed.has(o.origin);
   } catch {
     return false;
   }

@@ -78,8 +78,8 @@ export function GiveawayVerifier({ serverSeedHash, serverSeed, entrants, winners
     return (
       <div className="surface flex items-center gap-3 p-5 text-sm text-text-1">
         <Icon name="Clock" className="h-5 w-5 text-text-2" />
-        This giveaway hasn&rsquo;t been drawn yet. The seed is revealed here the moment it is — until
-        then only its hash is public, which is what makes the draw tamper-proof.
+        The seed is revealed when the host finishes the round, after all draws and rerolls. Until
+        then the committed hash stays public. Finishing the round lets anyone reproduce the recorded picks.
       </div>
     );
   }
@@ -92,7 +92,7 @@ export function GiveawayVerifier({ serverSeedHash, serverSeed, entrants, winners
       <div className={`surface flex items-center gap-3 p-5 ${allOk ? "gold-border" : ""}`}>
         <Icon name={allOk ? "ShieldCheck" : "ShieldAlert"} className={`h-6 w-6 ${allOk ? "text-volt" : "text-danger"}`} />
         <div>
-          <p className="font-medium text-text-0">{allOk ? "Verified — this draw is legit" : "Verification failed"}</p>
+          <p className="font-medium text-text-0">{allOk ? "Verified — recorded picks match" : "Verification failed"}</p>
           <p className="text-xs text-text-2">Recomputed entirely in your browser from the published seed.</p>
         </div>
       </div>

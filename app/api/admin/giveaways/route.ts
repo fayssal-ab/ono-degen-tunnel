@@ -14,7 +14,7 @@ const Body = z.object({
   keyword: z.string().trim().max(64).optional(),
   entry_condition: z.string().trim().max(255).optional(),
   subscribers_only: z.boolean().optional(),
-  ends_at: z.string().trim().max(40).optional(),
+  ends_at: z.string().trim().max(40).refine((v) => !v || Number.isFinite(Date.parse(v)), "invalid_date").optional(),
 });
 
 export async function POST(request: Request) {

@@ -52,7 +52,7 @@ export default async function VerifyDrawPage({ params }: { params: Promise<{ id:
       <section className="surface space-y-4 p-6">
         <h2 className="text-lg">Published inputs</h2>
         <Field label="Server seed hash (committed before the draw)" value={v.serverSeedHash} />
-        <Field label="Server seed (revealed after the draw)" value={v.serverSeed ?? "not revealed yet"} />
+        <Field label="Server seed (revealed when the round finishes)" value={v.serverSeed ?? "not revealed yet"} />
         <div>
           <p className="label">Entrants ({v.entrants.length}) — in draw order</p>
           {v.entrants.length === 0 ? (
@@ -76,7 +76,7 @@ export default async function VerifyDrawPage({ params }: { params: Promise<{ id:
         <p>1. A random <span className="font-mono">server seed</span> is generated when the giveaway is created, and only its <span className="font-mono">SHA-256</span> hash is published — so the seed is locked in before anyone knows who will enter.</p>
         <p>2. At draw time the ordered entrant list is hashed: <span className="font-mono">entries_hash = SHA256(name₀\nname₁\n…)</span>.</p>
         <p>3. Each winner index = <span className="font-mono">HMAC_SHA256(seed, entries_hash:nonce)</span>, first 13 hex digits → integer → mod entrant count. <span className="font-mono">nonce</span> counts up per winner.</p>
-        <p>4. The seed is revealed. The check above re-runs all of this in your browser — if it matches, the result could not have been tampered with.</p>
+        <p>4. The seed is revealed. The check above re-runs all of this in your browser — if it matches, the published seed and entrant snapshot reproduce the recorded picks.</p>
       </section>
     </div>
   );

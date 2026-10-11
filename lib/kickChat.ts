@@ -24,6 +24,7 @@ const TTL = 10 * 60 * 1000;
 
 interface KickChannel {
   chatroom?: { id?: number };
+  livestream?: { viewer_count?: number; is_live?: boolean } | null;
   user?: { profile_pic?: string | null; username?: string };
 }
 
@@ -92,3 +93,12 @@ export const KICK_PUSHER = {
   channel: (chatroomId: number) => `chatrooms.${chatroomId}.v2`,
   chatEvent: "App\\Events\\ChatMessageEvent",
 } as const;
+
+// Public fallback when OAuth credentials are unavailable. Never turn a failed
+// lookup into a confirmed offline state.
+export async function fetchPublicLiveStatus(slug: string): Promise<{ live: boolean; viewers: number | null } | null> {
+  const channel = await fetchChannelJson(slug, 4);
+  if (!channel || !Object.prototype.hasOwnProperty.call(channel, "livestream")) return null;
+  return { live: Boolean(channel.livestream && channel.livestream.is_live !== false),
+    viewers: channel.livestream?.viewer_count ?? null };
+}

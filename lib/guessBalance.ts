@@ -1,5 +1,5 @@
 import "server-only";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket, PoolConnection } from "mysql2/promise";
 import { getPool } from "./db";
 import { maskUsername } from "./mask";
 
@@ -26,23 +26,16 @@ export interface GbGuess {
 
 export const GB_COMMAND_RE = /^!gb\s+\$?(\d+(?:\.\d+)?)/i;
 
-// Called by the Kick webhook for every chat message. Parses `!gb <amount>`
-// and records the guess into the open round (latest guess per user wins).
-// Never throws.
-export async function recordBalanceGuessIfActive(username: string, content: string): Promise<void> {
-  try {
-    const match = content.trim().match(GB_COMMAND_RE);
-    if (!match) return;
-    const round = await getCurrentRound();
-    if (!round || round.status !== "open") return;
-    await getPool().query(
-      `INSERT INTO gb_guesses (round_id, kick_username, amount) VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE amount = VALUES(amount)`,
-      [round.id, username, match[1]]
-    );
-  } catch {
-    /* never wedge the webhook */
-  }
+// Called inside the webhook transaction; don't acknowledge failed writes.
+export async function recordBalanceGuessIfActive(username: string, content: string, conn: PoolConnection): Promise<void> {
+  const match = content.trim().match(GB_COMMAND_RE);
+  if (!match) return;
+  const [rounds] = await conn.query<RowDataPacket[]>("SELECT id FROM gb_rounds WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1 FOR UPDATE");
+  if (!rounds[0]) return;
+  await conn.query(
+    `INSERT INTO gb_guesses (round_id, kick_username, amount) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE amount = VALUES(amount)`, [rounds[0].id, username, match[1]]
+  );
 }
 
 export async function getCurrentRound(): Promise<GbRound | null> {

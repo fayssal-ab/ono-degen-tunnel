@@ -3,8 +3,8 @@ import type { RowDataPacket } from "mysql2";
 import { getPool } from "./db";
 
 // Fixed-window rate limiter. Uses Upstash if UPSTASH_* is set (prompt §7.8),
-// otherwise a DB-backed window in `rate_limits`. Fails OPEN on any backend
-// error — a limiter outage must not take the site down.
+// otherwise a DB-backed window in `rate_limits`. Login fails closed on backend
+// errors; public searches remain available.
 export interface RateResult {
   ok: boolean;
   remaining: number;
@@ -20,16 +20,19 @@ async function upstashLimit(bucket: string, max: number, windowSec: number): Pro
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
+    if (!incr.ok) throw new Error("rate_limit_backend_failed");
     const { result } = (await incr.json()) as { result: number };
+    if (!Number.isInteger(result) || result < 1) throw new Error("rate_limit_invalid_count");
     if (result === 1) {
-      await fetch(`${url}/expire/${encodeURIComponent(key)}/${windowSec}`, {
+      const expire = await fetch(`${url}/expire/${encodeURIComponent(key)}/${windowSec}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
+      if (!expire.ok) throw new Error("rate_limit_expiry_failed");
     }
     return { ok: result <= max, remaining: Math.max(0, max - result) };
   } catch {
-    return { ok: true, remaining: max }; // fail open
+    return bucket.startsWith("login:") ? { ok: false, remaining: 0 } : { ok: true, remaining: max };
   }
 }
 
@@ -52,7 +55,7 @@ async function dbLimit(bucket: string, max: number, windowSec: number): Promise<
     const tokens = (rows[0]?.tokens as number) ?? 1;
     return { ok: tokens <= max, remaining: Math.max(0, max - tokens) };
   } catch {
-    return { ok: true, remaining: max }; // fail open
+    return bucket.startsWith("login:") ? { ok: false, remaining: 0 } : { ok: true, remaining: max };
   }
 }
 

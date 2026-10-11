@@ -1,20 +1,12 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 
-// Admin auth — ported from JBALLIN and extended with a username. There is no
-// public user system; this is the ONLY login, reached by visiting /login
-// directly. The cookie IS sha256(ADMIN_PASSWORD): any request presenting that
-// exact hash is admin. Rotating ADMIN_PASSWORD invalidates every cookie for
-// free, and there is no session table to manage.
-//
-// Credentials come from env: ADMIN_USERNAME (default "admin") + ADMIN_PASSWORD.
+import { createAdminSession, verifyAdminSession } from "./adminSession";
+
+// Signed, expiring admin sessions. Password rotation invalidates all sessions.
 export const ADMIN_COOKIE_NAME = "odt_admin";
 const ONE_WEEK = 60 * 60 * 24 * 7;
-
-function sha256(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
 
 function safeEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a);
@@ -25,7 +17,7 @@ function safeEqual(a: string, b: string): boolean {
 export function adminToken(): string {
   const password = process.env.ADMIN_PASSWORD;
   if (!password) throw new Error("ADMIN_PASSWORD is not set");
-  return sha256(password);
+  return createAdminSession(password);
 }
 
 /** Validate a /login submission against the env credentials (timing-safe). */
@@ -59,7 +51,7 @@ export async function isAdminSession(): Promise<boolean> {
   const token = store.get(ADMIN_COOKIE_NAME)?.value;
   if (!token) return false;
   try {
-    return safeEqual(token, adminToken());
+    return verifyAdminSession(token, process.env.ADMIN_PASSWORD ?? "");
   } catch {
     return false;
   }
@@ -73,9 +65,9 @@ export function isAdminRequest(request: Request): boolean {
     .map((c) => c.trim())
     .find((c) => c.startsWith(`${ADMIN_COOKIE_NAME}=`));
   if (!match) return false;
-  const token = decodeURIComponent(match.slice(ADMIN_COOKIE_NAME.length + 1));
   try {
-    return safeEqual(token, adminToken());
+    const token = decodeURIComponent(match.slice(ADMIN_COOKIE_NAME.length + 1));
+    return verifyAdminSession(token, process.env.ADMIN_PASSWORD ?? "");
   } catch {
     return false;
   }

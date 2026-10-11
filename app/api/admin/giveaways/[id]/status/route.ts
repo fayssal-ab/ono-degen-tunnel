@@ -24,7 +24,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return jsonError("invalid_body", 400);
   }
 
-  await setGiveawayStatus(giveawayId, body.status);
+  try { await setGiveawayStatus(giveawayId, body.status); }
+  catch (err) {
+    if (err instanceof Error && ["round_already_drawn", "giveaway_expired", "use_draw_action", "draw_pool_locked"].includes(err.message)) return jsonError(err.message, 409);
+    throw err;
+  }
   await logAudit("admin", "giveaway.listen", String(giveawayId), body);
   return json({ ok: true });
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { KICK_PLAYER_URL, KICK_CHANNEL, KICK_URL, STREAMER } from "@/lib/constants";
-import { getSetting } from "@/lib/settings";
+import { KICK_PLAYER_URL, KICK_URL, STREAMER } from "@/lib/constants";
+import { getKickLive } from "@/lib/kickLive";
 import { getStreamSchedule, WEEKDAYS } from "@/lib/stream";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge, SectionHeading } from "@/components/ui/Badge";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StreamPage() {
   if (!(await isPageEnabled("/stream"))) notFound();
-  const [kick, schedule] = await Promise.all([getSetting("kick_live"), getStreamSchedule()]);
+  const [kick, schedule] = await Promise.all([getKickLive(), getStreamSchedule()]);
 
   return (
     <div className="space-y-10">
@@ -53,16 +53,18 @@ export default async function StreamPage() {
           )}
         </div>
 
-        {/* chat */}
-        <div className="surface hidden overflow-hidden lg:block">
-          <div className="h-full min-h-[420px]">
-            <iframe
-              src={`https://kick.com/${KICK_CHANNEL}/chatroom`}
-              title="Kick chat"
-              className="h-full w-full"
-            />
+        <aside className="surface relative flex flex-col justify-between overflow-hidden p-7">
+          <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_top_right,color-mix(in_srgb,var(--color-volt)_12%,transparent),transparent_65%)]" />
+          <div className="relative">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-volt/30 bg-volt/10 text-volt"><Icon name="MessageCircle" className="h-6 w-6" /></span>
+            <p className="label mt-8 text-volt">The ONO community</p>
+            <h2 className="mt-3 text-2xl">Join the live chat</h2>
+            <p className="mt-4 text-sm leading-relaxed text-text-1">Talk with the crew, enter giveaways and catch every drop directly on Kick.</p>
           </div>
-        </div>
+          <a href={KICK_URL} target="_blank" rel="noreferrer" className="press relative mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-volt/40 bg-volt/10 text-sm font-semibold text-volt hover:bg-volt hover:text-bg-0">
+            Open Kick chat <Icon name="ArrowUpRight" className="h-4 w-4" />
+          </a>
+        </aside>
       </div>
 
       {/* schedule */}

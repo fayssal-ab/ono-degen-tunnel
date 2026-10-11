@@ -60,7 +60,7 @@ export default async function RacesPage() {
                 </div>
                 <p className="mt-1 font-mono text-sm text-gold">{formatMoney(race.prize_pool)} pool</p>
               </div>
-              <Countdown target={new Date(race.end_at).toISOString()} />
+              <Countdown target={new Date(race.end_at.replace(" ", "T") + "Z").toISOString()} />
             </div>
 
             {entries.length === 0 ? (

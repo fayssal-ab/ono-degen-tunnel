@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import type { ResultSetHeader } from "mysql2";
 import { verifyKickWebhookSignature } from "@/lib/kick";
 import { getPool } from "@/lib/db";
@@ -11,26 +12,11 @@ import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
 // double-count an entry (prompt §7.9). Ported from JBALLIN.
 export const dynamic = "force-dynamic";
 
-interface ChatPayload {
-  content: string;
-  sender: {
-    username: string;
-    profile_picture?: string | null;
-    identity?: { badges?: { type: string }[] };
-  };
-}
-
-async function seenBefore(messageId: string): Promise<boolean> {
-  try {
-    const [res] = await getPool().query<ResultSetHeader>(
-      "INSERT IGNORE INTO kick_webhook_seen (message_id) VALUES (?)",
-      [messageId]
-    );
-    return res.affectedRows === 0; // 0 = row already existed
-  } catch {
-    return false; // on error, process rather than silently drop
-  }
-}
+const ChatPayload = z.object({
+  content: z.string().max(10000),
+  sender: z.object({ username: z.string().min(1).max(191), profile_picture: z.string().nullable().optional(),
+    identity: z.object({ badges: z.array(z.object({ type: z.string() })).optional() }).nullable().optional() }),
+});
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -38,33 +24,29 @@ export async function POST(request: Request) {
   const timestamp = request.headers.get("kick-event-message-timestamp");
   const signature = request.headers.get("kick-event-signature");
   const eventType = request.headers.get("kick-event-type");
-
-  if (!messageId || !timestamp || !signature) {
-    return NextResponse.json({ error: "missing_signature_headers" }, { status: 400 });
-  }
-
-  const valid = await verifyKickWebhookSignature({ messageId, timestamp, rawBody, signatureBase64: signature });
-  if (!valid) return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
-
-  if (eventType !== "chat.message.sent") return NextResponse.json({ ok: true });
-  if (await seenBefore(messageId)) return NextResponse.json({ ok: true, deduped: true });
-
-  let payload: ChatPayload;
+  if (!messageId || !timestamp || !signature) return NextResponse.json({ error: "missing_signature_headers" }, { status: 400 });
   try {
-    payload = JSON.parse(rawBody) as ChatPayload;
-  } catch {
+    const valid = await verifyKickWebhookSignature({ messageId, timestamp, rawBody, signatureBase64: signature });
+    if (!valid) return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
+    if (eventType !== "chat.message.sent") return NextResponse.json({ ok: true });
+    const parsed = ChatPayload.safeParse(JSON.parse(rawBody));
+    if (!parsed.success) return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+    const payload = parsed.data;
+    const conn = await getPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      const [res] = await conn.query<ResultSetHeader>("INSERT IGNORE INTO kick_webhook_seen (message_id) VALUES (?)", [messageId]);
+      if (!res.affectedRows) { await conn.commit(); return NextResponse.json({ ok: true, deduped: true }); }
+      const subscriber = payload.sender.identity?.badges?.some((b) => b.type === "subscriber") ?? false;
+      await recordChatEntry(payload.sender.username, payload.content, payload.sender.profile_picture ?? null, subscriber, conn);
+      await recordBalanceGuessIfActive(payload.sender.username, payload.content, conn);
+      await conn.commit();
+    } catch (err) { await conn.rollback(); throw err; }
+    finally { conn.release(); }
     return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof SyntaxError) return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+    console.error("Kick webhook processing failed");
+    return NextResponse.json({ error: "processing_failed" }, { status: 503 });
   }
-
-  const username = payload.sender?.username;
-  if (!username) return NextResponse.json({ ok: true });
-  const avatar = payload.sender.profile_picture ?? null;
-  const isSub = payload.sender.identity?.badges?.some((b) => b.type === "subscriber") ?? false;
-
-  await Promise.all([
-    recordChatEntry(username, payload.content ?? "", avatar, isSub),
-    recordBalanceGuessIfActive(username, payload.content ?? ""),
-  ]);
-
-  return NextResponse.json({ ok: true });
 }

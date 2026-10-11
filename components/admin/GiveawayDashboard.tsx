@@ -17,6 +17,7 @@ interface Entry {
   platform: "kick";
   isSubscriber: boolean;
   excluded: boolean;
+  eligible: boolean;
   createdAt: string;
 }
 interface Winner {
@@ -25,11 +26,11 @@ interface Winner {
   platform: string;
 }
 interface Data {
-  giveaway: { id: number; title: string; prize: string; status: string; keyword: string | null; subscribersOnly: boolean };
+  giveaway: { id: number; title: string; prize: string; status: string; keyword: string | null; subscribersOnly: boolean; minMessages: number; acceptingEntries: boolean; poolLocked: boolean };
   kickConfigured: boolean;
   entries: Entry[];
   eligibleCount: number;
-  winners: { username: string; avatar: string | null }[];
+  winners: { username: string; avatar: string | null; nonce: number }[];
 }
 
 // ── WebAudio SFX (no asset files) ──
@@ -139,12 +140,13 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
 
   const stripRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const reelRef = useRef<Entry[]>([]);
+  const [reelEntries, setReelEntries] = useState<Entry[]>([]);
   const spinningRef = useRef(false);
 
   const g = data.giveaway;
-  const listening = g.status === "open";
-  const eligible = data.entries.filter((e) => !e.excluded);
+  const listening = g.acceptingEntries;
+  const finished = g.status === "closed" && g.poolLocked;
+  const eligible = data.entries.filter((e) => e.eligible);
 
   const refresh = useCallback(async () => {
     try {
@@ -289,17 +291,32 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
 
   async function toggleListening() {
     setBusy(true);
-    const next = listening ? "closed" : "open";
+    const next = g.poolLocked || listening ? "closed" : "open";
     try {
       const res = await post("/status", { status: next });
       if (!res.ok) throw new Error();
       await refresh();
-      flash(next === "open" ? "Listening to Kick chat" : "Stopped listening");
+      flash(next === "open" ? "Listening to Kick chat" : g.poolLocked ? "Round finished — results are now verifiable" : "Stopped listening");
     } catch {
       flash("Couldn't update listening state");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function toggleFilter(key: string) {
+    if (busy || spinning || g.poolLocked) return;
+    setBusy(true);
+    try {
+      const res = await post("/filters", {
+        subscribersOnly: key === "subs" ? !g.subscribersOnly : g.subscribersOnly,
+        minMessages: key === "active" ? (g.minMessages > 1 ? 1 : 2) : g.minMessages,
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      flash("Entry rules updated");
+    } catch { flash("Couldn't update entry rules"); }
+    finally { setBusy(false); }
   }
 
   async function exclude(username: string, excluded: boolean) {
@@ -316,10 +333,11 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
   async function addTest() {
     setBusy(true);
     try {
-      await post("/test");
+      const res = await post("/test");
+      if (!res.ok) throw new Error();
       await refresh();
       flash("Added test entrants (preview)");
-    } finally {
+    } catch { flash("Start a new round before adding test entrants"); } finally {
       setBusy(false);
     }
   }
@@ -327,11 +345,12 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
     if (!confirm("Clear ALL entries and winners for this giveaway?")) return;
     setBusy(true);
     try {
-      await post("/test", undefined, "DELETE");
-      reelRef.current = [];
+      const res = await post("/test", undefined, "DELETE");
+      if (!res.ok) throw new Error();
+      setReelEntries([]);
       await refresh();
-      flash("Entries cleared");
-    } finally {
+      flash("New round ready");
+    } catch { flash("Couldn't reset the round"); } finally {
       setBusy(false);
     }
   }
@@ -340,14 +359,14 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
     const base =
       eligible.length > 0
         ? eligible
-        : [{ username: winner.username, avatar: winner.avatar, platform: "kick", isSubscriber: false, excluded: false, createdAt: "" } as Entry];
+        : [{ username: winner.username, avatar: winner.avatar, platform: "kick", isSubscriber: false, excluded: false, eligible: true, createdAt: "" } as Entry];
     const seq: Entry[] = [];
     const shuffled = () => [...base].sort(() => Math.random() - 0.5);
     while (seq.length < 44) seq.push(...shuffled());
     const landing = seq.length;
     const winnerEntry =
       data.entries.find((e) => e.username.toLowerCase() === winner.username.toLowerCase()) ??
-      ({ username: winner.username, avatar: winner.avatar, platform: "kick", isSubscriber: false, excluded: false, createdAt: "" } as Entry);
+      ({ username: winner.username, avatar: winner.avatar, platform: "kick", isSubscriber: false, excluded: false, eligible: true, createdAt: "" } as Entry);
     seq.push(winnerEntry);
     for (let i = 0; i < 6; i++) seq.push(...shuffled().slice(0, 1));
     return { items: seq.slice(0, landing + 7), landing };
@@ -356,7 +375,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
   function runReel(winner: Winner, onDone: () => void) {
     const reduce = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     const { items, landing } = buildReel(winner);
-    reelRef.current = items;
+    setReelEntries(items);
     setData((d) => ({ ...d }));
     requestAnimationFrame(() => {
       const vp = viewportRef.current;
@@ -417,7 +436,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
 
   const winnerEntry = modalWinner ? data.entries.find((e) => e.username.toLowerCase() === modalWinner.username.toLowerCase()) : null;
   const filtered = data.entries.filter((e) => e.username.toLowerCase().includes(search.trim().toLowerCase()));
-  const reelItems = reelRef.current.length > 0 ? reelRef.current : eligible;
+  const reelItems = reelEntries.length > 0 ? reelEntries : eligible;
 
   return (
     <div className="space-y-4">
@@ -428,7 +447,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
       )}
 
       {/* vault */}
-      <div className="surface gold-border space-y-5 p-5 md:p-6">
+      <div className="surface gold-border relative space-y-5 overflow-hidden p-5 md:p-6 [background:radial-gradient(ellipse_at_top_right,rgba(126,67,226,0.12),transparent_65%),var(--color-bg-1)]">
         {/* header */}
         <div className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
           <Icon name="Gift" className="h-6 w-6 text-gold" />
@@ -445,7 +464,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
               />
             </span>
             <span className="text-text-1">
-              {!listening ? "Ready" : liveStatus === "connected" ? "Kick chat connected" : liveStatus === "error" ? "Chat unreachable" : "Connecting…"}
+              {!listening ? (finished ? "Round finished" : g.poolLocked ? "Ready to reroll" : "Not listening") : liveStatus === "connected" ? "Kick chat connected" : liveStatus === "error" ? "Chat unreachable" : "Connecting…"}
             </span>
           </div>
           <button onClick={() => setMuted((m) => !m)} className="press grid h-9 w-9 place-items-center rounded-lg border border-line text-text-1 hover:text-text-0" aria-label={muted ? "Unmute" : "Mute"}>
@@ -479,13 +498,13 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
           </div>
           <button
             onClick={toggleListening}
-            disabled={busy}
+            disabled={busy || spinning || finished}
             className={`press inline-flex h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold disabled:opacity-50 ${
               listening ? "border border-volt/50 bg-volt/10 text-volt" : "bg-volt text-bg-0 hover:brightness-110"
             }`}
           >
             <Icon name={listening ? "Radio" : "Play"} className={`h-4 w-4 ${listening ? "animate-pulse" : ""}`} />
-            {listening ? "Listening to chat…" : "Start listening"}
+            {finished ? "Round finished" : g.poolLocked ? "Finish & reveal results" : listening ? "Stop listening" : "Start listening"}
           </button>
         </div>
 
@@ -518,10 +537,14 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         <div>
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((f) => {
-              const active = f.key === "subs" ? g.subscribersOnly : f.key === "active";
+              const active = f.key === "subs" ? g.subscribersOnly : f.key === "active" && g.minMessages > 1;
               return (
-                <span
+                <button
+                  type="button"
                   key={f.key}
+                  onClick={() => toggleFilter(f.key)}
+                  disabled={!f.available || busy || spinning || g.poolLocked}
+                  aria-pressed={active}
                   title={f.available ? (active ? "Active" : "Off") : "Not available from Kick chat events"}
                   className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs ${
                     active
@@ -533,11 +556,11 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
                 >
                   <Icon name={active ? "SquareCheckBig" : f.available ? "Square" : "Lock"} className="h-3.5 w-3.5" />
                   {f.label}
-                </span>
+                </button>
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-text-2">Subscribed is enforced (Kick exposes it); Active = anyone who entered via chat. VIPs / Gifted aren&rsquo;t in Kick&rsquo;s chat events, so they&rsquo;re locked rather than faked.</p>
+          <p className="mt-2 text-xs text-text-2">Active requires at least 2 matching chat messages. Subscribed requires a Kick subscription. Rules lock after the first draw. Repeat wins are allowed.</p>
         </div>
 
         {/* reel */}
@@ -561,7 +584,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         {/* roll */}
         <button
           onClick={draw}
-          disabled={spinning || eligible.length === 0}
+          disabled={spinning || busy || finished || eligible.length === 0}
           className="press relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gold text-base font-extrabold uppercase tracking-wide text-bg-0 hover:bg-gold-hi disabled:opacity-50"
         >
           {spinning ? (
@@ -570,7 +593,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
             </>
           ) : (
             <>
-              <Icon name="Sparkles" className="h-5 w-5" /> Roll winner
+              <Icon name="Sparkles" className="h-5 w-5" /> {finished ? "Round finished" : "Roll winner"}
             </>
           )}
         </button>
@@ -578,15 +601,15 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         {/* winners + test tools */}
         <div className="flex flex-wrap items-center gap-2">
           {data.winners.map((w) => (
-            <span key={w.username} className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs text-gold">
+            <span key={w.nonce} className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs text-gold">
               <Icon name="Trophy" className="h-3 w-3" /> {w.username}
             </span>
           ))}
           <div className="ml-auto flex items-center gap-2">
-            <button onClick={addTest} disabled={busy} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:text-text-0 disabled:opacity-50" title="Load sample entrants to rehearse the reel">
+            <button onClick={addTest} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:text-text-0 disabled:opacity-50" title="Load sample entrants to rehearse the reel">
               <Icon name="FlaskConical" className="h-3.5 w-3.5" /> Add test entrants
             </button>
-            <button onClick={clearAll} disabled={busy} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:border-danger hover:text-danger disabled:opacity-50">
+            <button onClick={clearAll} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:border-danger hover:text-danger disabled:opacity-50">
               <Icon name="Trash2" className="h-3.5 w-3.5" /> Clear
             </button>
           </div>
@@ -632,7 +655,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
                   <p className="text-xs text-text-2">{e.createdAt ? new Date(e.createdAt.replace(" ", "T") + "Z").toLocaleTimeString() : "—"}</p>
                 </div>
                 <span className="rounded-md border border-line px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-2">Kick</span>
-                <button onClick={() => exclude(e.username, !e.excluded)} className="press grid h-8 w-8 place-items-center rounded-lg border border-line text-text-2 hover:text-text-0" title={e.excluded ? "Restore" : "Exclude"}>
+                <button onClick={() => exclude(e.username, !e.excluded)} disabled={g.poolLocked || spinning || busy} className="press grid h-8 w-8 place-items-center rounded-lg border border-line text-text-2 hover:text-text-0" title={e.excluded ? "Restore" : "Exclude"}>
                   <Icon name={e.excluded ? "RotateCcw" : "Ban"} className="h-4 w-4" />
                 </button>
               </div>

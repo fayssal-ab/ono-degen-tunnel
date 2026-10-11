@@ -1,3 +1,4 @@
+import { entryEligible, collectionOpen } from "@/lib/giveawayRules";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { isAdminSession } from "@/lib/admin";
@@ -19,7 +20,7 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
   if (!g) notFound();
 
   const [entries, winners] = await Promise.all([getEntries(giveawayId), getWinners(giveawayId)]);
-  const eligible = entries.filter((e) => !e.excluded);
+  const eligible = entries.filter((e) => entryEligible(e, g));
 
   const initial = {
     giveaway: {
@@ -29,6 +30,9 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
       status: g.status,
       keyword: g.keyword,
       subscribersOnly: g.subscribers_only,
+      minMessages: g.min_messages,
+      acceptingEntries: collectionOpen(g),
+      poolLocked: winners.length > 0 || g.needs_reset,
     },
     kickConfigured: kickConfigured(),
     entries: entries.map((e) => ({
@@ -37,10 +41,11 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
       platform: "kick" as const,
       isSubscriber: e.is_subscriber,
       excluded: e.excluded,
+      eligible: entryEligible(e, g),
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce })),
   };
 
   return (

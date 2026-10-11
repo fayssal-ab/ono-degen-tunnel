@@ -51,7 +51,7 @@ export function GiveawayAdminBar({ giveaways, selectedId }: { giveaways: Giveawa
           keyword: fd.get("keyword"),
           entry_condition: fd.get("entry_condition"),
           subscribers_only: fd.get("subscribers_only") === "on",
-          ends_at: fd.get("ends_at") || undefined,
+          ends_at: fd.get("ends_at") ? new Date(String(fd.get("ends_at"))).toISOString() : undefined,
         }),
       });
       if (!res.ok) throw new Error();

@@ -44,8 +44,11 @@ masked server-side; money is `DECIMAL(20,8)`; `final_results` is immutable.
 
 Entries come from **Kick chat**, read live in the browser via Kick's public chat
 socket (unofficial — Kick publishes no chat API). The winner is chosen
-server-side (provably fair, HMAC over a committed seed) and verifiable on
-`/verify/{id}`. Set `KICK_CHATROOM_ID` for your channel (find it at
+server-side (HMAC over a committed seed); repeated wins are allowed. The first
+draw locks the eligible entrants. Use **Finish & reveal results** after the last
+reroll to publish the seed on `/verify/{id}`. **Clear** starts a new round with a
+fresh seed and clears the previous entries/results. Subscriber and Active
+(at least two matching chat messages) filters are editable before the first draw. Set `KICK_CHATROOM_ID` for your channel (find it at
 `kick.com/api/v2/channels/<slug>` → `chatroom.id`).
 
 ## Notes

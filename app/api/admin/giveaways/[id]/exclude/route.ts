@@ -22,7 +22,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return jsonError("invalid_body", 400);
   }
 
-  await setEntryExcluded(giveawayId, body.username, body.excluded);
+  try { await setEntryExcluded(giveawayId, body.username, body.excluded); }
+  catch (err) {
+    if (err instanceof Error && ["round_already_drawn", "giveaway_expired", "use_draw_action", "draw_pool_locked"].includes(err.message)) return jsonError(err.message, 409);
+    throw err;
+  }
   await logAudit("admin", "giveaway.exclude", String(giveawayId), body);
   return json({ ok: true });
 }

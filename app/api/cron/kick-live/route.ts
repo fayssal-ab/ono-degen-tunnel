@@ -10,6 +10,7 @@ async function handle(request: Request) {
   if (!isCronAuthorized(request)) return jsonError("unauthorized", 401);
   try {
     const status = await fetchLiveStatus();
+    if (!status) return jsonError("kick_status_unavailable", 502);
     const payload = {
       live: status.live,
       viewers: status.viewers,

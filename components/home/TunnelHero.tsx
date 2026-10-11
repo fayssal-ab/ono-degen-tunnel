@@ -1,3 +1,4 @@
+import { Universe } from "./Universe";
 import { ButtonLink } from "@/components/ui/Button";
 import { CopyChip } from "@/components/ui/CopyChip";
 import { Magnetic } from "@/components/ui/Magnetic";
@@ -9,7 +10,7 @@ import { BRAND_NAME, STREAMER, KICK_URL, CASINO_CODE } from "@/lib/constants";
 // GameVerse Mega-prize banner): the CSS tunnel rings drift behind on the right,
 // a left-aligned content column carries the kicker → huge title → lead → action
 // row → an inline real-stats strip. Colours stay 100% ONO tokens.
-const RINGS = 9;
+
 
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
@@ -29,21 +30,7 @@ export function TunnelHero({
 
   return (
     <section className="surface relative isolate overflow-hidden px-6 py-16 md:px-12 md:py-24 lg:py-28">
-      {/* rings fly toward the viewer, biased to the right so the copy stays clear */}
-      <div className="tunnel-stage pointer-events-none absolute inset-0 left-auto w-[75%] translate-x-[18%]" aria-hidden>
-        {Array.from({ length: RINGS }).map((_, i) => (
-          <span
-            key={i}
-            className="tunnel-ring"
-            style={
-              {
-                animationDelay: `${(7 / RINGS) * i}s`,
-                "--ring-scale": `${0.2 + i * 0.16}`,
-              } as React.CSSProperties
-            }
-          />
-        ))}
-      </div>
+      <Universe />
       {/* readability washes: darken the left column + soften the ring edges */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -103,7 +90,7 @@ export function TunnelHero({
 
         {hasStats && (
           <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-line pt-6">
-            <HeroStat label="Paid out all-time" value={formatMoneyCompact(stats!.paidOut)} />
+            <HeroStat label="Prizes awarded" value={formatMoneyCompact(stats!.paidOut)} />
             <HeroStat label="Players on the board" value={stats!.players.toLocaleString()} />
             <HeroStat label="Giveaways run" value={stats!.giveaways.toLocaleString()} />
           </div>

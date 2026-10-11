@@ -34,15 +34,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   async headers() {
     return [
-      // The OBS overlay must be embeddable in a browser source, so it is
-      // deliberately excluded from the global X-Frame-Options: DENY below by
-      // ordering — Next applies the first matching source, so the overlay
-      // rule comes first with a permissive frame policy.
-      {
-        source: "/overlay/:path*",
-        headers: [{ key: "X-Content-Type-Options", value: "nosniff" }],
-      },
-      { source: "/:path*", headers: securityHeaders },
+      { source: "/((?!overlay(?:/|$)).*)", headers: securityHeaders },
+      { source: "/overlay/:path*", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }] },
     ];
   },
 };

@@ -9,11 +9,13 @@
 //   4. reveal:   server_seed is published; recompute steps 1–3 to verify.
 //
 // nonce increments per winner so a multi-winner draw stays reproducible and
-// never repeats a pick.
+// permits repeat winners.
 import { createHash, createHmac, randomBytes } from "node:crypto";
 
 export function generateServerSeed(): string {
-  return randomBytes(32).toString("hex");
+  // Version marker distinguishes seeds that legacy releases already revealed.
+  // Still 248 bits of entropy, within the existing CHAR(64) column.
+  return "v2" + randomBytes(31).toString("hex");
 }
 
 export function sha256(input: string): string {

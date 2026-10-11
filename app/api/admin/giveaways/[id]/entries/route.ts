@@ -1,3 +1,4 @@
+import { entryEligible, collectionOpen } from "@/lib/giveawayRules";
 import { isAdminRequest } from "@/lib/admin";
 import { json, jsonError } from "@/lib/http";
 import { kickConfigured } from "@/lib/kick";
@@ -17,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!g) return jsonError("not_found", 404);
 
   const [entries, winners] = await Promise.all([getEntries(giveawayId), getWinners(giveawayId)]);
-  const eligible = entries.filter((e) => !e.excluded);
+  const eligible = entries.filter((e) => entryEligible(e, g));
 
   return json({
     giveaway: {
@@ -27,6 +28,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       status: g.status,
       keyword: g.keyword,
       subscribersOnly: g.subscribers_only,
+      minMessages: g.min_messages,
+      acceptingEntries: collectionOpen(g),
+      poolLocked: winners.length > 0 || g.needs_reset,
     },
     kickConfigured: kickConfigured(),
     entries: entries.map((e) => ({
@@ -35,9 +39,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       platform: "kick" as const,
       isSubscriber: e.is_subscriber,
       excluded: e.excluded,
+      eligible: entryEligible(e, g),
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce })),
   });
 }
