@@ -42,7 +42,7 @@ async function main() {
     await root.query(`DROP DATABASE IF EXISTS \`${database}\``);
   }
   // Best-effort create: managed hosts (Aiven) often disallow CREATE DATABASE
-  // for the app user — in that case use the host's existing DB (e.g. defaultdb).
+  // for the app user — in that case point DB_NAME at the host's existing DB.
   try {
     await root.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   } catch {
