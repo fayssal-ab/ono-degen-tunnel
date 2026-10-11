@@ -12,7 +12,6 @@ import { Casinos } from "@/components/home/Casinos";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Badge, SectionHeading } from "@/components/ui/Badge";
-import { StatTile } from "@/components/ui/StatTile";
 import { Podium } from "@/components/leaderboard/Podium";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Accordion } from "@/components/ui/Accordion";
@@ -71,21 +70,12 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-14 md:space-y-20">
-      <TunnelHero />
-
-      {/* stat strip — only once there's real history to show */}
-      {stats.paidOut + stats.players + stats.giveaways > 0 && (
-        <RevealStagger className="grid gap-3 sm:grid-cols-3 sm:gap-4">
-          <RevealItem><StatTile label="Paid out all-time" value={stats.paidOut} format="moneyCompact" /></RevealItem>
-          <RevealItem><StatTile label="Players on the board" value={stats.players} /></RevealItem>
-          <RevealItem><StatTile label="Giveaways run" value={stats.giveaways} /></RevealItem>
-        </RevealStagger>
-      )}
+      <TunnelHero stats={stats} />
 
       {/* feature bento */}
       {features.length > 0 && (
         <section>
-          <Reveal><SectionHeading kicker="Everything in the tunnel" title="What you get" /></Reveal>
+          <Reveal><SectionHeading kicker="Everything in the tunnel" title="What you get" watermark="Rewards" accent="cyan" /></Reveal>
           <RevealStagger className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {features.map((f) => (
               <RevealItem key={f.href} className={f.big ? "col-span-2" : ""}>
@@ -118,6 +108,9 @@ export default async function HomePage() {
             <SectionHeading
               kicker="Compete"
               title="Leaderboard"
+              watermark="Compete"
+              align="right"
+              accent="gold"
               action={
                 <ButtonLink href="/leaderboard" variant="ghost" size="sm">
                   View board <Icon name="ArrowRight" className="h-4 w-4" />
@@ -144,7 +137,7 @@ export default async function HomePage() {
 
       {/* how it works */}
       <section>
-        <Reveal><SectionHeading kicker="The tunnel" title="How it works" /></Reveal>
+        <Reveal><SectionHeading kicker="The tunnel" title="How it works" watermark="The Tunnel" accent="cyan" /></Reveal>
         <RevealStagger className="grid gap-3 sm:gap-4 md:grid-cols-3">
           {STEPS.map((s) => (
             <RevealItem key={s.n}>
@@ -195,7 +188,7 @@ export default async function HomePage() {
       {/* faq */}
       <section>
         <Reveal>
-          <SectionHeading kicker="Questions" title="FAQ" action={<Link href="/faq" className="text-sm text-text-1 hover:text-text-0">All FAQ →</Link>} />
+          <SectionHeading kicker="Questions" title="FAQ" watermark="FAQ" align="right" accent="gold" action={<Link href="/faq" className="text-sm text-text-1 hover:text-text-0">All FAQ →</Link>} />
         </Reveal>
         <Reveal delay={0.05}><Accordion items={FAQ} /></Reveal>
       </section>

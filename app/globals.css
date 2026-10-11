@@ -339,6 +339,40 @@ body {
   color: transparent;
 }
 
+/* giant outlined "watermark" heading sitting behind a section title — an
+   editorial device (big word, hollow stroke, faded). Decorative only; the
+   element carries aria-hidden. Uses ONO tokens, never a new colour. */
+.watermark {
+  display: block;
+  font-family: var(--font-bang);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.78;
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in srgb, var(--color-line-strong) 95%, transparent);
+  font-size: clamp(3.25rem, 11vw, 8rem);
+  opacity: 0.55;
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap; /* one line; the parent clips any bleed */
+}
+/* more restrained watermark for per-page headers */
+.watermark-sm {
+  font-size: clamp(2.5rem, 7vw, 4.75rem);
+  opacity: 0.5;
+}
+/* a faint accent wash on the watermark for the brand feel */
+.watermark-gold { -webkit-text-stroke-color: color-mix(in srgb, var(--color-gold) 30%, transparent); }
+.watermark-cyan { -webkit-text-stroke-color: color-mix(in srgb, var(--color-cyan) 30%, transparent); }
+
+/* inline hero stat (GameVerse-style stat row), divided by a hairline */
+.hero-stat + .hero-stat {
+  border-left: 1px solid var(--color-line);
+  padding-left: 2rem;
+  margin-left: 0;
+}
+
 /* smooth surface transitions + optional neon hover edge */
 .surface {
   transition: border-color 0.2s var(--ease-tunnel), box-shadow 0.2s var(--ease-tunnel), transform 0.2s var(--ease-tunnel);

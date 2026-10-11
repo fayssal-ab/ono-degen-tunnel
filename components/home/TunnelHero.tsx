@@ -1,18 +1,35 @@
 import { ButtonLink } from "@/components/ui/Button";
 import { CopyChip } from "@/components/ui/CopyChip";
 import { Icon } from "@/components/ui/Icon";
+import { formatMoneyCompact } from "@/lib/money";
 import { BRAND_NAME, STREAMER, KICK_URL, CASINO_CODE } from "@/lib/constants";
 
-// CSS/3D tunnel hero: concentric rounded-square rings flying toward the viewer
-// (prompt §3.1). Pure CSS — no WebGL dependency — so it's light and the
-// headline is the LCP. Reduced-motion shows a static ring field (globals.css).
+// Hero reworked into an asymmetric "event banner" (structure inspired by the
+// GameVerse Mega-prize banner): the CSS tunnel rings drift behind on the right,
+// a left-aligned content column carries the kicker → huge title → lead → action
+// row → an inline real-stats strip. Colours stay 100% ONO tokens.
 const RINGS = 9;
 
-export function TunnelHero() {
+function HeroStat({ label, value }: { label: string; value: string }) {
   return (
-    <section className="surface relative isolate overflow-hidden px-6 py-20 md:px-14 md:py-28">
-      {/* animated rings */}
-      <div className="tunnel-stage pointer-events-none absolute inset-0" aria-hidden>
+    <div className="hero-stat">
+      <p className="font-mono text-2xl font-bold tabular-nums text-text-0">{value}</p>
+      <p className="label mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+export function TunnelHero({
+  stats,
+}: {
+  stats?: { paidOut: number; players: number; giveaways: number };
+}) {
+  const hasStats = !!stats && stats.paidOut + stats.players + stats.giveaways > 0;
+
+  return (
+    <section className="surface relative isolate overflow-hidden px-6 py-16 md:px-12 md:py-24 lg:py-28">
+      {/* rings fly toward the viewer, biased to the right so the copy stays clear */}
+      <div className="tunnel-stage pointer-events-none absolute inset-0 left-auto w-[75%] translate-x-[18%]" aria-hidden>
         {Array.from({ length: RINGS }).map((_, i) => (
           <span
             key={i}
@@ -26,32 +43,37 @@ export function TunnelHero() {
           />
         ))}
       </div>
-      {/* plasma vignette + grain-friendly darkening at the edges */}
+      {/* readability washes: darken the left column + soften the ring edges */}
       <div
         className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(60% 55% at 50% 45%, transparent 40%, var(--color-bg-1) 100%)" }}
+        style={{ background: "linear-gradient(90deg, var(--color-bg-1) 0%, color-mix(in srgb, var(--color-bg-1) 40%, transparent) 42%, transparent 70%)" }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(75% 75% at 72% 50%, transparent 38%, var(--color-bg-1) 100%)" }}
         aria-hidden
       />
 
-      <div className="relative z-10 mx-auto max-w-2xl text-center">
+      <div className="relative z-10 max-w-2xl">
         <span className="label inline-flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-volt" />
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-volt opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-volt" />
+          </span>
           {STREAMER}&rsquo;s rewards tunnel
         </span>
-        <h1 className="font-bang text-gradient-gold mt-4 text-balance text-5xl tracking-wide md:text-[clamp(3.5rem,8vw,7rem)]">
+
+        <h1 className="font-bang text-gradient-gold mt-4 text-balance text-6xl leading-[0.88] md:text-[clamp(3.5rem,7vw,6.5rem)]">
           {BRAND_NAME}
         </h1>
-        <p className="mx-auto mt-5 max-w-lg text-lg text-text-1">
-          Wager. Climb. Get paid. Sign up with code and ride the tunnel — leaderboards, races,
+
+        <p className="mt-5 max-w-lg text-lg text-text-1">
+          Wager. Climb. Get paid. Sign up with the code and ride the tunnel — leaderboards, races,
           giveaways and the prize at the end of the light.
         </p>
 
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <span className="text-sm text-text-2">Code</span>
-          <CopyChip value={CASINO_CODE} />
-        </div>
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-8 flex flex-wrap items-center gap-3">
           <ButtonLink href="/#play" variant="gold" size="lg">
             <Icon name="Zap" className="h-4 w-4" /> Sign up &amp; play
           </ButtonLink>
@@ -63,7 +85,19 @@ export function TunnelHero() {
           >
             <Icon name="Radio" className="h-4 w-4" /> Watch live
           </a>
+          <div className="flex items-center gap-2 pl-1">
+            <span className="text-sm text-text-2">Code</span>
+            <CopyChip value={CASINO_CODE} />
+          </div>
         </div>
+
+        {hasStats && (
+          <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-line pt-6">
+            <HeroStat label="Paid out all-time" value={formatMoneyCompact(stats!.paidOut)} />
+            <HeroStat label="Players on the board" value={stats!.players.toLocaleString()} />
+            <HeroStat label="Giveaways run" value={stats!.giveaways.toLocaleString()} />
+          </div>
+        )}
       </div>
     </section>
   );
