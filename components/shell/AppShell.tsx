@@ -5,6 +5,8 @@ import { MobileNav } from "./MobileNav";
 import { StarField } from "./StarField";
 import { CustomCursor } from "./CustomCursor";
 import { Preloader } from "./Preloader";
+import { ScrollProgress } from "./ScrollProgress";
+import { BackToTop } from "./BackToTop";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getSetting } from "@/lib/settings";
@@ -25,6 +27,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Preloader />
+      <ScrollProgress />
       <StarField />
       <CustomCursor />
       <Sidebar live={live} hidden={hidden} />
@@ -40,6 +43,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <MobileNav hidden={hidden} />
+      <BackToTop />
     </>
   );
 }
