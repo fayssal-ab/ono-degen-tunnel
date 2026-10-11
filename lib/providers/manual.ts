@@ -3,17 +3,19 @@ import type { RowDataPacket } from "mysql2";
 import { getPool } from "@/lib/db";
 import type { WagerProvider, WagerFetchResult } from "./types";
 
-// Manual provider: the admin uploads a CSV (username,id,wagered) which is
-// validated and upserted into `manual_wagers` (see admin §5.15 / §6). This
-// just returns the current contents — dates are ignored because a manual
-// upload is already scoped to whatever window the admin pulled it for.
+// Manual provider: the admin imports a validated CSV for one specific period
+// (Admin → Periods → Manual import), stored in `manual_period_wagers`. Rows of
+// other periods are never mixed in. An import is the admin's file, not a
+// provider guarantee, so absent players are not assumed to be at zero.
 export const manualProvider: WagerProvider = {
   name: "manual",
+  listsAllWagerers: false,
 
-  async fetchWagers(): Promise<WagerFetchResult> {
+  async fetchWagers(_startAt, _endAt, periodId): Promise<WagerFetchResult> {
     try {
       const [rows] = await getPool().query<RowDataPacket[]>(
-        "SELECT casino_id AS id, username, wagered, updated_at FROM manual_wagers ORDER BY wagered DESC"
+        "SELECT casino_id AS id, username, wagered, updated_at FROM manual_period_wagers WHERE period_id = ? ORDER BY wagered DESC",
+        [periodId]
       );
       const latest = rows.reduce<string | null>(
         (max, r) => (!max || String(r.updated_at) > max ? String(r.updated_at) : max),

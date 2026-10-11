@@ -27,6 +27,13 @@ export type WagerFetchResult = WagerFetchSuccess | WagerFetchFailure;
 
 export interface WagerProvider {
   readonly name: string;
+  /**
+   * True only when a successful fetch is guaranteed to list EVERY user with a
+   * non-zero wager in the window. Races rely on it to treat a player absent
+   * from the baseline sample as a genuine newcomer (baseline 0); without the
+   * guarantee such players stay "baseline unknown" and are not ranked.
+   */
+  readonly listsAllWagerers: boolean;
   /** start/end are inclusive YYYY-MM-DD (casino APIs are date-granular). */
-  fetchWagers(startAt: string, endAt: string): Promise<WagerFetchResult>;
+  fetchWagers(startAt: string, endAt: string, periodId: number): Promise<WagerFetchResult>;
 }

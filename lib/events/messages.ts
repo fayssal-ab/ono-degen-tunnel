@@ -1,0 +1,68 @@
+// Human explanations for EventError codes shown in the admin UI.
+export const ERROR_MESSAGES: Record<string, string> = {
+  unexpected: "Something went wrong on the server. Nothing was changed — check the database connection and try again.",
+  invalid_input: "Some fields are invalid.",
+  migration_missing: "Database migration 0007 has not been applied. Run `npm run migrate`.",
+  invalid_distribution: "The prize split is invalid: use positive percentages separated by commas, totalling 100% or less.",
+  // races
+  race_not_found: "That race no longer exists.",
+  race_window_invalid: "The race window is invalid.",
+  race_outside_period: "The race window must fit inside its source period.",
+  race_locked: "This race has started — its rules can no longer be changed.",
+  race_not_finalizing: "Only a race waiting for final data can be force-finalised.",
+  period_not_found: "That period does not exist.",
+  period_closed: "That period is closed; its data is frozen.",
+  // periods
+  period_overlap: "This period overlaps another period that is not closed.",
+  period_not_upcoming: "Only an upcoming period can be activated.",
+  period_already_live: "Another period is live. Close it first — only one period runs at a time.",
+  period_not_live: "Only the live period can be closed.",
+  period_locked: "This period can no longer be deleted.",
+  period_has_races: "Races use this period as their source. Delete or move those races first.",
+  csv_invalid: "The CSV has errors. Fix every listed line and preview again.",
+  // tournaments
+  tournament_not_found: "That tournament no longer exists.",
+  tournament_locked: "This tournament has launched — its setup is locked.",
+  tournament_already_live: "Another tournament is live. Finish it first.",
+  tournament_not_live: "Launch the tournament before entering results.",
+  tournament_finished: "This tournament is finished; results are frozen.",
+  seeds_invalid: "The bracket needs exactly 8 different slots seeded 1 to 8.",
+  match_not_found: "That match does not exist.",
+  match_not_ready: "Both participants of this match are not known yet — score the previous round first.",
+  match_tied: "The multipliers are equal. Announce a replay (or the tie-break) on stream and enter the replay result.",
+  correction_blocked: "This result can't be corrected: the next round has already been played with the current winner.",
+  // hunts
+  hunt_not_found: "That hunt no longer exists.",
+  hunt_already_active: "Another hunt is active. Finish or delete it first.",
+  hunt_not_active: "This hunt is not active.",
+  hunt_opening_started: "Opening has started — the bonus list is locked.",
+  hunt_too_many_entries: "A hunt is limited to 500 bonuses.",
+  hunt_empty: "Add at least one bonus first.",
+  hunt_unopened_bonuses: "Every bonus must have a payout (0 counts) before the hunt can finish.",
+  hunt_not_finished: "Only a finished hunt can be archived.",
+  hunt_has_gb_round: "A Guess the Balance round is attached to this hunt.",
+  entry_not_found: "That bonus no longer exists.",
+  // gb
+  round_not_found: "That round no longer exists.",
+  round_locked: "Only draft rounds can be edited, opened or deleted.",
+  round_already_open: "Another round is open. Close it first.",
+  round_not_open: "This round is not open.",
+  round_not_closed: "Close the round before settling it.",
+  round_settled: "This round is already settled; its result is final.",
+  deadline_passed: "The deadline is in the past. Edit the round first.",
+  hunt_not_final: "The linked hunt is not finished yet.",
+  actual_required: "Enter the final balance (plain amount, up to 8 decimals).",
+  // challenges
+  challenge_not_found: "That challenge no longer exists.",
+  challenge_locked: "This challenge is no longer open.",
+  challenge_has_claims: "Claims exist for this challenge.",
+  challenge_already_claimed: "This challenge already has an accepted winner.",
+  proof_required: "Record where the proof is.",
+  claim_not_found: "That claim no longer exists.",
+  claim_not_pending: "This claim was already reviewed.",
+  claim_invalid: "The claim does not meet the challenge conditions.",
+};
+
+export function explainError(code: string): string {
+  return ERROR_MESSAGES[code] ?? `Action refused (${code}).`;
+}

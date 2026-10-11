@@ -41,6 +41,11 @@ function daysBetween(startAt: string, endAt: string): number {
 
 export const rainbetProvider: WagerProvider = {
   name: "rainbet",
+  // Rainbet's affiliate endpoint is not documented (to us) as listing every
+  // referred user with wagers. Opt in only after confirming it with Rainbet.
+  get listsAllWagerers() {
+    return process.env.RAINBET_LISTS_ALL_WAGERERS === "true";
+  },
 
   async fetchWagers(startAt, endAt): Promise<WagerFetchResult> {
     const apiKey = process.env.RAINBET_API_KEY;

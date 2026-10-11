@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { getChampions, getBigHits, getGiveawayWins, getChallengeWins } from "@/lib/hallOfFame";
+import { getChampions, getBigHits, getGiveawayWins, getChallengeWins, getRaceWins, getTournamentWins, getGbWins } from "@/lib/hallOfFame";
+import { attempt, Unavailable } from "@/components/events/shared";
 import { formatMoney } from "@/lib/money";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -36,21 +37,23 @@ function List({ children, empty }: { children: React.ReactNode; empty: boolean }
 
 export default async function HallOfFamePage() {
   if (!(await isPageEnabled("/hall-of-fame"))) notFound();
-  const [champions, hits, giveaways, challenges] = await Promise.all([
-    getChampions(),
-    getBigHits(),
-    getGiveawayWins(),
-    getChallengeWins(),
-  ]);
+  const header = (
+    <PageHeader
+      kicker="Legends"
+      title="Hall of Fame"
+      lead="The record books — champions, monster hits and everyone who's taken a prize home."
+      right={<Icon name="Medal" className="h-8 w-8 text-gold" />}
+    />
+  );
+  const result = await attempt(() => Promise.all([
+    getChampions(), getBigHits(), getGiveawayWins(), getChallengeWins(), getRaceWins(), getTournamentWins(), getGbWins(),
+  ]));
+  if (!result.ok) return <div className="space-y-10">{header}<Unavailable what="The Hall of Fame" /></div>;
+  const [champions, hits, giveaways, challenges, races, tournaments, gb] = result.data;
 
   return (
     <div className="space-y-10">
-      <PageHeader
-        kicker="Legends"
-        title="Hall of Fame"
-        lead="The record books — champions, monster hits and everyone who's taken a prize home."
-        right={<Icon name="Medal" className="h-8 w-8 text-gold" />}
-      />
+      {header}
 
       <Tabs
         tabs={[
@@ -61,6 +64,39 @@ export default async function HallOfFamePage() {
               <List empty={champions.length === 0}>
                 {champions.map((c, i) => (
                   <Row key={i} left={c.maskedName} sub={`${c.period_title} · ${formatMoney(c.wagered)} wagered`} right={formatMoney(c.prize)} />
+                ))}
+              </List>
+            ),
+          },
+          {
+            key: "races",
+            label: "Race winners",
+            panel: (
+              <List empty={races.length === 0}>
+                {races.map((r, i) => (
+                  <Row key={i} left={r.maskedName} sub={`${r.race_name} · ${formatMoney(r.wagered)} wagered`} right={formatMoney(r.prize)} />
+                ))}
+              </List>
+            ),
+          },
+          {
+            key: "tournaments",
+            label: "Tournament champions",
+            panel: (
+              <List empty={tournaments.length === 0}>
+                {tournaments.map((t, i) => (
+                  <Row key={i} left={t.champion} sub={t.title} right={t.prize || "—"} />
+                ))}
+              </List>
+            ),
+          },
+          {
+            key: "gb",
+            label: "Balance guessers",
+            panel: (
+              <List empty={gb.length === 0}>
+                {gb.map((g, i) => (
+                  <Row key={i} left={g.maskedName} sub={`${g.title} · off by ${formatMoney(g.off_by)}`} right={g.prize || "—"} />
                 ))}
               </List>
             ),

@@ -29,6 +29,8 @@ function hash(str: string): number {
 
 export const demoProvider: WagerProvider = {
   name: "demo",
+  // Deterministic generator: every handle is always present.
+  listsAllWagerers: true,
 
   async fetchWagers(startAt, endAt): Promise<WagerFetchResult> {
     const start = new Date(`${startAt}T00:00:00Z`).getTime();

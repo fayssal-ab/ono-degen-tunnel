@@ -5,6 +5,7 @@ import { verifyKickWebhookSignature } from "@/lib/kick";
 import { getPool } from "@/lib/db";
 import { recordChatEntry } from "@/lib/giveaways";
 import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
+import { isConfiguredBroadcaster, messageSentAt } from "@/lib/kickEvents";
 
 // Public endpoint — Kick POSTs here for every chat.message.sent once
 // subscribed. Auth is the RSA signature (verified over the RAW body), not a
@@ -12,9 +13,17 @@ import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
 // double-count an entry (prompt §7.9). Ported from JBALLIN.
 export const dynamic = "force-dynamic";
 
+// Fields per docs.kick.com/events/event-types (chat.message.sent v1).
+const KickUser = z.object({
+  user_id: z.union([z.number().int().nonnegative(), z.string().regex(/^\d{1,20}$/)]).optional(),
+  username: z.string().min(1).max(191),
+  channel_slug: z.string().max(191).nullable().optional(),
+});
 const ChatPayload = z.object({
   content: z.string().max(10000),
-  sender: z.object({ username: z.string().min(1).max(191), profile_picture: z.string().nullable().optional(),
+  created_at: z.string().max(64).optional(),
+  broadcaster: KickUser.partial({ username: true }).nullable().optional(),
+  sender: KickUser.extend({ profile_picture: z.string().nullable().optional(),
     identity: z.object({ badges: z.array(z.object({ type: z.string() })).optional() }).nullable().optional() }),
 });
 
@@ -32,6 +41,10 @@ export async function POST(request: Request) {
     const parsed = ChatPayload.safeParse(JSON.parse(rawBody));
     if (!parsed.success) return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
     const payload = parsed.data;
+    // Only the configured channel's chat may enter giveaways / GB rounds.
+    if (!isConfiguredBroadcaster(payload.broadcaster ?? null)) return NextResponse.json({ ok: true, ignored: "other_broadcaster" });
+    const sentAt = messageSentAt(payload.created_at, timestamp);
+    if (!sentAt) return NextResponse.json({ error: "invalid_timestamp" }, { status: 400 });
     const conn = await getPool().getConnection();
     try {
       await conn.beginTransaction();
@@ -39,7 +52,10 @@ export async function POST(request: Request) {
       if (!res.affectedRows) { await conn.commit(); return NextResponse.json({ ok: true, deduped: true }); }
       const subscriber = payload.sender.identity?.badges?.some((b) => b.type === "subscriber") ?? false;
       await recordChatEntry(payload.sender.username, payload.content, payload.sender.profile_picture ?? null, subscriber, conn);
-      await recordBalanceGuessIfActive(payload.sender.username, payload.content, conn);
+      await recordBalanceGuessIfActive({
+        kickUserId: payload.sender.user_id != null ? String(payload.sender.user_id) : null,
+        username: payload.sender.username, content: payload.content, sentAt,
+      }, conn);
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }

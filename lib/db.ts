@@ -52,6 +52,12 @@ export function getPool(): Pool {
           ? { ca: readFileSync(process.env.DB_SSL_CA_PATH, "utf8") }
           : undefined,
   });
+  // TIMESTAMP columns are compared against UTC_TIMESTAMP() and admin inputs are
+  // UTC, so pin every session to UTC regardless of the server default.
+  // (`pool.pool` is the callback pool underneath; absent in test doubles.)
+  (pool as Partial<Pool>).pool?.on("connection", (conn) => {
+    conn.query("SET time_zone = '+00:00'");
+  });
 
   return pool;
 }

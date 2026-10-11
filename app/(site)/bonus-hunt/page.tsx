@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeading, Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SlotThumb } from "@/components/ui/SlotThumb";
+import { attempt, Unavailable } from "@/components/events/shared";
+import { d } from "@/lib/money";
 
 export const metadata: Metadata = {
   title: "Bonus Hunt",
@@ -26,8 +28,21 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 
 export default async function BonusHuntPage() {
   if (!(await isPageEnabled("/bonus-hunt"))) notFound();
-  const hunt = await getActiveHunt();
-  const history = await getHuntHistory();
+  const result = await attempt(async () => {
+    const hunt = await getActiveHunt();
+    const history = await getHuntHistory();
+    const entries = hunt ? await getHuntEntries(hunt.id) : [];
+    return { hunt, history, entries };
+  });
+  if (!result.ok) {
+    return (
+      <div className="space-y-10">
+        <PageHeader kicker="Watch" title="Bonus Hunt" lead="Bonuses tracked live, to the dollar." />
+        <Unavailable what="The bonus hunt" />
+      </div>
+    );
+  }
+  const { hunt, history, entries } = result.data;
 
   if (!hunt) {
     return (
@@ -44,7 +59,6 @@ export default async function BonusHuntPage() {
     );
   }
 
-  const entries = await getHuntEntries(hunt.id);
   const stats = computeHuntStats(hunt.start_balance, entries);
   const progress = stats.count > 0 ? stats.opened / stats.count : 0;
 
@@ -54,19 +68,19 @@ export default async function BonusHuntPage() {
         kicker="Watch"
         title={hunt.title || "Bonus Hunt"}
         lead="Live, updating as each bonus is opened."
-        right={<Badge tone="volt">{stats.complete ? "Finished" : "Live"}</Badge>}
+        right={<Badge tone="volt">{stats.complete ? "All opened" : hunt.opening_started_at ? "Opening" : "Collecting"}</Badge>}
       />
 
       {/* stats grid */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Start balance" value={formatMoney(hunt.start_balance)} />
-        <Stat label="Total cost" value={formatMoney(stats.totalCost)} />
-        <Stat label="Current win" value={formatMoney(stats.currentWin)} tone="text-volt" />
+        <Stat label="Sum of bets" value={formatMoney(stats.sumBets)} />
+        <Stat label={stats.complete ? "Final balance" : "Payouts so far"} value={formatMoney(stats.currentWin)} tone="text-volt" />
         {stats.complete ? (
           <Stat
-            label="Final balance"
-            value={formatMoney(stats.finalBalance ?? "0")}
-            tone={Number(stats.finalBalance) >= Number(hunt.start_balance) ? "text-volt" : "text-danger"}
+            label="Profit vs start"
+            value={`${d(stats.profit ?? "0").isNegative() ? "−" : "+"}${formatMoney(d(stats.profit ?? "0").abs().toFixed(2))}`}
+            tone={d(stats.profit ?? "0").isNegative() ? "text-danger" : "text-volt"}
           />
         ) : (
           <Stat
@@ -80,7 +94,7 @@ export default async function BonusHuntPage() {
       {/* progress + best/worst */}
       <div className="surface p-6">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-text-1">Opened {stats.opened} / {stats.count}</span>
+          <span className="text-text-1">Opened {stats.opened} / {stats.count} · {stats.remaining} remaining</span>
           <span className="text-text-2">{Math.round(progress * 100)}%</span>
         </div>
         <ProgressBar value={progress} className="mt-3" />
@@ -108,11 +122,16 @@ export default async function BonusHuntPage() {
         </div>
       </div>
 
+      <p className="text-xs text-text-2">
+        Start balance is the bankroll announced on stream. Sum of bets adds up each bonus&apos;s bet size (not the hunt&apos;s cost).
+        Final balance is the total of all payouts once every bonus is opened; break-even is the average multiplier the remaining bonuses need to get back to the start balance.
+      </p>
+
       {/* entries table */}
       <section>
         <SectionHeading kicker="Bonuses" title={`${entries.length} collected`} />
-        <div className="surface overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="surface overflow-x-auto">
+          <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b border-line text-left">
                 <th className="label px-4 py-3 font-normal">#</th>
@@ -124,7 +143,7 @@ export default async function BonusHuntPage() {
             </thead>
             <tbody>
               {entries.map((e, i) => {
-                const mult = e.payout != null && Number(e.bet) > 0 ? Number(e.payout) / Number(e.bet) : null;
+                const mult = e.payout != null && d(e.bet).gt(0) ? d(e.payout).div(d(e.bet)).toNumber() : null;
                 return (
                   <tr key={e.id} className="border-b border-line/60 last:border-0">
                     <td className="px-4 py-2.5 font-mono text-text-2">{i + 1}</td>
@@ -170,6 +189,7 @@ function History({ history }: { history: Awaited<ReturnType<typeof getHuntHistor
           <div key={h.id} className="surface p-5">
             <p className="text-sm text-text-0">{h.title || "Bonus hunt"}</p>
             <p className="mt-1 text-xs text-text-2">{h.entries} bonuses · start {formatMoney(h.start_balance)}</p>
+            {h.final_balance != null && <p className="mt-1 text-xs text-text-2">final {formatMoney(h.final_balance)}</p>}
             {h.best_multiplier != null && (
               <p className="mt-3 font-mono text-sm text-gold">Best {h.best_multiplier.toFixed(0)}×</p>
             )}

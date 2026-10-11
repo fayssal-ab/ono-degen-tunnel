@@ -30,7 +30,7 @@ export async function runSync(): Promise<SyncSummary> {
 
   // make sure something is live before we try to sync
   await activateNextPeriod();
-  let period = await getActivePeriod();
+  const period = await getActivePeriod();
   if (!period) {
     await writeSyncLog({
       period_id: null,
@@ -42,7 +42,7 @@ export async function runSync(): Promise<SyncSummary> {
     return { ok: false, periodId: null, provider: provider.name, errorCode: "er_no_active_period" };
   }
 
-  const result = await provider.fetchWagers(period.start_at, period.end_at);
+  const result = await provider.fetchWagers(period.start_at, period.end_at, period.id);
 
   if (!result.ok) {
     // keep last good data; just record the failure

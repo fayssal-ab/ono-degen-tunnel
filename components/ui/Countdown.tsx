@@ -17,7 +17,7 @@ function parts(ms: number) {
   };
 }
 
-export function Countdown({ target, className = "" }: { target: string; className?: string }) {
+export function Countdown({ target, className = "", label = "Resets", doneText = "Resetting…" }: { target: string; className?: string; label?: string; doneText?: string }) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function Countdown({ target, className = "" }: { target: string; classNam
   return (
     <div className={className}>
       {p?.done ? (
-        <p className="font-mono text-lg text-volt">Resetting…</p>
+        <p className="font-mono text-lg text-volt">{doneText}</p>
       ) : (
         <div className="flex items-end gap-4">
           {cell(p?.d ?? null, "days")}
@@ -66,7 +66,7 @@ export function Countdown({ target, className = "" }: { target: string; classNam
       )}
       {localLabel && (
         <p className="mt-2 text-xs text-text-2" suppressHydrationWarning>
-          Resets {localLabel} (your time)
+          {label} {localLabel} (your time)
         </p>
       )}
     </div>

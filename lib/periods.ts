@@ -3,6 +3,7 @@ import type { RowDataPacket, PoolConnection } from "mysql2/promise";
 import { getPool } from "./db";
 import { PERIOD_RESET_TIME_UTC } from "./constants";
 import { prizeForPercentage } from "./money";
+import { withTx, lockApp } from "./events/common";
 
 export interface Period {
   id: number;
@@ -300,12 +301,18 @@ export async function closePeriod(period: Period): Promise<void> {
   }
 }
 
-/** Promote the earliest upcoming period to live if nothing is live. */
+/**
+ * Promote the earliest upcoming period to live if nothing is live — but only
+ * once its start date has arrived. Serialised with admin activation.
+ */
 export async function activateNextPeriod(): Promise<void> {
-  const live = await getActivePeriod();
-  if (live) return;
-  const next = await getNextUpcomingPeriod();
-  if (next) {
-    await getPool().query("UPDATE periods SET status = 'live' WHERE id = ?", [next.id]);
-  }
+  await withTx(async (conn) => {
+    await lockApp(conn, "period");
+    const [live] = await conn.query<RowDataPacket[]>("SELECT id FROM periods WHERE status = 'live' LIMIT 1");
+    if (live.length) return;
+    await conn.query(
+      `UPDATE periods SET status = 'live'
+       WHERE id = (SELECT id FROM (SELECT id FROM periods WHERE status = 'upcoming' AND start_at <= UTC_DATE() ORDER BY start_at ASC, id ASC LIMIT 1) n)`
+    );
+  });
 }
