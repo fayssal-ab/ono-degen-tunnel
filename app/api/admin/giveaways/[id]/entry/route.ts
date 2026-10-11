@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isAdminRequest } from "@/lib/admin";
 import { json, jsonError, isSameOrigin } from "@/lib/http";
 import { recordLiveEntry } from "@/lib/giveaways";
+import { resolveKickAvatar } from "@/lib/kickChat";
 
 // Records one live chat entry detected by the browser Kick-socket reader.
 // Admin + same-origin only (the reader runs in the admin's dashboard).
@@ -27,6 +28,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return jsonError("invalid_body", 400);
   }
 
-  const recorded = await recordLiveEntry(giveawayId, body.username, Boolean(body.isSubscriber), body.avatar ?? null);
-  return json({ ok: true, recorded });
+  // The Kick chat socket event carries no avatar, so resolve the user's real
+  // profile picture from Kick's public channel API (cached; null on failure →
+  // the UI shows initials). recordLiveEntry COALESCEs, so it's only filled once.
+  let avatar = body.avatar ?? null;
+  if (!avatar) {
+    try {
+      avatar = await resolveKickAvatar(body.username);
+    } catch {
+      avatar = null;
+    }
+  }
+
+  const recorded = await recordLiveEntry(giveawayId, body.username, Boolean(body.isSubscriber), avatar);
+  return json({ ok: true, recorded, avatar });
 }

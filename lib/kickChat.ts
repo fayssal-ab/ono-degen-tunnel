@@ -22,22 +22,49 @@ interface Cached {
 const cache = new Map<string, Cached>();
 const TTL = 10 * 60 * 1000;
 
-async function fetchChannelJson(slug: string): Promise<{ chatroom?: { id?: number } } | null> {
+interface KickChannel {
+  chatroom?: { id?: number };
+  user?: { profile_pic?: string | null; username?: string };
+}
+
+async function fetchChannelJson(slug: string, timeout = 8): Promise<KickChannel | null> {
   const url = `https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`;
   // curl bypasses the Cloudflare fingerprint block that stops Node's fetch
   try {
-    const { stdout } = await execFileP("curl", ["-s", "-m", "8", "-A", UA, url], { maxBuffer: 8_000_000 });
-    if (stdout && stdout.trim().startsWith("{")) return JSON.parse(stdout);
+    const { stdout } = await execFileP("curl", ["-s", "-m", String(timeout), "-A", UA, url], { maxBuffer: 8_000_000 });
+    if (stdout && stdout.trim().startsWith("{")) return JSON.parse(stdout) as KickChannel;
   } catch {
     /* curl unavailable (e.g. some serverless) — fall through */
   }
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store" });
-    if (res.ok) return (await res.json()) as { chatroom?: { id?: number } };
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeout * 1000);
+    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store", signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) return (await res.json()) as KickChannel;
   } catch {
     /* ignore */
   }
   return null;
+}
+
+// Resolves a Kick user's real profile picture from the public channel endpoint
+// (user.profile_pic). Cached (including misses) so a giveaway with many repeat
+// chatters doesn't hammer Kick. Returns null when unavailable — callers fall
+// back to initials. Never fabricates a URL.
+interface AvatarCache { url: string | null; at: number; }
+const avatarCache = new Map<string, AvatarCache>();
+const AVATAR_TTL = 30 * 60 * 1000;
+
+export async function resolveKickAvatar(username: string): Promise<string | null> {
+  const slug = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (!slug) return null;
+  const hit = avatarCache.get(slug);
+  if (hit && Date.now() - hit.at < AVATAR_TTL) return hit.url;
+  const data = await fetchChannelJson(slug, 4);
+  const url = typeof data?.user?.profile_pic === "string" ? data.user.profile_pic : null;
+  avatarCache.set(slug, { url, at: Date.now() });
+  return url;
 }
 
 export async function resolveChatroomId(slug: string): Promise<number | null> {

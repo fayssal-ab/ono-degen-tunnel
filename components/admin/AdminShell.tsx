@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import { CustomCursor } from "@/components/shell/CustomCursor";
 import { BRAND_NAME } from "@/lib/constants";
 
 // Admin chrome. Built sections link; not-yet-built ones are shown disabled with
@@ -36,6 +37,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[256px_1fr]">
+      <CustomCursor />
       <aside className="hidden flex-col border-r border-line bg-bg-1 lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-line px-5">
           <Icon name="ShieldCheck" className="h-5 w-5 text-gold" />

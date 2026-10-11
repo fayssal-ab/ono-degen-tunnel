@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isAdminSession } from "@/lib/admin";
 import { BRAND_NAME } from "@/lib/constants";
 import { LoginForm } from "@/components/admin/LoginForm";
+import { CustomCursor } from "@/components/shell/CustomCursor";
 
 export const metadata: Metadata = { title: "Admin login", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
+      <CustomCursor />
       <div className="surface w-full max-w-sm p-8">
         <div className="mb-6 text-center">
           <p className="label">{BRAND_NAME}</p>
