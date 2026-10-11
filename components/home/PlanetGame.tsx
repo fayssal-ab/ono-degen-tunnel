@@ -1,56 +1,218 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 
-// Little hit-game: each planet has 5 HP. Click it 5× (HP pips are tiny planet
-// icons) and it cracks open, revealing what it is — an ONO feature with a link.
-// Replaces a wall of feature copy with something you play. Keyboard-accessible
-// (Enter/Space) and harmless under reduced motion (animations just no-op).
-type Planet = {
-  id: string;
-  label: string;
-  blurb: string;
-  href: string;
-  cta: string;
-  from: string;
-  to: string;
-  pos: React.CSSProperties;
-  size: number;
-};
+// "Crack the tunnel" arcade: detailed CSS planets drift across the screen; hit
+// one (click/tap) to knock its HP down, and on the last hit it blows up with a
+// BANG + a win. Positions are driven straight on the DOM via refs (no 60fps
+// React re-render), HP/booms live in state. Under reduced motion the planets
+// sit still but are still hittable.
+type PType = { name: string; bg: string; glow: string; ring?: boolean };
 
-const PLANETS: Planet[] = [
-  { id: "gw", label: "Giveaways", blurb: "Free to enter, drawn live, provably fair.", href: "/giveaways", cta: "Enter", from: "#34d399", to: "#0b3b2e", pos: { top: "14%", left: "12%" }, size: 96 },
-  { id: "lb", label: "Leaderboard", blurb: "Wager under the code. Climb. Split the pool.", href: "/leaderboard", cta: "Climb", from: "#ffd97a", to: "#5a3f12", pos: { top: "52%", left: "32%" }, size: 118 },
-  { id: "vip", label: "VIP Club", blurb: "The deeper you go, the bigger the perks.", href: "/vip", cta: "See tiers", from: "#8b5cf6", to: "#241046", pos: { top: "20%", right: "14%" }, size: 108 },
-  { id: "rc", label: "Races", blurb: "24h & weekly sprints for cash.", href: "/races", cta: "Race", from: "#22d3ee", to: "#083947", pos: { bottom: "12%", right: "26%" }, size: 84 },
+const TYPES: PType[] = [
+  {
+    name: "Earth",
+    bg:
+      "radial-gradient(circle at 72% 78%, rgba(0,0,0,.45), transparent 55%)," +
+      "radial-gradient(circle at 30% 28%, rgba(220,245,255,.9), transparent 22%)," +
+      "radial-gradient(16px 11px at 42% 58%, #2f9e5e, transparent 60%)," +
+      "radial-gradient(20px 13px at 63% 40%, #37b06a, transparent 60%)," +
+      "radial-gradient(11px 9px at 30% 70%, #2f9e5e, transparent 60%)," +
+      "radial-gradient(circle at 50% 50%, #2b7fc4, #0c3b68 80%)",
+    glow: "0 0 36px -6px #3aa0ff, inset -10px -8px 28px rgba(0,0,0,.55)",
+  },
+  {
+    name: "Mars",
+    bg:
+      "radial-gradient(circle at 70% 76%, rgba(0,0,0,.45), transparent 55%)," +
+      "radial-gradient(circle at 32% 30%, rgba(255,210,180,.8), transparent 22%)," +
+      "radial-gradient(18px 11px at 58% 62%, #7a2f1b, transparent 60%)," +
+      "radial-gradient(13px 9px at 38% 45%, #8a3a22, transparent 60%)," +
+      "radial-gradient(circle at 50% 50%, #c14a1e, #5e220b 82%)",
+    glow: "0 0 30px -8px #ff6a3a, inset -10px -8px 26px rgba(0,0,0,.6)",
+  },
+  {
+    name: "Jupiter",
+    bg:
+      "radial-gradient(circle at 70% 76%, rgba(0,0,0,.4), transparent 55%)," +
+      "radial-gradient(15px 10px at 64% 58%, #c0462f, transparent 60%)," +
+      "repeating-linear-gradient(0deg, #e3c79a 0 10%, #c69b63 10% 18%, #ddb985 18% 26%, #b07f45 26% 34%, #e8cfa0 34% 42%)",
+    glow: "0 0 30px -8px #e0b877, inset -10px -8px 26px rgba(0,0,0,.5)",
+  },
+  {
+    name: "Neptune",
+    bg:
+      "radial-gradient(circle at 70% 76%, rgba(0,0,0,.45), transparent 55%)," +
+      "radial-gradient(circle at 32% 30%, rgba(200,225,255,.7), transparent 22%)," +
+      "radial-gradient(18px 11px at 55% 60%, #1b3a8a, transparent 60%)," +
+      "radial-gradient(circle at 50% 50%, #2b64d4, #0b1f5e 82%)",
+    glow: "0 0 32px -6px #4f7dff, inset -10px -8px 26px rgba(0,0,0,.55)",
+  },
+  {
+    name: "Saturn",
+    bg:
+      "radial-gradient(circle at 70% 76%, rgba(0,0,0,.4), transparent 55%)," +
+      "radial-gradient(circle at 32% 30%, rgba(255,240,210,.7), transparent 22%)," +
+      "repeating-linear-gradient(0deg, #e8d3a0 0 14%, #cbae72 14% 26%)",
+    glow: "0 0 30px -8px #e6cf9a, inset -10px -8px 26px rgba(0,0,0,.5)",
+    ring: true,
+  },
+  {
+    name: "Moon",
+    bg:
+      "radial-gradient(circle at 70% 76%, rgba(0,0,0,.5), transparent 55%)," +
+      "radial-gradient(9px 9px at 40% 42%, #74747e, transparent 62%)," +
+      "radial-gradient(7px 7px at 60% 60%, #7c7c85, transparent 62%)," +
+      "radial-gradient(6px 6px at 52% 30%, #80808a, transparent 62%)," +
+      "radial-gradient(circle at 50% 50%, #c4c4cc, #74747e 85%)",
+    glow: "0 0 24px -8px #cfd3dc, inset -10px -8px 24px rgba(0,0,0,.5)",
+  },
 ];
 
-const MAX_HP = 5;
+const BANGS = ["BANG!", "BOOM!", "POW!", "KA-POW!"];
+
+interface Live {
+  id: number;
+  type: PType;
+  size: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  hp: number;
+  maxHp: number;
+}
+interface Boom {
+  id: number;
+  x: number;
+  y: number;
+  reward: number;
+  word: string;
+  color: string;
+}
+
+const MAX_PLANETS = 5;
 
 export function PlanetGame() {
-  const [hp, setHp] = useState<Record<string, number>>(() => Object.fromEntries(PLANETS.map((p) => [p.id, MAX_HP])));
-  const [cracked, setCracked] = useState<Record<string, boolean>>({});
-  const [reveal, setReveal] = useState<Planet | null>(null);
-  const [hit, setHit] = useState<string | null>(null);
-  const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const arenaRef = useRef<HTMLDivElement>(null);
+  const liveRef = useRef<Map<number, Live>>(new Map());
+  const nodeRef = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const idRef = useRef(1);
 
-  const done = PLANETS.filter((p) => cracked[p.id]).length;
+  const [planets, setPlanets] = useState<Live[]>([]);
+  const [booms, setBooms] = useState<Boom[]>([]);
+  const [score, setScore] = useState(0);
 
-  function strike(p: Planet) {
-    if (cracked[p.id]) return;
-    setHit(p.id);
-    if (hitTimer.current) clearTimeout(hitTimer.current);
-    hitTimer.current = setTimeout(() => setHit(null), 180);
-    setHp((prev) => {
-      const next = Math.max(0, (prev[p.id] ?? MAX_HP) - 1);
-      if (next === 0) {
-        setCracked((c) => ({ ...c, [p.id]: true }));
-        setReveal(p);
+  useEffect(() => {
+    const arena = arenaRef.current;
+    if (!arena) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function spawn() {
+      const a = arenaRef.current;
+      if (!a) return;
+      const w = a.clientWidth;
+      const h = a.clientHeight;
+      const type = TYPES[Math.floor(Math.random() * TYPES.length)];
+      const size = 48 + Math.round(Math.random() * 54);
+      const maxHp = 3 + Math.floor(Math.random() * 3); // 3..5
+      // enter from left or right, drift across with a little vertical wander
+      const fromLeft = Math.random() < 0.5;
+      const speed = 0.25 + Math.random() * 0.5;
+      const p: Live = {
+        id: idRef.current++,
+        type,
+        size,
+        x: fromLeft ? -size : w + size,
+        y: 20 + Math.random() * Math.max(40, h - size - 40),
+        vx: fromLeft ? speed : -speed,
+        vy: (Math.random() - 0.5) * 0.25,
+        hp: maxHp,
+        maxHp,
+      };
+      liveRef.current.set(p.id, p);
+      setPlanets((ps) => [...ps, p]);
+    }
+
+    if (reduced) {
+      // a few static, still hittable
+      for (let i = 0; i < 3; i++) spawn();
+      liveRef.current.forEach((p) => {
+        p.vx = 0;
+        p.vy = 0;
+      });
+      return;
+    }
+
+    let raf = 0;
+    let last = performance.now();
+    let acc = 0;
+    spawn();
+    spawn();
+
+    function frame(t: number) {
+      const a = arenaRef.current;
+      const dt = Math.min(48, t - last);
+      last = t;
+      acc += dt;
+      if (a) {
+        const w = a.clientWidth;
+        const h = a.clientHeight;
+        for (const [id, p] of liveRef.current) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          if (p.y < 8 || p.y > h - p.size - 8) p.vy *= -1;
+          const node = nodeRef.current.get(id);
+          if (node) node.style.transform = `translate(${p.x}px, ${p.y}px)`;
+          if (p.x < -p.size - 60 || p.x > w + p.size + 60) {
+            liveRef.current.delete(id);
+            setPlanets((ps) => ps.filter((q) => q.id !== id));
+          }
+        }
+        if (acc > 1500 && liveRef.current.size < MAX_PLANETS) {
+          acc = 0;
+          spawn();
+        }
       }
-      return { ...prev, [p.id]: next };
-    });
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  function hit(id: number) {
+    const p = liveRef.current.get(id);
+    if (!p) return;
+    p.hp -= 1;
+    const node = nodeRef.current.get(id);
+    if (node) {
+      node.classList.remove("planet-hit");
+      // reflow to restart the animation
+      void node.offsetWidth;
+      node.classList.add("planet-hit");
+    }
+    if (p.hp <= 0) {
+      const reward = p.maxHp * 10;
+      const boomId = idRef.current++;
+      setScore((s) => s + reward);
+      setBooms((bs) => [
+        ...bs,
+        {
+          id: boomId,
+          x: p.x + p.size / 2,
+          y: p.y + p.size / 2,
+          reward,
+          word: BANGS[Math.floor(Math.random() * BANGS.length)],
+          color: p.type.glow.includes("#ff6a3a") ? "var(--color-danger)" : "var(--color-gold)",
+        },
+      ]);
+      setTimeout(() => setBooms((bs) => bs.filter((b) => b.id !== boomId)), 850);
+      liveRef.current.delete(id);
+      setPlanets((ps) => ps.filter((q) => q.id !== id));
+    } else {
+      setPlanets((ps) => ps.map((q) => (q.id === id ? { ...q, hp: p.hp } : q)));
+    }
   }
 
   return (
@@ -60,89 +222,75 @@ export function PlanetGame() {
           <p className="label">Mini-game</p>
           <h2 className="font-bang text-2xl tracking-wide md:text-3xl">Crack the tunnel</h2>
         </div>
-        <span className="font-mono text-sm text-text-2">{done}/{PLANETS.length} found</span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 font-mono text-sm font-bold text-gold">
+          <Icon name="Trophy" className="h-4 w-4" /> {score}
+        </span>
       </div>
 
-      <div className="surface relative h-[26rem] overflow-hidden md:h-[24rem]">
+      <div ref={arenaRef} className="surface relative h-[26rem] overflow-hidden md:h-[30rem]">
         <div className="tunnel-grid absolute inset-0 opacity-40" aria-hidden />
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center text-xs text-text-2">
+          Hit the planets — blow them up for wins
+        </p>
 
-        {PLANETS.map((p) => {
-          const left = hp[p.id] ?? MAX_HP;
-          const isCracked = cracked[p.id];
-          return (
-            <div key={p.id} className="absolute flex flex-col items-center gap-2" style={p.pos}>
-              {/* HP pips as little planet icons */}
-              <div className={`flex gap-1 transition-opacity ${isCracked ? "opacity-0" : "opacity-100"}`}>
-                {Array.from({ length: MAX_HP }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{
-                      background: i < left ? `radial-gradient(circle at 32% 30%, ${p.from}, ${p.to})` : "transparent",
-                      border: `1px solid ${i < left ? "transparent" : "var(--color-line-strong)"}`,
-                      boxShadow: i < left ? `0 0 8px -2px ${p.from}` : "none",
-                    }}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="button"
-                aria-label={`Hit ${p.label} (${left} left)`}
-                onClick={() => strike(p)}
-                data-cursor="pointer"
-                className={`planet-sphere relative ${hit === p.id ? "planet-hit" : ""} ${isCracked ? "planet-pop pointer-events-none" : ""}`}
+        {planets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            data-cursor="pointer"
+            aria-label={`Hit ${p.type.name}`}
+            onPointerDown={() => hit(p.id)}
+            ref={(el) => {
+              if (el) {
+                nodeRef.current.set(p.id, el);
+                el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+              } else nodeRef.current.delete(p.id);
+            }}
+            className="planet-sphere absolute left-0 top-0 will-change-transform"
+            style={{ width: p.size, height: p.size, background: p.type.bg, boxShadow: p.type.glow }}
+          >
+            {p.type.ring && (
+              <span
+                className="pointer-events-none absolute left-1/2 top-1/2 rounded-full border"
                 style={{
-                  width: p.size,
-                  height: p.size,
-                  background: `radial-gradient(circle at 34% 30%, ${p.from} 0%, ${p.to} 62%, #060810 100%)`,
-                  boxShadow: `0 0 50px -10px color-mix(in srgb, ${p.from} 55%, transparent), inset -16px -12px 46px rgba(0,0,0,0.6)`,
+                  width: p.size * 1.9,
+                  height: p.size * 1.9,
+                  borderColor: "rgba(230,207,154,.55)",
+                  transform: "translate(-50%,-50%) rotate(-22deg) scaleY(.26)",
+                  boxShadow: "0 0 16px -4px rgba(230,207,154,.5)",
                 }}
-              >
-                {/* shards on crack */}
-                {isCracked &&
-                  Array.from({ length: 7 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className="planet-shard absolute left-1/2 top-1/2 h-2 w-2 rounded-full"
-                      style={
-                        {
-                          background: p.from,
-                          "--sx": `${Math.cos((i / 7) * 6.28) * 90}px`,
-                          "--sy": `${Math.sin((i / 7) * 6.28) * 90}px`,
-                        } as React.CSSProperties
-                      }
-                    />
-                  ))}
-              </button>
+              />
+            )}
+            {/* HP pips */}
+            <span className="pointer-events-none absolute -top-3 left-1/2 flex -translate-x-1/2 gap-0.5">
+              {Array.from({ length: p.maxHp }).map((_, i) => (
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: i < p.hp ? "var(--color-gold)" : "transparent", border: i < p.hp ? "none" : "1px solid var(--color-line-strong)" }}
+                />
+              ))}
+            </span>
+          </button>
+        ))}
 
-              <span className={`font-mono text-xs uppercase tracking-wide transition-colors ${isCracked ? "text-text-2" : "text-text-1"}`}>
-                {isCracked ? p.label : "???"}
-              </span>
+        {booms.map((b) => (
+          <div key={b.id} className="pointer-events-none absolute" style={{ left: b.x, top: b.y, transform: "translate(-50%,-50%)" }}>
+            <div className="planet-pop relative">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="planet-shard absolute left-1/2 top-1/2 h-2 w-2 rounded-full"
+                  style={{ background: b.color, ["--sx" as string]: `${Math.cos((i / 9) * 6.28) * 100}px`, ["--sy" as string]: `${Math.sin((i / 9) * 6.28) * 100}px` } as React.CSSProperties}
+                />
+              ))}
             </div>
-          );
-        })}
-
-        {/* reveal readout */}
-        {reveal && (
-          <div className="pop-in absolute inset-x-3 bottom-3 mx-auto max-w-md rounded-2xl border border-line-strong bg-bg-1/90 p-4 backdrop-blur md:inset-x-auto md:left-1/2 md:-translate-x-1/2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-bang text-lg tracking-wide text-gradient-gold">{reveal.label}</p>
-                <p className="truncate text-sm text-text-1">{reveal.blurb}</p>
-              </div>
-              <Link href={reveal.href} className="press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-gold px-3 text-sm font-semibold text-bg-0 hover:bg-gold-hi">
-                {reveal.cta} <Icon name="ArrowRight" className="h-4 w-4" />
-              </Link>
-            </div>
+            <span className="font-bang absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-3xl md:text-4xl" style={{ color: b.color, textShadow: `0 0 18px ${b.color}` }}>
+              {b.word}
+            </span>
+            <span className="absolute left-1/2 top-8 -translate-x-1/2 font-mono text-sm font-bold text-volt neon-volt">+{b.reward}</span>
           </div>
-        )}
-
-        {done === PLANETS.length && (
-          <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-volt/40 bg-volt/10 px-3 py-1 text-xs font-semibold text-volt">
-            <Icon name="Check" className="h-3.5 w-3.5" /> Tunnel mapped
-          </div>
-        )}
+        ))}
       </div>
     </section>
   );

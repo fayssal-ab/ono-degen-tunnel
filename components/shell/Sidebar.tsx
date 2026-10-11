@@ -58,8 +58,18 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
     >
       <div
         className="relative flex h-full flex-col transition-[width] duration-200 ease-[var(--ease-tunnel)]"
-        style={{ width: collapsed ? "var(--sidebar-w-rail)" : "var(--sidebar-w)" }}
+        style={{
+          width: collapsed ? "var(--sidebar-w-rail)" : "var(--sidebar-w)",
+          backgroundImage:
+            "linear-gradient(180deg, color-mix(in srgb, var(--color-plasma) 7%, transparent) 0%, transparent 26%)",
+        }}
       >
+        {/* neon right edge */}
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-px"
+          style={{ background: "linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-cyan) 45%, transparent) 45%, transparent)" }}
+          aria-hidden
+        />
         {/* edge collapse tab */}
         <button
           onClick={toggle}
@@ -82,7 +92,7 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
                 <rect x="14" y="14" width="4" height="4" rx="1.3" />
               </svg>
             </span>
-            {!collapsed && <span className="truncate font-display text-sm font-bold tracking-tight">{BRAND_NAME}</span>}
+            {!collapsed && <span className="font-bang text-gradient-gold truncate text-base tracking-wide">{BRAND_NAME}</span>}
           </Link>
         </div>
 
@@ -121,7 +131,7 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
                           name={item.icon}
                           className={`relative z-10 h-[18px] w-[18px] shrink-0 transition-colors ${active ? "text-volt" : "group-hover:text-text-0"}`}
                         />
-                        {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
+                        {!collapsed && <span className="relative z-10 truncate font-display text-[13px] tracking-wide">{item.label}</span>}
                       </Link>
                     </li>
                   );
