@@ -26,8 +26,10 @@ export function LoginForm() {
         router.refresh();
         return;
       }
-      if (res.status === 429) setError("Too many attempts. Wait a few minutes.");
-      else setError("Wrong username or password.");
+      if (res.status === 401) setError("Wrong username or password.");
+      else if (res.status === 429) setError("Too many attempts. Wait a few minutes.");
+      else if (res.status === 403) setError("This site's address isn't allowed to sign in. Check the site URL configuration.");
+      else setError("Sign-in is temporarily unavailable. Try again.");
     } catch {
       setError("Couldn't reach the server. Try again.");
     } finally {

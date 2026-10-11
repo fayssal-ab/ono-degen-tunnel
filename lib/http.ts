@@ -1,4 +1,5 @@
 import "server-only";
+import { sameOrigin } from "./origin";
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 
@@ -29,16 +30,5 @@ export function isCronAuthorized(request: Request): boolean {
 
 /** Origin check for state-changing POSTs (CSRF-safe alongside SameSite=Lax). */
 export function isSameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return request.headers.get("sec-fetch-site") !== "cross-site";
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  try {
-    const o = new URL(origin);
-    const allowed = new Set<string>();
-    if (site) allowed.add(new URL(site).origin);
-    allowed.add(new URL(request.url).origin);
-    return allowed.has(o.origin);
-  } catch {
-    return false;
-  }
+  return sameOrigin(request, process.env.NEXT_PUBLIC_SITE_URL, process.env.NODE_ENV === "production");
 }
