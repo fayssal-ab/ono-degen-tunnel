@@ -1,5 +1,6 @@
 import { ButtonLink } from "@/components/ui/Button";
 import { CopyChip } from "@/components/ui/CopyChip";
+import { Magnetic } from "@/components/ui/Magnetic";
 import { Icon } from "@/components/ui/Icon";
 import { formatMoneyCompact } from "@/lib/money";
 import { BRAND_NAME, STREAMER, KICK_URL, CASINO_CODE } from "@/lib/constants";
@@ -74,17 +75,21 @@ export function TunnelHero({
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <ButtonLink href="/#play" variant="gold" size="lg">
-            <Icon name="Zap" className="h-4 w-4" /> Sign up &amp; play
-          </ButtonLink>
-          <a
-            href={KICK_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="press inline-flex h-13 items-center gap-2 rounded-xl border border-line-strong px-7 text-base text-text-0 hover:border-volt hover:text-volt"
-          >
-            <Icon name="Radio" className="h-4 w-4" /> Watch live
-          </a>
+          <Magnetic>
+            <ButtonLink href="/#play" variant="gold" size="lg">
+              <Icon name="Zap" className="h-4 w-4" /> Sign up &amp; play
+            </ButtonLink>
+          </Magnetic>
+          <Magnetic>
+            <a
+              href={KICK_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="press inline-flex h-13 items-center gap-2 rounded-xl border border-line-strong px-7 text-base text-text-0 hover:border-volt hover:text-volt"
+            >
+              <Icon name="Radio" className="h-4 w-4" /> Watch live
+            </a>
+          </Magnetic>
           <div className="flex items-center gap-2 pl-1">
             <span className="text-sm text-text-2">Code</span>
             <CopyChip value={CASINO_CODE} />

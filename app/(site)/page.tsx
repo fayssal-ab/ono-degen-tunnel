@@ -8,6 +8,7 @@ import { isLeaderboardEnabled } from "@/lib/settings";
 import { getHiddenHrefs } from "@/lib/pages";
 import { KICK_URL, DISCORD_URL, STREAMER, CASINO_CODE } from "@/lib/constants";
 import { TunnelHero } from "@/components/home/TunnelHero";
+import { ParticleField } from "@/components/home/ParticleField";
 import { Casinos } from "@/components/home/Casinos";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -70,6 +71,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-14 md:space-y-20">
+      <ParticleField />
       <TunnelHero stats={stats} />
 
       {/* feature bento */}
