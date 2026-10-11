@@ -83,16 +83,8 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
         {/* brand */}
         <div className={`flex h-16 items-center border-b border-line ${collapsed ? "justify-center px-2" : "gap-3 px-4"}`}>
           <Link href="/" className="flex items-center gap-3 overflow-hidden" title={BRAND_NAME}>
-            <span
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-bg-0 shadow-[0_0_20px_-6px_var(--color-gold)]"
-              style={{ background: "linear-gradient(135deg, var(--color-gold-hi), var(--color-gold))" }}
-            >
-              <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="4" y="4" width="24" height="24" rx="7" />
-                <rect x="9.5" y="9.5" width="13" height="13" rx="4" opacity="0.55" />
-                <rect x="14" y="14" width="4" height="4" rx="1.3" />
-              </svg>
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/LOGO/LOGO.png" alt="" className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(245,196,81,0.4)]" />
             {!collapsed && <span className="font-bang text-gradient-gold truncate text-base tracking-wide">{BRAND_NAME}</span>}
           </Link>
         </div>

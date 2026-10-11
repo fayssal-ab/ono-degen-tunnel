@@ -65,9 +65,15 @@ export function TunnelHero({
           {STREAMER}&rsquo;s rewards tunnel
         </span>
 
-        <h1 className="font-bang text-gradient-gold mt-4 text-balance text-6xl leading-[0.88] md:text-[clamp(3.5rem,7vw,6.5rem)]">
-          {BRAND_NAME}
-        </h1>
+        <h1 className="sr-only">{BRAND_NAME}</h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/LOGO/LOGO.png"
+          alt={BRAND_NAME}
+          width={320}
+          height={292}
+          className="mt-3 w-60 drop-shadow-[0_0_40px_rgba(245,196,81,0.25)] md:w-80"
+        />
 
         <p className="mt-5 max-w-md text-lg text-text-1">
           Wager. Climb. Get paid. Sign up with the code and ride the tunnel.

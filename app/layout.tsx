@@ -1,8 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { BRAND_NAME, STREAMER, SITE_URL } from "@/lib/constants";
-import { ASSETS } from "@/lib/assets";
+import { BRAND_NAME, STREAMER } from "@/lib/constants";
 import "./globals.css";
+
+// Canonical origin for absolute OG/Twitter image URLs. Netlify injects the real
+// site URL as process.env.URL (build + runtime), so share previews resolve to
+// the correct domain even though NEXT_PUBLIC_SITE_URL is misconfigured. Falls
+// back to the known production domain.
+const CANONICAL = process.env.URL || "https://onodegentunnel.netlify.app";
 
 // ALL fonts are self-hosted (woff2 bundled in the repo under app/fonts and
 // emitted at build). No next/font/google → the build never reaches out to
@@ -30,7 +35,7 @@ const jetbrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL(CANONICAL),
   title: {
     default: `${BRAND_NAME} — ${STREAMER}'s rewards hub`,
     template: `%s · ${BRAND_NAME}`,
@@ -42,7 +47,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: `${BRAND_NAME} — ${STREAMER}'s rewards hub`,
     description: "Wager. Climb. Get paid. Leaderboards, giveaways & VIP. Sign up with the code.",
-    url: SITE_URL,
+    url: CANONICAL,
     siteName: BRAND_NAME,
     type: "website",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: BRAND_NAME }],
@@ -54,7 +59,7 @@ export const metadata: Metadata = {
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },
-  icons: { icon: ASSETS.brand.favicon },
+  icons: { icon: "/icon.png", shortcut: "/icon.png", apple: "/icon.png" },
 };
 
 export const viewport: Viewport = {
