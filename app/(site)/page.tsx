@@ -14,6 +14,7 @@ import { Casinos } from "@/components/home/Casinos";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Badge, SectionHeading } from "@/components/ui/Badge";
+import { FeatureIcon, FEATURE_ICONS } from "@/components/ui/FeatureIcon";
 import { Podium } from "@/components/leaderboard/Podium";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Reveal, RevealStagger, RevealItem } from "@/components/ui/Reveal";
@@ -80,9 +81,10 @@ export default async function HomePage() {
                 >
                   <div className="tunnel-grid absolute inset-0 opacity-30 transition-opacity group-hover:opacity-60" aria-hidden />
                   <div className="relative flex items-start justify-between">
-                    <span className={`grid h-11 w-11 place-items-center rounded-xl bg-bg-3 ${f.tone === "volt" ? "text-volt" : "text-gold"}`}>
-                      <Icon name={f.icon} className="h-5 w-5" />
-                    </span>
+                    <FeatureIcon
+                      icon={FEATURE_ICONS[f.href]?.icon ?? f.icon}
+                      color={FEATURE_ICONS[f.href]?.color ?? "cyan"}
+                    />
                     <Icon name="ArrowUpRight" className="h-4 w-4 text-text-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   </div>
                   <div className="relative mt-6">
