@@ -40,14 +40,19 @@ export const metadata: Metadata = {
     `giveaways, free points games. Not a casino.`,
   applicationName: BRAND_NAME,
   openGraph: {
-    title: BRAND_NAME,
-    description: "Wager. Climb. Get paid.",
+    title: `${BRAND_NAME} — ${STREAMER}'s rewards hub`,
+    description: "Wager. Climb. Get paid. Leaderboards, giveaways & VIP. Sign up with the code.",
     url: SITE_URL,
     siteName: BRAND_NAME,
     type: "website",
-    images: [ASSETS.brand.ogFallback],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: BRAND_NAME }],
   },
-  twitter: { card: "summary_large_image", title: BRAND_NAME },
+  twitter: {
+    card: "summary_large_image",
+    title: `${BRAND_NAME} — ${STREAMER}'s rewards hub`,
+    description: "Wager. Climb. Get paid. Sign up with the code.",
+    images: ["/og.png"],
+  },
   robots: { index: true, follow: true },
   icons: { icon: ASSETS.brand.favicon },
 };
