@@ -435,6 +435,33 @@ html.has-custom-cursor [contenteditable="true"] {
   will-change: transform;
   filter: drop-shadow(0 0 18px color-mix(in srgb, var(--color-cyan) 20%, transparent));
 }
+
+/* JBALLIN-style glowing "game tile" frame around each background icon */
+.game-tile {
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-bg-2) 66%, transparent);
+  border: 1px solid var(--color-line-strong);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.game-tile img { display: block; width: 100%; height: auto; }
+
+/* planet hit-game */
+.planet-sphere {
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: transform 0.12s var(--ease-tunnel), filter 0.2s var(--ease-tunnel);
+}
+.planet-sphere:hover { transform: scale(1.04); }
+.planet-hit { animation: planet-hit 0.18s ease-out; }
+@keyframes planet-hit { 0% { transform: scale(1); } 40% { transform: scale(0.9); } 100% { transform: scale(1); } }
+@keyframes planet-pop { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+.planet-pop { animation: planet-pop 0.45s var(--ease-tunnel) forwards; }
+@keyframes shard-fly { to { transform: translate(var(--sx), var(--sy)) scale(0.2); opacity: 0; } }
+.planet-shard { animation: shard-fly 0.6s ease-out forwards; }
 @keyframes float-a { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-22px) rotate(8deg); } }
 @keyframes float-b { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(18px) rotate(-6deg); } }
 @keyframes float-c { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-14px) rotate(-10deg); } }

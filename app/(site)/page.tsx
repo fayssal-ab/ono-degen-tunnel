@@ -6,16 +6,16 @@ import { getActivePeriod } from "@/lib/periods";
 import { getLiveBoard } from "@/lib/board";
 import { isLeaderboardEnabled } from "@/lib/settings";
 import { getHiddenHrefs } from "@/lib/pages";
-import { KICK_URL, DISCORD_URL, STREAMER, CASINO_CODE } from "@/lib/constants";
+import { KICK_URL, DISCORD_URL, CASINO_CODE } from "@/lib/constants";
 import { TunnelHero } from "@/components/home/TunnelHero";
 import { ParticleField } from "@/components/home/ParticleField";
+import { PlanetGame } from "@/components/home/PlanetGame";
 import { Casinos } from "@/components/home/Casinos";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Badge, SectionHeading } from "@/components/ui/Badge";
 import { Podium } from "@/components/leaderboard/Podium";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Accordion } from "@/components/ui/Accordion";
 import { Reveal, RevealStagger, RevealItem } from "@/components/ui/Reveal";
 
 export const metadata: Metadata = {
@@ -36,9 +36,9 @@ async function getHomeStats() {
 }
 
 const STEPS = [
-  { n: "01", icon: "UserPlus", title: "Sign up with the code", body: `Register at a partner casino with code ${CASINO_CODE}. Takes a minute.` },
-  { n: "02", icon: "Dices", title: "Wager & climb", body: "Play like normal. Your wagers sync here every 10 minutes and push you up the board." },
-  { n: "03", icon: "Trophy", title: "Get paid", body: "Top ranks split the prize pool when the period ends. Giveaways and VIP perks on top." },
+  { n: "01", icon: "UserPlus", title: "Sign up", body: `Register with code ${CASINO_CODE}.` },
+  { n: "02", icon: "Dices", title: "Wager & climb", body: "Play normal. Wagers sync every 10 min." },
+  { n: "03", icon: "Trophy", title: "Get paid", body: "Top ranks split the pool." },
 ];
 
 const FEATURES: { href: string; icon: string; title: string; body: string; tone: "gold" | "volt"; big?: boolean }[] = [
@@ -50,13 +50,6 @@ const FEATURES: { href: string; icon: string; title: string; body: string; tone:
   { href: "/vip", icon: "Crown", title: "VIP Club", body: "The deeper you go, the bigger the perks.", tone: "gold", big: true },
 ];
 
-const FAQ = [
-  { q: "Is this a casino? Can I deposit here?", a: `No. ${STREAMER}'s site takes no money and runs no real-money games. You play at the partner casinos; this site is the leaderboard, giveaways and rewards hub.` },
-  { q: "How do my wagers count?", a: "Sign up with the code so your play is attributed to ONO. Wagers pull in automatically every 10 minutes once a board is live." },
-  { q: "When is the next leaderboard?", a: "Boards run in seasons. When one isn't live you'll see a countdown or a coming-soon notice — join the Discord to get pinged." },
-  { q: "How do giveaways work?", a: "Most run live on stream — enter by typing the keyword in Kick chat during the giveaway. Winners are drawn on stream and posted here." },
-  { q: "What do I need to be eligible for prizes?", a: "Be signed up under the code and meet the board/giveaway rules. See the Rules page for the fine print." },
-];
 
 export default async function HomePage() {
   const [stats, enabled, active, hidden] = await Promise.all([
@@ -102,6 +95,9 @@ export default async function HomePage() {
           </RevealStagger>
         </section>
       )}
+
+      {/* mini-game */}
+      <Reveal><PlanetGame /></Reveal>
 
       {/* leaderboard preview */}
       {!hiddenSet.has("/leaderboard") && (
@@ -171,9 +167,7 @@ export default async function HomePage() {
             <div>
               <Badge tone="volt">Community</Badge>
               <h2 className="mt-3 text-2xl">Don&rsquo;t miss a drop</h2>
-              <p className="mt-2 max-w-md text-text-1">
-                Giveaways, bonus hunts and board resets happen live. Follow on Kick and link up in Discord.
-              </p>
+              <p className="mt-2 max-w-md text-text-1">It all happens live.</p>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <a href={KICK_URL} target="_blank" rel="noreferrer" className="press inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-volt px-6 text-sm font-semibold text-bg-0 hover:brightness-110">
@@ -187,13 +181,6 @@ export default async function HomePage() {
         </section>
       </Reveal>
 
-      {/* faq */}
-      <section>
-        <Reveal>
-          <SectionHeading kicker="Questions" title="FAQ" watermark="FAQ" align="right" accent="gold" action={<Link href="/faq" className="text-sm text-text-1 hover:text-text-0">All FAQ →</Link>} />
-        </Reveal>
-        <Reveal delay={0.05}><Accordion items={FAQ} /></Reveal>
-      </section>
     </div>
   );
 }

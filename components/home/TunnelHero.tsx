@@ -69,9 +69,8 @@ export function TunnelHero({
           {BRAND_NAME}
         </h1>
 
-        <p className="mt-5 max-w-lg text-lg text-text-1">
-          Wager. Climb. Get paid. Sign up with the code and ride the tunnel — leaderboards, races,
-          giveaways and the prize at the end of the light.
+        <p className="mt-5 max-w-md text-lg text-text-1">
+          Wager. Climb. Get paid. Sign up with the code and ride the tunnel.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
