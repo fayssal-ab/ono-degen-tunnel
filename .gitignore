@@ -17,3 +17,6 @@ npm-debug.log*
 
 # certs
 /certs/*.pem
+
+# generated Vercel env (never commit)
+deploy.env

@@ -1,32 +1,27 @@
-import Image from "next/image";
 import { ButtonLink } from "./Button";
+import { Icon } from "./Icon";
 
-// Every empty state is designed, never a blank box (prompt §3.5). Illustration
-// placeholder + one line + a CTA.
+// Empty state: a clean icon + a big "bang" title + one line + CTA. No drawn
+// placeholder art. `image` is accepted but ignored (kept for call-site compat).
 export function EmptyState({
-  image,
+  icon = "Sparkles",
   title,
   line,
   cta,
 }: {
-  image: string;
+  image?: string;
+  icon?: string;
   title: string;
   line: string;
   cta?: { label: string; href: string; external?: boolean };
 }) {
   return (
-    <div className="surface flex flex-col items-center px-6 py-14 text-center">
-      <Image
-        src={image}
-        alt=""
-        width={220}
-        height={165}
-        className="mb-6 opacity-80"
-        // placeholders are SVG; unoptimized avoids the optimizer round-trip
-        unoptimized
-      />
-      <h3 className="text-xl">{title}</h3>
-      <p className="mt-2 max-w-sm text-sm text-text-1">{line}</p>
+    <div className="surface flex flex-col items-center px-6 py-16 text-center">
+      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-bg-3 text-gold shadow-[0_0_28px_-10px_var(--color-gold)]">
+        <Icon name={icon} className="h-8 w-8" />
+      </span>
+      <h3 className="font-bang mt-6 text-4xl text-text-0 md:text-5xl">{title}</h3>
+      <p className="mt-3 max-w-md text-sm text-text-1 md:text-base">{line}</p>
       {cta &&
         (cta.external ? (
           <a

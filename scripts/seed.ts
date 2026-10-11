@@ -7,12 +7,21 @@
 //     real board is running)
 //
 //   npm run seed
+import { readFileSync } from "node:fs";
 import mysql from "mysql2/promise";
 
 function env(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
   if (v === undefined) throw new Error(`${name} must be set`);
   return v;
+}
+
+function sslOption(): mysql.ConnectionOptions["ssl"] {
+  if (process.env.DB_SSL_CA_BASE64)
+    return { ca: Buffer.from(process.env.DB_SSL_CA_BASE64, "base64").toString("utf8") };
+  if (process.env.DB_SSL_CA) return { ca: process.env.DB_SSL_CA };
+  if (process.env.DB_SSL_CA_PATH) return { ca: readFileSync(process.env.DB_SSL_CA_PATH, "utf8") };
+  return undefined;
 }
 
 async function main() {
@@ -23,6 +32,7 @@ async function main() {
     password: process.env.DB_PASSWORD ?? "",
     database: env("DB_NAME", "ono_degen_tunnel"),
     multipleStatements: true,
+    ssl: sslOption(),
   });
 
   // Default the leaderboard to hidden (coming-soon state) until a real board

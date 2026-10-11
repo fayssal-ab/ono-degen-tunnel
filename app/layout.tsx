@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Unbounded, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Unbounded, Inter_Tight, JetBrains_Mono, Bangers } from "next/font/google";
 import { BRAND_NAME, STREAMER, SITE_URL } from "@/lib/constants";
 import { ASSETS } from "@/lib/assets";
 import "./globals.css";
@@ -9,6 +9,13 @@ const unbounded = Unbounded({
   variable: "--font-unbounded",
   display: "swap",
   weight: ["400", "500", "700", "800"],
+});
+// Bold display / "bang" titles.
+const bangers = Bangers({
+  subsets: ["latin"],
+  variable: "--font-bangers",
+  display: "swap",
+  weight: "400",
 });
 const interTight = Inter_Tight({
   subsets: ["latin"],
@@ -54,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${unbounded.variable} ${interTight.variable} ${jetbrainsMono.variable}`}
+      className={`${unbounded.variable} ${interTight.variable} ${jetbrainsMono.variable} ${bangers.variable}`}
       suppressHydrationWarning
     >
       <body>{children}</body>

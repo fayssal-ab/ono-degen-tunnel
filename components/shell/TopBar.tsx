@@ -17,9 +17,20 @@ export function TopBar({ live, viewers }: { live: boolean; viewers: number | nul
   function openPalette() {
     window.dispatchEvent(new Event("odt:open-palette"));
   }
+  function openMenu() {
+    window.dispatchEvent(new Event("odt:open-menu"));
+  }
 
   return (
-    <header className="app-topbar fixed inset-x-0 top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-bg-0/80 px-4 backdrop-blur-md">
+    <header className="app-topbar fixed inset-x-0 top-0 z-30 flex h-16 items-center gap-2 border-b border-line bg-bg-0/80 px-3 backdrop-blur-md sm:gap-3 sm:px-4">
+      {/* mobile hamburger — opens the nav menu */}
+      <button
+        onClick={openMenu}
+        className="press grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-bg-1 text-text-1 hover:text-text-0 lg:hidden"
+        aria-label="Open menu"
+      >
+        <Icon name="Menu" className="h-5 w-5" />
+      </button>
       <button
         onClick={openPalette}
         className="press flex h-10 flex-1 items-center gap-2 rounded-xl border border-line bg-bg-1 px-3 text-text-2 hover:border-line-strong md:max-w-sm"

@@ -16,6 +16,15 @@ function env(name: string, fallback?: string): string {
   return v;
 }
 
+// TLS for managed hosts (Aiven etc.) — same resolution as lib/db.ts.
+function sslOption(): mysql.ConnectionOptions["ssl"] {
+  if (process.env.DB_SSL_CA_BASE64)
+    return { ca: Buffer.from(process.env.DB_SSL_CA_BASE64, "base64").toString("utf8") };
+  if (process.env.DB_SSL_CA) return { ca: process.env.DB_SSL_CA };
+  if (process.env.DB_SSL_CA_PATH) return { ca: readFileSync(process.env.DB_SSL_CA_PATH, "utf8") };
+  return undefined;
+}
+
 async function main() {
   const fresh = process.argv.includes("--fresh");
   const host = env("DB_HOST", "localhost");
@@ -24,14 +33,21 @@ async function main() {
   const password = process.env.DB_PASSWORD ?? "";
   const database = env("DB_NAME", "ono_degen_tunnel");
 
+  const ssl = sslOption();
   // Server-level connection first, so we can create the DB if it's missing.
-  const root = await mysql.createConnection({ host, port, user, password, multipleStatements: true });
+  const root = await mysql.createConnection({ host, port, user, password, multipleStatements: true, ssl });
 
   if (fresh) {
     console.warn(`--fresh: dropping database \`${database}\``);
     await root.query(`DROP DATABASE IF EXISTS \`${database}\``);
   }
-  await root.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  // Best-effort create: managed hosts (Aiven) often disallow CREATE DATABASE
+  // for the app user — in that case use the host's existing DB (e.g. defaultdb).
+  try {
+    await root.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  } catch {
+    console.warn(`(could not CREATE DATABASE \`${database}\` — assuming it already exists)`);
+  }
   await root.changeUser({ database });
 
   await root.query(`

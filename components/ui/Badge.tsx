@@ -41,7 +41,7 @@ export function SectionHeading({
     <div className="mb-5 flex items-end justify-between gap-4">
       <div>
         {kicker && <p className="label">{kicker}</p>}
-        <h2 className="mt-1 text-xl md:text-2xl">{title}</h2>
+        <h2 className="font-bang mt-1 text-2xl tracking-wide md:text-3xl">{title}</h2>
       </div>
       {action}
     </div>

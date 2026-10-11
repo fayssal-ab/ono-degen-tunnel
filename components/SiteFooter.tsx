@@ -10,6 +10,7 @@ import {
 } from "@/lib/constants";
 import { getHiddenHrefs } from "@/lib/pages";
 import { Icon } from "@/components/ui/Icon";
+import { BrandIcon } from "@/components/ui/BrandIcon";
 
 const COLUMNS = [
   {
@@ -82,18 +83,18 @@ export async function SiteFooter() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Kick"
-                className="press grid h-10 w-10 place-items-center rounded-xl border border-line hover:border-volt hover:text-volt"
+                className="press grid h-10 w-10 place-items-center rounded-xl border border-line text-text-1 hover:border-volt hover:text-volt"
               >
-                <Icon name="Radio" className="h-4 w-4" />
+                <BrandIcon brand="kick" className="h-5 w-5" />
               </a>
               <a
                 href={DISCORD_URL}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Discord"
-                className="press grid h-10 w-10 place-items-center rounded-xl border border-line hover:border-plasma hover:text-plasma"
+                className="press grid h-10 w-10 place-items-center rounded-xl border border-line text-text-1 hover:border-plasma hover:text-plasma"
               >
-                <Icon name="MessageCircle" className="h-4 w-4" />
+                <BrandIcon brand="discord" className="h-5 w-5" />
               </a>
             </div>
           </div>

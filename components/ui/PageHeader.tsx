@@ -17,7 +17,7 @@ export function PageHeader({
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
       <div className="max-w-2xl">
         {kicker && <p className="label">{kicker}</p>}
-        <h1 className="mt-1.5 text-2xl md:text-3xl">{title}</h1>
+        <h1 className="font-bang mt-1.5 text-3xl tracking-wide md:text-4xl">{title}</h1>
         {lead && <p className="mt-2 text-sm text-text-1 md:text-base">{lead}</p>}
       </div>
       {right}

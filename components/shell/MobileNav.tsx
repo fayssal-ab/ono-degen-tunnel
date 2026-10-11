@@ -25,6 +25,13 @@ export function MobileNav({ hidden = [] }: { hidden?: string[] }) {
     setDrawer(false);
   }, [pathname]);
 
+  // open from the top-bar hamburger
+  useEffect(() => {
+    const open = () => setDrawer(true);
+    window.addEventListener("odt:open-menu", open);
+    return () => window.removeEventListener("odt:open-menu", open);
+  }, []);
+
   // lock scroll while the drawer is open
   useEffect(() => {
     document.body.style.overflow = drawer ? "hidden" : "";

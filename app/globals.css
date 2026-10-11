@@ -29,6 +29,7 @@
   --font-display: var(--font-unbounded), system-ui, sans-serif;
   --font-sans: var(--font-inter-tight), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-bang: var(--font-bangers), var(--font-unbounded), system-ui, sans-serif;
 
   /* strict type scale 12/14/16/20/28/40/64/96 */
   --text-xs: 0.75rem;
@@ -91,6 +92,14 @@ h1, h2, h3, h4 {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.05;
+}
+
+/* big "bang" display font for hero + section titles */
+.font-bang {
+  font-family: var(--font-bang);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
 }
 
 /* numbers never jitter */

@@ -38,7 +38,7 @@ export function TunnelHero() {
           <span className="h-1.5 w-1.5 rounded-full bg-volt" />
           {STREAMER}&rsquo;s rewards tunnel
         </span>
-        <h1 className="text-gradient-gold mt-4 text-balance text-4xl font-extrabold md:text-[clamp(2.75rem,7vw,6rem)]">
+        <h1 className="font-bang text-gradient-gold mt-4 text-balance text-5xl tracking-wide md:text-[clamp(3.5rem,8vw,7rem)]">
           {BRAND_NAME}
         </h1>
         <p className="mx-auto mt-5 max-w-lg text-lg text-text-1">
