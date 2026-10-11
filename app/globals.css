@@ -364,3 +364,15 @@ body {
     transform: scale(var(--ring-scale, 1)) !important;
   }
 }
+
+/* hide the Netlify HUD "Powered by Netlify" badge (client-side fallback —
+   the supported removal is the dashboard toggle under Project configuration →
+   General). The HUD injects an iframe (#nl-badge-frame) into the page DOM. */
+#nl-badge-frame,
+iframe[src*=".netlify/scripts/hud"],
+[id^="nl-badge"],
+[class*="nf-badge"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
