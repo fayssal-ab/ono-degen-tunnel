@@ -23,7 +23,7 @@ export default async function GuessBalancePage() {
   if (!round) {
     return (
       <div className="space-y-10">
-        <PageHeader kicker="Watch" title="Guess the Balance" icon="Gauge" iconColor="cyan" lead="Call the final balance — closest wins." />
+        <PageHeader kicker="Watch" title="Guess the Balance" lead="Call the final balance — closest wins." />
         <EmptyState
           icon="HelpCircle"
           title="No round open"

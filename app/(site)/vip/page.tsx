@@ -35,15 +35,12 @@ export default async function VipPage() {
       <PageHeader
         kicker="Rewards"
         title="VIP Club"
-        icon="Crown"
-        iconColor="gold"
         accent="gold"
         lead={`Wager under code ${CASINO_CODE} and climb. Higher tiers, bigger perks.`}
       />
 
       {tiers.length === 0 ? (
         <EmptyState
-          icon="Crown"
           title="VIP tiers not set up yet"
           line="The VIP ladder will appear here once the tiers are configured. Ping a mod in Discord to ask what's coming."
           cta={{ label: "Join Discord", href: DISCORD_URL, external: true }}

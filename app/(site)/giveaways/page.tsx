@@ -136,15 +136,12 @@ export default async function GiveawaysPage() {
         title="Giveaways"
         watermark="Giveaways"
         accent="gold"
-        icon="Gift"
-        iconColor="volt"
         lead="Free to enter. Drawn live. Provably fair."
         right={<Badge tone="plasma"><Icon name="ShieldCheck" className="h-3.5 w-3.5" /> Provably fair</Badge>}
       />
 
       {open.length === 0 ? (
         <EmptyState
-          icon="Gift"
           title="No giveaway running"
           line="Nothing live right now. Follow on Kick so you don't miss the next drop."
           cta={{ label: "Follow on Kick", href: KICK_URL, external: true }}

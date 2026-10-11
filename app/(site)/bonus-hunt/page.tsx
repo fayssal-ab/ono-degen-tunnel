@@ -32,7 +32,7 @@ export default async function BonusHuntPage() {
   if (!hunt) {
     return (
       <div className="space-y-10">
-        <PageHeader kicker="Watch" title="Bonus Hunt" icon="Dices" iconColor="magenta" lead="Bonuses tracked live, to the dollar." />
+        <PageHeader kicker="Watch" title="Bonus Hunt" lead="Bonuses tracked live, to the dollar." />
         <EmptyState
           icon="Search"
           title="No hunt running"

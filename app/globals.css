@@ -436,6 +436,26 @@ html.has-custom-cursor [contenteditable="true"] {
   filter: drop-shadow(0 0 18px color-mix(in srgb, var(--color-cyan) 20%, transparent));
 }
 
+/* particle field sits in the CONTENT area, not under the fixed sidebar, so the
+   left-hand tiles aren't hidden behind it on desktop. */
+.pf-field { position: fixed; inset: 0; }
+@media (min-width: 1024px) {
+  .pf-field { left: var(--sidebar-w); }
+  html.sidebar-collapsed .pf-field { left: var(--sidebar-w-rail); }
+}
+
+/* circular route-change spinner (nice, not a boring default) */
+@keyframes spin-360 { to { transform: rotate(360deg); } }
+.route-spinner {
+  width: 54px;
+  height: 54px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, transparent 0deg, var(--color-cyan) 120deg, var(--color-plasma) 240deg, var(--color-gold) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  animation: spin-360 0.9s linear infinite;
+}
+
 /* JBALLIN-style glowing "game tile" frame around each background icon */
 .game-tile {
   display: grid;

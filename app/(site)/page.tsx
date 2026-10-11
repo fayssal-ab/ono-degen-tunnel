@@ -9,8 +9,6 @@ import { getHiddenHrefs } from "@/lib/pages";
 import { KICK_URL, DISCORD_URL, CASINO_CODE } from "@/lib/constants";
 import { TunnelHero } from "@/components/home/TunnelHero";
 import { ParticleField } from "@/components/home/ParticleField";
-import { PlanetGame } from "@/components/home/PlanetGame";
-import { Planet3DScene } from "@/components/home/Planet3DScene";
 import { Casinos } from "@/components/home/Casinos";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -98,24 +96,6 @@ export default async function HomePage() {
           </RevealStagger>
         </section>
       )}
-
-      {/* 3D orbit showcase */}
-      <Reveal>
-        <section className="surface relative grid gap-6 overflow-hidden p-6 md:grid-cols-2 md:items-center md:p-10">
-          <div className="tunnel-grid absolute inset-0 opacity-30" aria-hidden />
-          <div className="relative">
-            <SectionHeading kicker="Live in 3D" title="Enter the orbit" watermark="Orbit" accent="cyan" />
-            <p className="max-w-sm text-text-1">Real-time 3D — lazy-loaded, so it never slows the page.</p>
-            <ButtonLink href="/giveaways" variant="accent" className="mt-5">
-              Explore giveaways <Icon name="ArrowRight" className="h-4 w-4" />
-            </ButtonLink>
-          </div>
-          <div className="relative"><Planet3DScene /></div>
-        </section>
-      </Reveal>
-
-      {/* mini-game */}
-      <Reveal><PlanetGame /></Reveal>
 
       {/* leaderboard preview */}
       {!hiddenSet.has("/leaderboard") && (

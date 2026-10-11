@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { NAV_GROUPS } from "@/lib/nav";
 import { BRAND_NAME, KICK_URL, DISCORD_URL } from "@/lib/constants";
 import { Icon } from "@/components/ui/Icon";
+import { BrandIcon } from "@/components/ui/BrandIcon";
 
 const STORAGE_KEY = "odt.sidebar.collapsed";
 
@@ -168,7 +169,7 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
             rel="noreferrer"
             className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-text-1 hover:bg-bg-2 hover:text-text-0"
           >
-            <Icon name="MessageCircle" className="h-[18px] w-[18px] shrink-0" />
+            <BrandIcon brand="discord" className="h-[18px] w-[18px] shrink-0" />
             {!collapsed && <span className="truncate">Discord</span>}
           </a>
         </div>

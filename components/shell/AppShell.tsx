@@ -7,6 +7,7 @@ import { CustomCursor } from "./CustomCursor";
 import { Preloader } from "./Preloader";
 import { ScrollProgress } from "./ScrollProgress";
 import { BackToTop } from "./BackToTop";
+import { PlanetGame } from "@/components/home/PlanetGame";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getSetting } from "@/lib/settings";
@@ -44,6 +45,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
       <MobileNav hidden={hidden} />
       <BackToTop />
+      <PlanetGame />
     </>
   );
 }

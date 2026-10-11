@@ -1,12 +1,11 @@
-// Default route skeleton — matches the usual page rhythm (header block + grid).
+// Shown by the App Router while a (site) route's data loads — a clean spinning
+// conic ring instead of a blank flash.
 export default function Loading() {
   return (
-    <div className="animate-pulse space-y-6" aria-hidden>
-      <div className="surface h-48" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="surface h-40" />
-        ))}
+    <div className="grid min-h-[60vh] place-items-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="route-spinner" />
+        <p className="label">Loading</p>
       </div>
     </div>
   );

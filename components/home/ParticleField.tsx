@@ -65,6 +65,8 @@ export function ParticleField() {
   const { scrollYProgress } = useScroll();
   const mxRaw = useMotionValue(0);
   const mx = useSpring(mxRaw, { stiffness: 40, damping: 20, mass: 0.5 });
+  const planetY = useTransform(scrollYProgress, [0, 1], [0, -150]);
+  const planetX = useTransform(mx, (v) => v * 10);
 
   useEffect(() => {
     if (reduced) return;
@@ -77,7 +79,30 @@ export function ParticleField() {
   }, [reduced, mxRaw]);
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+    <div aria-hidden className="pf-field pointer-events-none z-0 overflow-hidden">
+      {/* distant planet in the background (CSS sphere + tilted ring) */}
+      <motion.div className="absolute hidden lg:block" style={{ top: "-10%", right: "-5%", y: planetY, x: planetX }}>
+        <div className="relative" style={{ width: 360, height: 360 }}>
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle at 34% 30%, #4a3c86 0%, #1a1f3e 48%, #080b16 78%)",
+              boxShadow: "0 0 90px -10px color-mix(in srgb, var(--color-plasma) 40%, transparent), inset -20px -14px 60px rgba(0,0,0,.7)",
+            }}
+          />
+          <div
+            className="absolute left-1/2 top-1/2 rounded-full border"
+            style={{
+              width: 540,
+              height: 540,
+              borderColor: "color-mix(in srgb, var(--color-cyan) 32%, transparent)",
+              transform: "translate(-50%,-50%) rotate(-20deg) scaleY(.3)",
+              boxShadow: "0 0 24px -6px color-mix(in srgb, var(--color-cyan) 40%, transparent)",
+            }}
+          />
+        </div>
+      </motion.div>
+
       {TILES.map((t, i) => (
         <TileEl key={i} t={t} scrollYProgress={scrollYProgress} mx={mx} />
       ))}
