@@ -95,12 +95,10 @@ function Avatar({ src, name, size = 44 }: { src: string | null; name: string; si
 const CARD = 136;
 
 const FILTERS = [
-  { key: "subs", label: "Subscribers", available: true },
-  { key: "mods", label: "Mods", available: false },
+  { key: "subs", label: "Subscribed", available: true },
+  { key: "active", label: "Active", available: true },
   { key: "vips", label: "VIPs", available: false },
-  { key: "gifters", label: "Gifters", available: false },
-  { key: "yapper", label: "Yapper", available: false },
-  { key: "super", label: "Super Yapper", available: false },
+  { key: "gifted", label: "Gifted", available: false },
 ];
 
 export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number; initial: Data; defaultChannel: string }) {
@@ -520,7 +518,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         <div>
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((f) => {
-              const active = f.key === "subs" ? g.subscribersOnly : false;
+              const active = f.key === "subs" ? g.subscribersOnly : f.key === "active";
               return (
                 <span
                   key={f.key}
@@ -539,7 +537,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-text-2">Only filters Kick actually exposes work. Role / gifter / Yapper aren&rsquo;t in Kick&rsquo;s chat events, so they&rsquo;re locked rather than faked.</p>
+          <p className="mt-2 text-xs text-text-2">Subscribed is enforced (Kick exposes it); Active = anyone who entered via chat. VIPs / Gifted aren&rsquo;t in Kick&rsquo;s chat events, so they&rsquo;re locked rather than faked.</p>
         </div>
 
         {/* reel */}

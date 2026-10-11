@@ -11,12 +11,12 @@ import { useEffect, useRef } from "react";
 type P = { src: string; size: number; top: string; left: string; depth: number; float: string; opacity: number; hideSm?: boolean };
 
 const PARTICLES: P[] = [
-  { src: "/assets/particles/p1.webp", size: 150, top: "10%", left: "5%", depth: 34, float: "float-a", opacity: 0.5 },
-  { src: "/assets/particles/p2.webp", size: 90, top: "22%", left: "82%", depth: 22, float: "float-b", opacity: 0.45 },
-  { src: "/assets/particles/p3.avif", size: 120, top: "62%", left: "8%", depth: 46, float: "float-c", opacity: 0.4, hideSm: true },
-  { src: "/assets/particles/p4.webp", size: 72, top: "74%", left: "88%", depth: 18, float: "float-a", opacity: 0.4 },
-  { src: "/assets/particles/p5.png", size: 180, top: "44%", left: "70%", depth: 54, float: "float-b", opacity: 0.32, hideSm: true },
-  { src: "/assets/particles/p6.webp", size: 100, top: "86%", left: "40%", depth: 28, float: "float-c", opacity: 0.38, hideSm: true },
+  { src: "/assets/particles/p1.webp", size: 140, top: "11%", left: "4%", depth: 34, float: "float-a", opacity: 0.95 },
+  { src: "/assets/particles/p2.webp", size: 96, top: "20%", left: "85%", depth: 22, float: "float-b", opacity: 0.9 },
+  { src: "/assets/particles/p3.avif", size: 118, top: "60%", left: "6%", depth: 46, float: "float-c", opacity: 0.9, hideSm: true },
+  { src: "/assets/particles/p4.webp", size: 84, top: "76%", left: "89%", depth: 18, float: "float-a", opacity: 0.9 },
+  { src: "/assets/particles/p5.png", size: 150, top: "46%", left: "90%", depth: 54, float: "float-b", opacity: 0.85, hideSm: true },
+  { src: "/assets/particles/p6.webp", size: 104, top: "85%", left: "38%", depth: 28, float: "float-c", opacity: 0.88, hideSm: true },
 ];
 
 export function ParticleField() {
@@ -58,6 +58,30 @@ export function ParticleField() {
 
   return (
     <div ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      {/* distant planet — a CSS sphere + tilted ring on its own parallax layer */}
+      <div data-depth={68} className="absolute hidden lg:block" style={{ top: "-12%", right: "-6%" }}>
+        <div className="relative" style={{ width: 380, height: 380 }}>
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle at 34% 30%, #4a3c86 0%, #1a1f3e 48%, #080b16 78%)",
+              boxShadow:
+                "0 0 90px -10px color-mix(in srgb, var(--color-plasma) 40%, transparent), inset -20px -14px 60px rgba(0,0,0,0.7)",
+            }}
+          />
+          <div
+            className="absolute left-1/2 top-1/2 rounded-full border"
+            style={{
+              width: 560,
+              height: 560,
+              borderColor: "color-mix(in srgb, var(--color-cyan) 32%, transparent)",
+              transform: "translate(-50%, -50%) rotate(-20deg) scaleY(0.3)",
+              boxShadow: "0 0 24px -6px color-mix(in srgb, var(--color-cyan) 40%, transparent)",
+            }}
+          />
+        </div>
+      </div>
+
       {PARTICLES.map((p, i) => (
         <div
           key={i}

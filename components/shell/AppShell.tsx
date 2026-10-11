@@ -4,6 +4,7 @@ import { CommandPalette } from "./CommandPalette";
 import { MobileNav } from "./MobileNav";
 import { StarField } from "./StarField";
 import { CustomCursor } from "./CustomCursor";
+import { Preloader } from "./Preloader";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getSetting } from "@/lib/settings";
@@ -23,6 +24,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <Preloader />
       <StarField />
       <CustomCursor />
       <Sidebar live={live} hidden={hidden} />

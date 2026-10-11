@@ -2,6 +2,7 @@ import "server-only";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { getPool } from "./db";
 import { generateServerSeed, sha256, entriesHash, winnerIndex } from "./fair";
+import { resolveKickAvatar } from "./kickChat";
 
 // Giveaways (prompt §5.10) — sharkz-style, but entries come from Kick chat
 // (no user accounts) and the draw is provably fair (see lib/fair.ts). Entrant
@@ -259,18 +260,25 @@ export async function addManualEntry(giveawayId: number, username: string): Prom
 
 // Preview-only: load sample entrants so the operator can rehearse the reel
 // before going live. Clearly a test action in the UI; wiped by clearEntries.
+// Real Kick handles so the rehearsal reel shows REAL profile avatars (resolved
+// on insert). Unknown/404 handles just fall back to initials — never faked.
 const TEST_HANDLES = [
-  "kT_striker", "mellowmars", "nova_lin", "gg_wizard", "frosty_fox", "pixel_pat",
-  "echo_rey", "sunny_sol", "midnight_v", "lumen_lux", "turbo_tom", "ace_void",
+  "xqc", "trainwreckstv", "roshtein", "adinross", "ac7ionman", "nickmercs",
+  "westcol", "ibai", "amouranth", "buddha", "yuuukine", "mellstroy",
 ];
 export async function addTestEntrants(giveawayId: number, n = 8): Promise<void> {
   const pool = getPool();
   const picks = [...TEST_HANDLES].sort(() => Math.random() - 0.5).slice(0, Math.min(n, TEST_HANDLES.length));
-  for (const u of picks) {
+  // resolve real avatars in parallel (cached; null → initials fallback)
+  const avatars = await Promise.all(
+    picks.map((u) => resolveKickAvatar(u).catch(() => null))
+  );
+  for (let i = 0; i < picks.length; i++) {
     await pool.query(
-      `INSERT INTO giveaway_entries (giveaway_id, kick_username, is_subscriber, message_count)
-       VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE message_count = message_count + 1`,
-      [giveawayId, u, Math.random() < 0.4 ? 1 : 0]
+      `INSERT INTO giveaway_entries (giveaway_id, kick_username, avatar, is_subscriber, message_count)
+       VALUES (?, ?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE avatar = COALESCE(VALUES(avatar), avatar), message_count = message_count + 1`,
+      [giveawayId, picks[i], avatars[i], Math.random() < 0.4 ? 1 : 0]
     );
   }
 }
@@ -363,17 +371,25 @@ export async function drawWinners(giveawayId: number, count: number): Promise<Dr
   const alreadyWon = new Set(wrows.map((w) => String(w.kick_username).toLowerCase()));
   let nonce = wrows.reduce((max, w) => Math.max(max, (w.nonce as number) ?? -1), -1) + 1;
 
+  // Prefer fresh (never-won) names so multi-winner draws don't repeat. But once
+  // the whole pool has already won, allow repeats so a re-roll ALWAYS produces a
+  // winner (the admin can keep rolling, e.g. after a mod voids one). Each pick
+  // still gets its own nonce and is recorded + reproducible on /verify.
+  const uniqueLeft = poolNames.length - alreadyWon.size;
+  const allowRepeat = uniqueLeft <= 0;
+  const target = allowRepeat ? count : Math.min(count, uniqueLeft);
+
   const results: DrawResult[] = [];
-  const target = Math.min(count, poolNames.length - alreadyWon.size);
   let guard = 0;
-  while (results.length < target && guard < poolNames.length * 4) {
+  while (results.length < target && guard < poolNames.length * 8 + 16) {
     guard++;
     const idx = winnerIndex(String(g.server_seed), eHash, nonce, poolNames.length);
     const name = poolNames[idx];
-    if (!alreadyWon.has(name.toLowerCase())) {
+    const repeat = alreadyWon.has(name.toLowerCase());
+    if (allowRepeat || !repeat) {
       const avatar = avatarOf.get(name.toLowerCase()) ?? null;
       results.push({ username: name, avatar, nonce, index: idx });
-      alreadyWon.add(name.toLowerCase());
+      if (!repeat) alreadyWon.add(name.toLowerCase());
       await pool.query(
         `INSERT INTO giveaway_winners
            (giveaway_id, kick_username, avatar, prize, nonce, winner_index, entrant_count, entries_hash, server_seed, server_seed_hash)

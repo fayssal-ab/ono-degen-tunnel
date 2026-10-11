@@ -62,5 +62,22 @@ export function CustomCursor() {
     };
   }, []);
 
+  // Water ripple on any click/tap (desktop + touch). Skipped under reduced
+  // motion. Ripples are appended to <body> and self-remove after the animation.
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    function onDown(e: PointerEvent) {
+      const r = document.createElement("span");
+      r.className = "click-ripple";
+      r.style.left = `${e.clientX}px`;
+      r.style.top = `${e.clientY}px`;
+      document.body.appendChild(r);
+      r.addEventListener("animationend", () => r.remove(), { once: true });
+      setTimeout(() => r.remove(), 900);
+    }
+    window.addEventListener("pointerdown", onDown, { passive: true });
+    return () => window.removeEventListener("pointerdown", onDown);
+  }, []);
+
   return <div ref={glowRef} className="cursor-glow" aria-hidden />;
 }
