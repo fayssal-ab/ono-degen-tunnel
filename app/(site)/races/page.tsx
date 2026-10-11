@@ -22,7 +22,7 @@ export default async function RacesPage() {
   if (races.length === 0) {
     return (
       <div className="space-y-10">
-        <PageHeader kicker="Compete" title="Races" lead="Short sprints — 24h and weekly. Wager the most in the window to take the pot." />
+        <PageHeader kicker="Compete" title="Races" icon="Flag" iconColor="electric" lead="24h & weekly sprints for the pot." />
         <EmptyState
           icon="Flag"
           title="No race running"

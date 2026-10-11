@@ -136,7 +136,9 @@ export default async function GiveawaysPage() {
         title="Giveaways"
         watermark="Giveaways"
         accent="gold"
-        lead="Free to enter, drawn live on stream through Kick chat — provably fair, every time."
+        icon="Gift"
+        iconColor="volt"
+        lead="Free to enter. Drawn live. Provably fair."
         right={<Badge tone="plasma"><Icon name="ShieldCheck" className="h-3.5 w-3.5" /> Provably fair</Badge>}
       />
 

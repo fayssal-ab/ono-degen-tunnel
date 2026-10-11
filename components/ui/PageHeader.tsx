@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
+import { FeatureIcon, type FeatureColor } from "./FeatureIcon";
 
 // Consistent page header across every route (kicker + title + optional lead +
-// right-aligned slot for badges/actions). An optional giant outlined watermark
-// word sits behind the title for the editorial, gaming-hub feel — defaults to
-// the title itself so every page picks it up without extra wiring.
+// right-aligned slot). A giant outlined watermark word sits behind the title
+// for the editorial feel (defaults to the title), and an optional branded
+// FeatureIcon badge sits beside it.
 export function PageHeader({
   kicker,
   title,
@@ -11,14 +12,17 @@ export function PageHeader({
   right,
   watermark,
   accent = "cyan",
+  icon,
+  iconColor = "cyan",
 }: {
   kicker?: string;
   title: string;
   lead?: string;
   right?: ReactNode;
-  /** outlined word behind the title; pass `null` to disable, omit to use title */
   watermark?: string | null;
   accent?: "gold" | "cyan";
+  icon?: string;
+  iconColor?: FeatureColor;
 }) {
   const mark = watermark === undefined ? title : watermark;
 
@@ -33,10 +37,13 @@ export function PageHeader({
         </span>
       )}
       <div className={`relative z-10 flex flex-wrap items-end justify-between gap-4 ${mark ? "-mt-[0.3em]" : ""}`}>
-        <div className="max-w-2xl">
-          {kicker && <p className="label">{kicker}</p>}
-          <h1 className="font-bang mt-1.5 text-3xl tracking-wide md:text-4xl">{title}</h1>
-          {lead && <p className="mt-2 text-sm text-text-1 md:text-base">{lead}</p>}
+        <div className="flex items-start gap-4">
+          {icon && <FeatureIcon icon={icon} color={iconColor} size="lg" className="mt-1" />}
+          <div className="max-w-2xl">
+            {kicker && <p className="label">{kicker}</p>}
+            <h1 className="font-bang mt-1.5 text-3xl tracking-wide md:text-4xl">{title}</h1>
+            {lead && <p className="mt-2 text-sm text-text-1 md:text-base">{lead}</p>}
+          </div>
         </div>
         {right}
       </div>

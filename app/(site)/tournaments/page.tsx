@@ -22,7 +22,7 @@ export default async function TournamentsPage() {
   if (!t) {
     return (
       <div className="space-y-10">
-        <PageHeader kicker="Compete" title="Tournaments" lead="Eight slots enter. Highest win multiplier advances. One survives." />
+        <PageHeader kicker="Compete" title="Tournaments" icon="Swords" iconColor="plasma" lead="Eight slots. Highest multiplier wins." />
         <EmptyState
           icon="Swords"
           title="No tournament live"

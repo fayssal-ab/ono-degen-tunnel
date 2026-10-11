@@ -35,7 +35,10 @@ export default async function VipPage() {
       <PageHeader
         kicker="Rewards"
         title="VIP Club"
-        lead={`Every dollar you wager under code ${CASINO_CODE} moves you up the tunnel. Higher tiers mean bigger giveaway entries, monthly bonuses and a louder voice in Discord.`}
+        icon="Crown"
+        iconColor="gold"
+        accent="gold"
+        lead={`Wager under code ${CASINO_CODE} and climb. Higher tiers, bigger perks.`}
       />
 
       {tiers.length === 0 ? (
