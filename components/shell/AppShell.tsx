@@ -2,6 +2,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { CommandPalette } from "./CommandPalette";
 import { MobileNav } from "./MobileNav";
+import { StarField } from "./StarField";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getSetting } from "@/lib/settings";
@@ -21,6 +22,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <StarField />
       <Sidebar live={live} hidden={hidden} />
       <TopBar live={live} viewers={viewers} />
       <CommandPalette hidden={hidden} />

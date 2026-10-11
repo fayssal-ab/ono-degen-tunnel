@@ -1,27 +1,32 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { BRAND_NAME, STREAMER, SITE_URL } from "@/lib/constants";
 import { ASSETS } from "@/lib/assets";
 import "./globals.css";
 
-// Display + "bang" titles: Clash Display, self-hosted (the woff2 lives in the
-// repo under app/fonts and is bundled at build — no runtime Google/CSS fetch).
+// ALL fonts are self-hosted (woff2 bundled in the repo under app/fonts and
+// emitted at build). No next/font/google → the build never reaches out to
+// Google Fonts, which keeps CI/Netlify builds deterministic and offline-safe.
 const clash = localFont({
   src: "./fonts/ClashDisplay-Variable.woff2",
   variable: "--font-clash",
   display: "swap",
   weight: "200 700",
 });
-const interTight = Inter_Tight({
-  subsets: ["latin"],
+const interTight = localFont({
   variable: "--font-inter-tight",
   display: "swap",
+  src: [
+    { path: "./fonts/InterTight-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/InterTight-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/InterTight-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/InterTight-700.woff2", weight: "700", style: "normal" },
+  ],
 });
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
+const jetbrainsMono = localFont({
   variable: "--font-jetbrains-mono",
   display: "swap",
+  src: [{ path: "./fonts/JetBrainsMono-500.woff2", weight: "500", style: "normal" }],
 });
 
 export const metadata: Metadata = {
