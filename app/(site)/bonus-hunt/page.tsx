@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getActiveHunt, getHuntEntries, computeHuntStats, getHuntHistory } from "@/lib/bonusHunt";
 import { formatMoney } from "@/lib/money";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeading, Badge } from "@/components/ui/Badge";
@@ -35,7 +34,7 @@ export default async function BonusHuntPage() {
       <div className="space-y-10">
         <PageHeader kicker="Watch" title="Bonus Hunt" lead="Bonuses collected live on stream, tracked to the dollar." />
         <EmptyState
-          image={ASSETS.empty.noHunt}
+          icon="Search"
           title="No hunt running"
           line="There's no active bonus hunt right now. They kick off live on stream — follow to catch the next one."
           cta={{ label: "Watch stream", href: "/stream" }}

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getChampions, getBigHits, getGiveawayWins, getChallengeWins } from "@/lib/hallOfFame";
 import { formatMoney } from "@/lib/money";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
@@ -30,7 +29,7 @@ function Row({ left, sub, right }: { left: string; sub?: string; right: string }
 function List({ children, empty }: { children: React.ReactNode; empty: boolean }) {
   if (empty)
     return (
-      <EmptyState image={ASSETS.empty.leaderboardSoon} title="Nothing here yet" line="This board fills in as seasons close and winners are crowned." />
+      <EmptyState icon="Trophy" title="Nothing here yet" line="This board fills in as seasons close and winners are crowned." />
     );
   return <div className="surface overflow-hidden">{children}</div>;
 }

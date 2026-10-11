@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { getLiveTournament, getBracket, type Bracket, type Match } from "@/lib/tournaments";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
@@ -25,7 +24,7 @@ export default async function TournamentsPage() {
       <div className="space-y-10">
         <PageHeader kicker="Compete" title="Tournaments" lead="Eight slots enter. Highest win multiplier advances. One survives." />
         <EmptyState
-          image={ASSETS.empty.leaderboardSoon}
+          icon="Swords"
           title="No tournament live"
           line="Slot battles run on stream. The bracket shows up here the moment one kicks off."
           cta={{ label: "Watch stream", href: "/stream" }}

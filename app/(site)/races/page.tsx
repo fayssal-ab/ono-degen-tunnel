@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { getLiveRaces, getRaceEntries } from "@/lib/races";
 import { maskUsername } from "@/lib/mask";
 import { formatMoney } from "@/lib/money";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
@@ -25,7 +24,7 @@ export default async function RacesPage() {
       <div className="space-y-10">
         <PageHeader kicker="Compete" title="Races" lead="Short sprints — 24h and weekly. Wager the most in the window to take the pot." />
         <EmptyState
-          image={ASSETS.empty.leaderboardSoon}
+          icon="Flag"
           title="No race running"
           line="Races spin up around big streams. The next one will appear here with a live countdown."
           cta={{ label: "Join Discord", href: "/#play" }}

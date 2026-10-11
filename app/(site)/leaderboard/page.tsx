@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PERIOD_RESET_TIME_UTC, DISCORD_URL } from "@/lib/constants";
-import { ASSETS } from "@/lib/assets";
 import { formatMoney } from "@/lib/money";
 import { getActivePeriod, getClosedPeriods, getLatestSuccessfulSync } from "@/lib/periods";
 import { getLiveBoard } from "@/lib/board";
@@ -72,7 +71,7 @@ export default async function LeaderboardPage({
 
       {!enabled ? (
         <EmptyState
-          image={ASSETS.empty.leaderboardSoon}
+          icon="Trophy"
           title="Leaderboard coming soon"
           line="The board isn't live yet. Join the Discord to get pinged the moment it opens."
           cta={{ label: "Join Discord", href: DISCORD_URL, external: true }}
@@ -94,7 +93,7 @@ async function MonthlyView({ find }: { find: string }) {
   if (!period) {
     return (
       <EmptyState
-        image={ASSETS.empty.leaderboardSoon}
+        icon="Trophy"
         title="Leaderboard dropping soon"
         line="No period is live right now. The next one is already scheduled — get notified in Discord."
         cta={{ label: "Notify me", href: DISCORD_URL, external: true }}
@@ -134,7 +133,7 @@ async function MonthlyView({ find }: { find: string }) {
 
       {rows.length === 0 ? (
         <EmptyState
-          image={ASSETS.empty.leaderboardSoon}
+          icon="Trophy"
           title="No wagers yet this period"
           line="Be the first on the board. Sign up with the code and your wagers show up here within 10 minutes."
           cta={{ label: "How it works", href: "/how-it-works" }}
@@ -154,7 +153,7 @@ function WeeklyView({ find }: { find: string }) {
   void find;
   return (
     <EmptyState
-      image={ASSETS.empty.leaderboardSoon}
+      icon="Trophy"
       title="No weekly board running"
       line="Weekly boards spin up around big streams. The monthly board is always live — check that tab."
       cta={{ label: "View monthly", href: "/leaderboard?view=monthly" }}
@@ -167,7 +166,7 @@ async function PreviousView() {
   if (closed.length === 0) {
     return (
       <EmptyState
-        image={ASSETS.empty.leaderboardSoon}
+        icon="Trophy"
         title="No closed periods yet"
         line="Finished boards get archived here with their frozen final standings and payouts."
       />

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getChallenges, type Challenge } from "@/lib/challenges";
 import { formatMoney } from "@/lib/money";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
@@ -32,7 +31,7 @@ export default async function ChallengesPage() {
 
       {challenges.length === 0 ? (
         <EmptyState
-          image={ASSETS.empty.leaderboardSoon}
+          icon="Target"
           title="No challenges live"
           line="New challenges drop regularly. Follow on Kick and watch this space."
           cta={{ label: "Watch stream", href: "/stream" }}

@@ -6,7 +6,6 @@ import { getActivePeriod } from "@/lib/periods";
 import { getLiveBoard } from "@/lib/board";
 import { isLeaderboardEnabled } from "@/lib/settings";
 import { getHiddenHrefs } from "@/lib/pages";
-import { ASSETS } from "@/lib/assets";
 import { KICK_URL, DISCORD_URL, STREAMER, CASINO_CODE } from "@/lib/constants";
 import { TunnelHero } from "@/components/home/TunnelHero";
 import { Casinos } from "@/components/home/Casinos";
@@ -131,7 +130,7 @@ export default async function HomePage() {
               <Podium rows={preview} />
             ) : (
               <EmptyState
-                image={ASSETS.empty.leaderboardSoon}
+                icon="Trophy"
                 title="No board this month"
                 line="There's no leaderboard running right now. Join the Discord to get pinged the moment the next season opens."
                 cta={{ label: "Join Discord", href: DISCORD_URL, external: true }}

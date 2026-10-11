@@ -6,7 +6,6 @@ import { GiveawayAdminBar } from "@/components/admin/GiveawayAdminBar";
 import { GiveawayDashboard } from "@/components/admin/GiveawayDashboard";
 import { KICK_CHANNEL } from "@/lib/constants";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ASSETS } from "@/lib/assets";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +31,7 @@ export default async function AdminGiveaways({ searchParams }: { searchParams: P
       <div className="space-y-6">
         <GiveawayAdminBar giveaways={opts} selectedId={null} />
         <EmptyState
-          image={ASSETS.empty.noGiveaway}
+          icon="Gift"
           title="No giveaways yet"
           line="Create your first giveaway to open the control vault. Entries come live from Kick chat."
         />

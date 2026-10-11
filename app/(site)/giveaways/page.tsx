@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getOpenGiveaways, getPastWinners } from "@/lib/giveaways";
 import { KICK_URL } from "@/lib/constants";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeading, Badge } from "@/components/ui/Badge";
@@ -33,7 +32,7 @@ export default async function GiveawaysPage() {
       {/* active */}
       {open.length === 0 ? (
         <EmptyState
-          image={ASSETS.empty.noGiveaway}
+          icon="Gift"
           title="No giveaway running"
           line="Nothing live right now. Follow on Kick so you don't miss the next drop."
           cta={{ label: "Follow on Kick", href: KICK_URL, external: true }}

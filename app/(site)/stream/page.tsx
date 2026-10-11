@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { KICK_PLAYER_URL, KICK_CHANNEL, KICK_URL, STREAMER } from "@/lib/constants";
-import { ASSETS } from "@/lib/assets";
 import { getSetting } from "@/lib/settings";
 import { getStreamSchedule, WEEKDAYS } from "@/lib/stream";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -40,10 +38,13 @@ export default async function StreamPage() {
               />
             </div>
           ) : (
-            <div className="relative aspect-video w-full">
-              <Image src={ASSETS.stream.offline} alt="" fill unoptimized className="object-cover opacity-70" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg-0/40 text-center">
-                <p className="font-display text-xl">Offline right now</p>
+            <div className="relative grid aspect-video w-full place-items-center overflow-hidden bg-gradient-to-br from-bg-2 to-bg-0">
+              <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(60%_60%_at_50%_30%,color-mix(in_srgb,var(--color-cyan)_18%,transparent),transparent)]" />
+              <div className="relative flex flex-col items-center gap-3 text-center">
+                <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-bg-1 text-text-1">
+                  <Icon name="Radio" className="h-7 w-7" />
+                </span>
+                <p className="font-bang text-2xl tracking-wide">Offline right now</p>
                 <a href={KICK_URL} target="_blank" rel="noreferrer" className="press inline-flex h-11 items-center gap-2 rounded-xl bg-volt px-5 text-sm font-semibold text-bg-0 hover:brightness-110">
                   <Icon name="Radio" className="h-4 w-4" /> Follow on Kick
                 </a>
@@ -98,11 +99,11 @@ export default async function StreamPage() {
               href={KICK_URL}
               target="_blank"
               rel="noreferrer"
-              className="surface press group relative aspect-video overflow-hidden"
+              className="surface press group relative grid aspect-video place-items-center overflow-hidden bg-gradient-to-br from-bg-2 to-bg-0"
             >
-              <Image src={ASSETS.stream.clip(i + 1)} alt="" fill unoptimized className="object-cover transition-transform duration-300 group-hover:scale-105" />
-              <span className="absolute inset-0 grid place-items-center bg-bg-0/30">
-                <Icon name="Play" className="h-10 w-10 text-text-0/90" />
+              <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 [background:radial-gradient(60%_60%_at_50%_50%,color-mix(in_srgb,var(--color-cyan)_20%,transparent),transparent)]" />
+              <span className="relative grid h-12 w-12 place-items-center rounded-full border border-line bg-bg-1/80 text-text-0 transition-transform duration-300 group-hover:scale-110 group-hover:text-cyan">
+                <Icon name="Play" className="h-5 w-5" />
               </span>
             </a>
           ))}

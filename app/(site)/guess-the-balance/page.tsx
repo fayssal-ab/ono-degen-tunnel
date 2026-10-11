@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { getCurrentRound, getLatestSettledRound, getRoundGuesses, getGbHistory } from "@/lib/guessBalance";
 import { formatMoney } from "@/lib/money";
 import { KICK_URL } from "@/lib/constants";
-import { ASSETS } from "@/lib/assets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeading, Badge } from "@/components/ui/Badge";
@@ -26,7 +25,7 @@ export default async function GuessBalancePage() {
       <div className="space-y-10">
         <PageHeader kicker="Watch" title="Guess the Balance" lead="Call the final bonus-hunt balance in chat — closest guess takes the prize." />
         <EmptyState
-          image={ASSETS.empty.noHunt}
+          icon="HelpCircle"
           title="No round open"
           line="Rounds open alongside bonus hunts on stream. Type !gb <amount> in Kick chat when one is live."
           cta={{ label: "Watch stream", href: "/stream" }}
