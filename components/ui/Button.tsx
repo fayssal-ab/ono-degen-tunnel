@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 
-type Variant = "gold" | "volt" | "ghost" | "outline";
+type Variant = "gold" | "volt" | "accent" | "ghost" | "outline";
 type Size = "sm" | "md" | "lg";
 
 const base =
@@ -11,9 +11,10 @@ const base =
 
 const variants: Record<Variant, string> = {
   gold: "bg-gold text-bg-0 hover:bg-gold-hi font-semibold shadow-[0_0_0_0_transparent] hover:shadow-[0_0_28px_-8px_var(--color-gold)]",
+  accent: "bg-cyan text-bg-0 hover:brightness-110 font-semibold hover:shadow-[0_0_30px_-6px_var(--color-cyan)]",
   volt: "bg-volt text-bg-0 hover:brightness-110 font-semibold hover:shadow-[0_0_28px_-6px_var(--color-volt)]",
   ghost: "text-text-1 hover:text-text-0 hover:bg-bg-3",
-  outline: "border border-line-strong text-text-0 hover:border-volt hover:text-volt bg-transparent hover:shadow-[0_0_24px_-14px_var(--color-volt)]",
+  outline: "border border-line-strong text-text-0 hover:border-cyan hover:text-cyan bg-transparent hover:shadow-[0_0_24px_-14px_var(--color-cyan)]",
 };
 
 const sizes: Record<Size, string> = {

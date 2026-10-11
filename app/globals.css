@@ -6,23 +6,28 @@
    plasma = tunnel/3D only. Never three accents in one component.
    ─────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-bg-0: #050507;
-  --color-bg-1: #0b0b10;
-  --color-bg-2: #12121a;
-  --color-bg-3: #1a1a25;
+  /* Deep-navy "void" space palette (Design Direction doc). */
+  --color-bg-0: #05070d; /* void — page background */
+  --color-bg-1: #0a1020; /* deep — section bands */
+  --color-bg-2: #0f172a; /* surface base (glass) */
+  --color-bg-3: #18223f; /* raised / hover / inputs */
 
-  --color-line: rgba(255, 255, 255, 0.07);
-  --color-line-strong: rgba(255, 255, 255, 0.14);
+  --color-line: rgba(125, 162, 255, 0.12);
+  --color-line-strong: rgba(125, 162, 255, 0.26);
 
-  --color-text-0: #f4f1ea;
-  --color-text-1: #a9a6b3;
-  --color-text-2: #6c6a78;
+  --color-text-0: #e6ecf5;
+  --color-text-1: #8a94a8;
+  --color-text-2: #5c6578;
 
-  --color-gold: #d9b46a;
-  --color-gold-hi: #f3d898;
-  --color-volt: #8bff5a;
-  --color-cyan: #2ee6c8;
-  --color-plasma: #7b67ff;
+  /* gold = money / prizes / legendary */
+  --color-gold: #f5c451;
+  --color-gold-hi: #ffd97a;
+  /* cyan = primary accent, actions, focus */
+  --color-cyan: #22d3ee;
+  --color-electric: #3b82f6; /* links / rare */
+  --color-plasma: #8b5cf6; /* violet / epic */
+  --color-magenta: #e879f9; /* winner burst only */
+  --color-volt: #34d399; /* online / entered / live-green */
   --color-danger: #ff4d5e;
 
   /* families come from next/font (app/layout.tsx) via these CSS variables */
@@ -118,7 +123,7 @@ h1, h2, h3, h4 {
 
 /* gold focus rings everywhere (prompt §10) */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--color-cyan);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -149,12 +154,14 @@ h1, h2, h3, h4 {
   mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 0%, transparent 75%);
 }
 
-/* card surface (prompt §3.4): bg-2, 1px line, inner top highlight */
+/* glass card surface (Design Direction doc): translucent navy + backdrop blur */
 .surface {
-  background: var(--color-bg-2);
+  background: color-mix(in srgb, var(--color-bg-2) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 34px -22px rgba(0, 0, 0, 0.7);
 }
 
 /* animated conic gold border, hover only (prompt §3.4) */
@@ -304,9 +311,9 @@ h1, h2, h3, h4 {
    always sit behind content (fixed, never scroll) ── */
 body {
   background:
-    radial-gradient(48rem 40rem at 10% -10%, color-mix(in srgb, var(--color-volt) 7%, transparent), transparent 60%),
+    radial-gradient(48rem 40rem at 8% -10%, color-mix(in srgb, var(--color-cyan) 9%, transparent), transparent 60%),
     radial-gradient(44rem 40rem at 100% -4%, color-mix(in srgb, var(--color-plasma) 9%, transparent), transparent 58%),
-    radial-gradient(46rem 44rem at 92% 110%, color-mix(in srgb, var(--color-cyan) 6%, transparent), transparent 60%),
+    radial-gradient(46rem 44rem at 92% 110%, color-mix(in srgb, var(--color-electric) 7%, transparent), transparent 60%),
     var(--color-bg-0);
   background-attachment: fixed;
 }
