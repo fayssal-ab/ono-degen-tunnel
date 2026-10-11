@@ -77,8 +77,9 @@ export async function SiteFooter() {
                 href={c.url}
                 target="_blank"
                 rel="noreferrer nofollow"
-                className="press inline-flex h-11 items-center gap-2 rounded-xl bg-gold px-5 text-sm font-semibold text-bg-0 hover:bg-gold-hi"
+                className="press inline-flex h-11 items-center gap-2 rounded-xl bg-gold pl-2 pr-5 text-sm font-semibold text-bg-0 hover:bg-gold-hi"
               >
+                <BrandIcon brand={c.name.toLowerCase() as "stake" | "rainbet"} className="h-7 w-7 shrink-0" />
                 Play at {c.name}
               </a>
             ))}

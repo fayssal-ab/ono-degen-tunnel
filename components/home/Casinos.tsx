@@ -1,7 +1,10 @@
 import { CASINOS, CASINO_CODE } from "@/lib/constants";
 import { CopyChip } from "@/components/ui/CopyChip";
 import { Icon } from "@/components/ui/Icon";
+import { BrandIcon } from "@/components/ui/BrandIcon";
 import { SectionHeading } from "@/components/ui/Badge";
+
+type CasinoBrand = "stake" | "rainbet";
 
 // Partner-casino sign-up cards (Rainbet + Stake). Anchor target for the "Sign
 // up & play" CTA (#play). This is where viewers leave to register with the code.
@@ -24,7 +27,10 @@ export function Casinos() {
               <div className="tunnel-grid absolute inset-0 opacity-40" aria-hidden />
               <div className="relative">
                 <div className="flex items-center justify-between">
-                  <span className={`font-display text-2xl font-bold ${accent}`}>{c.name}</span>
+                  <span className="flex items-center gap-3">
+                    <BrandIcon brand={c.name.toLowerCase() as CasinoBrand} className="h-10 w-10 shrink-0" />
+                    <span className={`font-display text-2xl font-bold ${accent}`}>{c.name}</span>
+                  </span>
                   <Icon name="ArrowUpRight" className="h-5 w-5 text-text-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </div>
                 <p className="mt-2 text-sm text-text-1">{c.tagline}</p>
