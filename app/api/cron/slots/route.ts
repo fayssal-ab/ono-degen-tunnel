@@ -12,7 +12,8 @@ async function handle(request: Request) {
   if (!isCronAuthorized(request)) return jsonError("unauthorized", 401);
   try {
     const synced = (await catalogIsStale()) ? await syncCatalog() : null;
-    const verified = await verifyBatch(synced ? 150 : 350);
+    // Netlify ends functions after ~10 s: a sync run doesn't also verify.
+    const verified = synced ? null : await verifyBatch(300, 4000);
     await recordJob("slots", { ok: true, detail: { synced, verified } });
     return json({ ok: true, synced, verified });
   } catch (err) {

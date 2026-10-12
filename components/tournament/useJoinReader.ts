@@ -21,7 +21,7 @@ interface RelayOptions {
   endpoint: string;
 }
 
-const JOIN: RelayOptions = { match: /^\s*!join\s*$/i, endpoint: "/api/admin/tournament/join" };
+const JOIN: RelayOptions = { match: /^\s*!join(?:\s.*)?$/i, endpoint: "/api/admin/tournament/join" };
 
 export function useJoinReader(enabled: boolean, onJoin?: () => void, opts: RelayOptions = JOIN) {
   const { match, endpoint } = opts;

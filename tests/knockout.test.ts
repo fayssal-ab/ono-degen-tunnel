@@ -29,9 +29,9 @@ test("roller picks two distinct players, uniformly", () => {
   assert.deepEqual(pickTwo(5, (max) => (max === 5 ? 2 : 1)), [2, 1]);
 });
 
-test("!join must be the whole message", () => {
-  for (const ok of ["!join", "  !JOIN ", "!Join"]) assert.ok(JOIN_RE.test(ok), ok);
-  for (const bad of ["!join pls", "join", "!joinn", "hey !join", "!jo in"]) assert.ok(!JOIN_RE.test(bad), bad);
+test("!join starts the message; trailing text is ignored", () => {
+  for (const ok of ["!join", "  !JOIN ", "!Join", "!join CLASH OF TITANS", "!join wanted"]) assert.ok(JOIN_RE.test(ok), ok);
+  for (const bad of ["join", "!joinn", "!joined", "hey !join", "!jo in"]) assert.ok(!JOIN_RE.test(bad), bad);
 });
 
 test("slot search: normalisation and fuzzy ranking", () => {

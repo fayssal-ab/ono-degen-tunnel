@@ -131,7 +131,7 @@ let placeholderHash: string | null = null;
 
 async function fetchHash(url: string): Promise<{ status: number; type: string; hash: string } | null> {
   try {
-    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(3_500) });
     const buf = Buffer.from(await res.arrayBuffer());
     return { status: res.status, type: res.headers.get("content-type") ?? "", hash: createHash("sha256").update(buf).digest("hex") };
   } catch {
@@ -155,30 +155,42 @@ export function classifyThumb(r: { status: number; type: string; hash: string } 
   return r.hash === placeholder ? "missing" : "real";
 }
 
-async function verifyIds(ids: { id: string; slug: string }[]): Promise<{ real: number; missing: number }> {
-  if (!ids.length) return { real: 0, missing: 0 };
+/**
+ * Checks thumbnails with a time budget: Netlify ends a function after ~10 s,
+ * so no new download starts once `budgetMs` has elapsed (each download is
+ * capped at 4 s). Results are written in two bulk UPDATEs.
+ */
+async function verifyIds(ids: { id: string; slug: string }[], budgetMs = 4500): Promise<{ checked: number; real: number; missing: number }> {
+  if (!ids.length) return { checked: 0, real: 0, missing: 0 };
+  const deadline = Date.now() + budgetMs;
   const placeholder = await getPlaceholderHash();
-  const out = { real: 0, missing: 0 };
+  const real: string[] = [];
+  const missing: string[] = [];
   let next = 0;
   async function worker() {
-    while (next < ids.length) {
+    while (next < ids.length && Date.now() < deadline) {
       const item = ids[next++];
       const verdict = classifyThumb(await fetchHash(thumbUrl(item.slug)), placeholder);
-      if (!verdict) continue;
-      out[verdict]++;
-      await getPool().query(
-        "UPDATE slot_catalog SET image_status = ?, image_url = ?, image_checked_at = UTC_TIMESTAMP() WHERE id = ?",
-        [verdict, verdict === "real" ? thumbUrl(item.slug) : null, item.id]
-      );
+      if (verdict === "real") real.push(item.id);
+      else if (verdict === "missing") missing.push(item.id);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(12, ids.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(16, ids.length) }, worker));
+  if (real.length) {
+    await getPool().query(
+      `UPDATE slot_catalog SET image_status = 'real', image_url = CONCAT('https://slot.report/images/slots/', slug, '-thumb.webp'), image_checked_at = UTC_TIMESTAMP() WHERE id IN (?)`,
+      [real]
+    );
+  }
+  if (missing.length) {
+    await getPool().query("UPDATE slot_catalog SET image_status = 'missing', image_url = NULL, image_checked_at = UTC_TIMESTAMP() WHERE id IN (?)", [missing]);
+  }
   cache = null;
-  return out;
+  return { checked: real.length + missing.length, real: real.length, missing: missing.length };
 }
 
 /** Check the next batch of unchecked thumbnails (cron / admin button). */
-export async function verifyBatch(limit = 400): Promise<{ checked: number; real: number; missing: number }> {
+export async function verifyBatch(limit = 300, budgetMs = 4500): Promise<{ checked: number; real: number; missing: number }> {
   const [rows] = await getPool().query<RowDataPacket[]>(
     // Providers streamers play most are checked first so the tournament pool
     // fills with recognisable slots; the rest follow on later runs.
@@ -186,8 +198,7 @@ export async function verifyBatch(limit = 400): Promise<{ checked: number; real:
      ORDER BY ambiguous ASC, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}) = 0, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}), id ASC LIMIT ?`,
     [...PRIORITY_PROVIDERS, ...PRIORITY_PROVIDERS, limit]
   );
-  const r = await verifyIds(rows.map((x) => ({ id: String(x.id), slug: String(x.slug) })));
-  return { checked: rows.length, ...r };
+  return verifyIds(rows.map((x) => ({ id: String(x.id), slug: String(x.slug) })), budgetMs);
 }
 
 export interface CatalogStats {

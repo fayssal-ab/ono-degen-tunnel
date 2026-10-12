@@ -3,6 +3,7 @@ import { getCatalogStats, syncCatalog, verifyBatch } from "@/lib/slotCatalog";
 import { Icon } from "@/components/ui/Icon";
 import { Flash, AdminHeader, Help, Utc, btnGold, btnGhost, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
+import { VerifyAll } from "@/components/admin/VerifyAll";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/slots";
@@ -14,7 +15,7 @@ async function syncAction() {
 
 async function verifyAction() {
   "use server";
-  await adminAction({ path: PATH, audit: "slots.verify" }, async () => await verifyBatch(400));
+  await adminAction({ path: PATH, audit: "slots.verify" }, async () => await verifyBatch(300, 4000));
 }
 
 export default async function AdminSlots({ searchParams }: { searchParams: SearchParams }) {
@@ -56,8 +57,9 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
       )}
       <div className="flex flex-wrap gap-2">
         <form action={syncAction}><SubmitButton className={btnGold}><Icon name="RefreshCw" className="h-4 w-4" /> Sync catalogue now</SubmitButton></form>
-        <form action={verifyAction}><SubmitButton className={btnGhost}><Icon name="ImageUp" className="h-4 w-4" /> Check next 400 thumbnails</SubmitButton></form>
+        <form action={verifyAction}><SubmitButton className={btnGhost}><Icon name="ImageUp" className="h-4 w-4" /> Check one batch</SubmitButton></form>
       </div>
+      {stats && <VerifyAll unknown={stats.unknown} />}
     </div>
   );
 }

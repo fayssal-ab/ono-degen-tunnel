@@ -69,7 +69,8 @@ export interface KoMatch {
   roll_seq: number | null;
 }
 
-export const JOIN_RE = /^\s*!join\s*$/i;
+/** `!join` at the start of the message; anything typed after it is ignored (the slot is always random). */
+export const JOIN_RE = /^\s*!join(?:\s.*)?$/i;
 
 /** Where the winner of (round, index) plays next. Null after the grand final. */
 export function nextMatch(round: number, index: number): { round: number; index: number; side: 1 | 2 } | null {
