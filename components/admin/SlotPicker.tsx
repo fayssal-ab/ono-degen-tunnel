@@ -12,6 +12,7 @@ interface Result {
   provider: string;
   imageUrl: string | null;
   ambiguous: boolean;
+  onStake?: boolean;
 }
 
 function Tile({ name, src, size = 44 }: { name: string; src: string | null; size?: number }) {
@@ -99,7 +100,7 @@ export function SlotPicker({ defaultBet = "" }: { defaultBet?: string }) {
               className={`flex w-full items-center gap-3 px-3 py-2 text-left ${i === active ? "bg-bg-3" : ""}`}>
               <Tile name={r.name} src={r.imageUrl} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-text-0">{r.name}</span>
+                <span className="block truncate text-sm text-text-0">{r.name}{r.onStake && <span className="ml-2 rounded bg-volt/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-volt">Stake</span>}</span>
                 <span className="block truncate text-xs text-text-2">{r.provider}{r.ambiguous ? " · provider disputed in catalogue" : ""}{!r.imageUrl ? " · no official art" : ""}</span>
               </span>
               <span className="text-xs text-gold">Add</span>

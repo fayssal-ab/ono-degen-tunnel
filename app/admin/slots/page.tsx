@@ -4,6 +4,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Flash, AdminHeader, Help, Utc, btnGold, btnGhost, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
 import { VerifyAll } from "@/components/admin/VerifyAll";
+import { StakeSlots } from "@/components/admin/StakeSlots";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/slots";
@@ -28,7 +29,7 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
     { label: "No official art", value: stats.missing },
     { label: "Not checked yet", value: stats.unknown },
     { label: "Disputed provider", value: stats.ambiguous },
-    { label: "Tournament pool", value: stats.pool },
+    { label: stats.onStake > 0 ? "Tournament pool (Stake only)" : "Tournament pool", value: stats.pool },
   ] : [];
 
   return (
@@ -38,7 +39,7 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
       <Help>
         Slot names, providers and ids come from <a href="https://slot.report" className="text-gold hover:underline" target="_blank" rel="noreferrer">slot.report</a> (synced daily by the cron).
         slot.report returns a branded placeholder for slots it has no art for, so every thumbnail is downloaded and checked before it is shown; slots without real art appear as a name tile.
-        The tournament pool = slots with verified art and an undisputed provider. There is no public Stake game API, so Stake availability itself is not verified.
+        Stake has no public game API, so which slots are on Stake comes from the Stake list below; once it has entries, the tournament draws only from it.
       </Help>
       {!stats ? (
         <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm">Catalogue tables unavailable — run the migrations.</p>
@@ -60,6 +61,7 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
         <form action={verifyAction}><SubmitButton className={btnGhost}><Icon name="ImageUp" className="h-4 w-4" /> Check one batch</SubmitButton></form>
       </div>
       {stats && <VerifyAll unknown={stats.unknown} />}
+      {stats && <StakeSlots />}
     </div>
   );
 }

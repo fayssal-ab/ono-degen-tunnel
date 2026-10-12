@@ -103,6 +103,9 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           <p className="label">Tournament #{t.id}{t.prize ? ` · ${t.prize}` : ""}</p>
           <h2 className="font-display text-2xl font-extrabold">{t.title}</h2>
           <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}</p>
+          <p className="text-[11px] text-text-2">
+            {reader.lastSeen ? <>Last chat message: <span className="text-text-1">{reader.lastSeen.username}</span> at {new Date(reader.lastSeen.at).toLocaleTimeString()}</> : "No chat message received yet on this page"}
+          </p>
         </div>
         <Counter value={state.registered} max={t.max_players} open={t.status === "open"} />
         <div className="flex flex-wrap gap-2">

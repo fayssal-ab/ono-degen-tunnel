@@ -207,3 +207,22 @@ t("catalogue: fuzzy search, hunt bonus from catalogue uses server data", async (
   assert.deepEqual([e.slot_id, e.slot_name, e.provider], ["pragmatic-play/gates-of-olympus", "Gates of Olympus", "Pragmatic Play"]);
   await rejects(hunt.addHuntEntryFromCatalog(hid, "nope/nope", "1"), "slot_not_found");
 });
+
+t("Stake list: name matching, pool restricted to Stake slots, Stake-only image host checked", async () => {
+  const m = await cat.matchStakeNames("Gates of Olympus\nslot 3\nDrac's Stacks\n\nGates of Olympus");
+  assert.equal(m.length, 3); // de-duplicated, blanks dropped
+  assert.equal(m[0].slot?.id, "pragmatic-play/gates-of-olympus");
+  assert.equal(m[1].slot?.id, "pragmatic-play/slot-3");
+  assert.equal(m[2].slot, null); // not in the catalogue → add as Stake-only
+  await cat.markOnStake(["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed", "x/no-art"]);
+  // only marked slots with verified art are drawn (disputed one allowed: the admin chose it)
+  const drawn = new Set<string>();
+  for (let i = 0; i < 60; i++) drawn.add((await common.withTx((c) => cat.randomPoolSlot(c))).id);
+  assert.deepEqual([...drawn].sort(), ["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed"]);
+  assert.equal((await cat.getCatalogStats()).pool, 3);
+  assert.equal((await cat.searchCatalog("gates"))[0].onStake, true);
+  await rejects(cat.addStakeOnlySlot({ name: "Bank Basher", provider: "Twist Gaming", imageUrl: "https://evil.example/x.png" }), "invalid_input");
+  await rejects(cat.addStakeOnlySlot({ name: "Bank Basher", provider: "Twist Gaming", imageUrl: "http://mediumrare.imgix.net/x" }), "invalid_input");
+  await cat.markOnStake(["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed", "x/no-art"], false);
+  assert.equal((await cat.getCatalogStats()).onStake, 0);
+});

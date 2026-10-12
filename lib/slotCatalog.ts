@@ -29,6 +29,7 @@ export interface CatalogSlot {
   imageUrl: string | null;
   imageStatus: "unknown" | "real" | "missing";
   ambiguous: boolean;
+  onStake: boolean;
 }
 
 /** Lowercase, strip marks/symbols (®, ™, accents), collapse whitespace. */
@@ -103,7 +104,7 @@ export async function syncCatalog(): Promise<{ total: number; ambiguous: number 
 
   await withTx(async (conn) => {
     await lockApp(conn, "slots");
-    await conn.query("UPDATE slot_catalog SET active = 0");
+    await conn.query("UPDATE slot_catalog SET active = 0 WHERE source = 'slotreport'");
     for (let i = 0; i < values.length; i += 500) {
       await conn.query(
         `INSERT INTO slot_catalog (id, slug, name, name_norm, provider, provider_slug, ambiguous, active, synced_at) VALUES ?
@@ -195,7 +196,7 @@ export async function verifyBatch(limit = 300, budgetMs = 4500): Promise<{ check
     // Providers streamers play most are checked first so the tournament pool
     // fills with recognisable slots; the rest follow on later runs.
     `SELECT id, slug FROM slot_catalog WHERE active = 1 AND image_status = 'unknown'
-     ORDER BY ambiguous ASC, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}) = 0, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}), id ASC LIMIT ?`,
+     ORDER BY on_stake DESC, ambiguous ASC, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}) = 0, FIELD(provider_slug, ${PRIORITY_PROVIDERS.map(() => "?").join(",")}), id ASC LIMIT ?`,
     [...PRIORITY_PROVIDERS, ...PRIORITY_PROVIDERS, limit]
   );
   return verifyIds(rows.map((x) => ({ id: String(x.id), slug: String(x.slug) })), budgetMs);
@@ -208,6 +209,8 @@ export interface CatalogStats {
   unknown: number;
   ambiguous: number;
   pool: number;
+  onStake: number;
+  stakeOnly: number;
   syncedAt: string | null;
 }
 
@@ -215,13 +218,19 @@ export async function getCatalogStats(): Promise<CatalogStats> {
   const [rows] = await getPool().query<RowDataPacket[]>(
     `SELECT COUNT(*) total, SUM(image_status='real') real_n, SUM(image_status='missing') missing_n,
             SUM(image_status='unknown') unknown_n, SUM(ambiguous) amb,
-            SUM(image_status='real' AND ambiguous=0) pool, MAX(synced_at) synced
+            SUM(on_stake) stake_n, SUM(source='manual') manual_n,
+            SUM(on_stake = 1 AND image_status = 'real') stake_pool,
+            SUM(image_status='real' AND ambiguous=0) pool, MAX(CASE WHEN source='slotreport' THEN synced_at END) synced
      FROM slot_catalog WHERE active = 1`
   );
   const r = rows[0];
   return {
     total: Number(r.total), real: Number(r.real_n ?? 0), missing: Number(r.missing_n ?? 0), unknown: Number(r.unknown_n ?? 0),
-    ambiguous: Number(r.amb ?? 0), pool: Number(r.pool ?? 0), syncedAt: r.synced ? String(r.synced) : null,
+    ambiguous: Number(r.amb ?? 0),
+    // once Stake slots are marked, the tournament draws only from them
+    pool: Number(r.stake_n ?? 0) > 0 ? Number(r.stake_pool ?? 0) : Number(r.pool ?? 0),
+    onStake: Number(r.stake_n ?? 0), stakeOnly: Number(r.manual_n ?? 0),
+    syncedAt: r.synced ? String(r.synced) : null,
   };
 }
 
@@ -233,24 +242,24 @@ function providerRank(slug: string): number {
   return i < 0 ? PRIORITY_PROVIDERS.length : i;
 }
 
-interface CacheRow { id: string; slug: string; name: string; norm: string; provider: string; provider_slug: string; status: CatalogSlot["imageStatus"]; image: string | null; ambiguous: boolean }
+interface CacheRow { id: string; slug: string; name: string; norm: string; provider: string; provider_slug: string; status: CatalogSlot["imageStatus"]; image: string | null; ambiguous: boolean; onStake: boolean }
 let cache: { rows: CacheRow[]; at: number } | null = null;
 
 async function loadCache(): Promise<CacheRow[]> {
   if (cache && Date.now() - cache.at < 5 * 60_000) return cache.rows;
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT id, slug, name, name_norm, provider, provider_slug, image_status, image_url, ambiguous FROM slot_catalog WHERE active = 1"
+    "SELECT id, slug, name, name_norm, provider, provider_slug, image_status, image_url, ambiguous, on_stake FROM slot_catalog WHERE active = 1"
   );
   const list = rows.map((r) => ({
     id: String(r.id), slug: String(r.slug), name: String(r.name), norm: String(r.name_norm), provider: String(r.provider), provider_slug: String(r.provider_slug),
-    status: r.image_status as CacheRow["status"], image: (r.image_url as string) ?? null, ambiguous: Boolean(r.ambiguous),
+    status: r.image_status as CacheRow["status"], image: (r.image_url as string) ?? null, ambiguous: Boolean(r.ambiguous), onStake: Boolean(r.on_stake),
   }));
   cache = { rows: list, at: Date.now() };
   return list;
 }
 
 function toSlot(r: CacheRow): CatalogSlot {
-  return { id: r.id, name: r.name, provider: r.provider, imageUrl: r.status === "real" ? r.image : null, imageStatus: r.status, ambiguous: r.ambiguous };
+  return { id: r.id, name: r.name, provider: r.provider, imageUrl: r.status === "real" ? r.image : null, imageStatus: r.status, ambiguous: r.ambiguous, onStake: r.onStake };
 }
 
 /** Fuzzy search; thumbnails of the returned slots are verified on demand. */
@@ -261,7 +270,7 @@ export async function searchCatalog(query: string, limit = 10): Promise<CatalogS
   const scored = rows
     .map((r) => ({ r, s: scoreName(q, r.norm) }))
     .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s || (a.r.ambiguous === b.r.ambiguous ? 0 : a.r.ambiguous ? 1 : -1) || providerRank(a.r.provider_slug) - providerRank(b.r.provider_slug) || a.r.name.localeCompare(b.r.name))
+    .sort((a, b) => b.s - a.s || Number(b.r.onStake) - Number(a.r.onStake) || (a.r.ambiguous === b.r.ambiguous ? 0 : a.r.ambiguous ? 1 : -1) || providerRank(a.r.provider_slug) - providerRank(b.r.provider_slug) || a.r.name.localeCompare(b.r.name))
     .slice(0, limit)
     .map((x) => x.r);
   const unchecked = scored.filter((r) => r.status === "unknown");
@@ -280,13 +289,13 @@ export async function searchCatalog(query: string, limit = 10): Promise<CatalogS
 export async function getSlotsByIds(ids: string[]): Promise<Map<string, CatalogSlot>> {
   if (!ids.length) return new Map();
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT id, name, provider, image_status, image_url, ambiguous FROM slot_catalog WHERE id IN (?)",
+    "SELECT id, name, provider, image_status, image_url, ambiguous, on_stake FROM slot_catalog WHERE id IN (?)",
     [ids]
   );
   return new Map(rows.map((r) => [String(r.id), {
     id: String(r.id), name: String(r.name), provider: String(r.provider),
     imageUrl: r.image_status === "real" ? (r.image_url as string) : null,
-    imageStatus: r.image_status as CatalogSlot["imageStatus"], ambiguous: Boolean(r.ambiguous),
+    imageStatus: r.image_status as CatalogSlot["imageStatus"], ambiguous: Boolean(r.ambiguous), onStake: Boolean(r.on_stake),
   }]));
 }
 
@@ -304,11 +313,17 @@ export interface AssignedSlot {
 }
 
 /**
- * Uniformly random slot from the verified pool (real thumbnail, unambiguous
- * provider), avoiding `exclude` when possible. crypto.randomInt, not Math.random.
+ * Uniformly random slot from the verified pool, avoiding `exclude` when
+ * possible (crypto.randomInt, not Math.random). As soon as the admin has
+ * marked Stake slots, only those are drawn (the admin chose them, so a
+ * disputed catalogue provider no longer excludes them); before that, any slot
+ * with verified art and an undisputed provider.
  */
 export async function randomPoolSlot(conn: PoolConnection, exclude: string[] = []): Promise<AssignedSlot> {
-  const base = "FROM slot_catalog WHERE active = 1 AND image_status = 'real' AND ambiguous = 0 AND image_url IS NOT NULL";
+  const [stake] = await conn.query<RowDataPacket[]>("SELECT EXISTS(SELECT 1 FROM slot_catalog WHERE on_stake = 1) AS s");
+  const base = Number(stake[0].s)
+    ? "FROM slot_catalog WHERE active = 1 AND on_stake = 1 AND image_status = 'real' AND image_url IS NOT NULL"
+    : "FROM slot_catalog WHERE active = 1 AND image_status = 'real' AND ambiguous = 0 AND image_url IS NOT NULL";
   const pick = async (withExclude: boolean) => {
     const cond = withExclude && exclude.length ? " AND id NOT IN (?)" : "";
     const args = withExclude && exclude.length ? [exclude] : [];
@@ -321,4 +336,68 @@ export async function randomPoolSlot(conn: PoolConnection, exclude: string[] = [
   const row = (await pick(true)) ?? (await pick(false));
   if (!row) throw new EventError("slot_pool_empty");
   return { id: String(row.id), name: String(row.name), provider: String(row.provider), imageUrl: String(row.image_url) };
+}
+
+// ── Stake availability (admin-curated) ──
+
+export interface StakeMatch {
+  line: string;
+  slot: { id: string; name: string; provider: string; hasArt: boolean } | null;
+}
+
+/** Best catalogue match for a pasted name: exact > prefix/word match; disputed providers resolved by priority. */
+export async function matchStakeNames(text: string): Promise<StakeMatch[]> {
+  const lines = [...new Set(text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))].slice(0, 1000);
+  const rows = await loadCache();
+  return lines.map((line) => {
+    const q = normalizeName(line);
+    let best: { r: CacheRow; s: number } | null = null;
+    for (const r of rows) {
+      const sc = scoreName(q, r.norm);
+      if (sc < 600) continue; // exact, prefix or every word — no loose fuzzy guesses
+      if (!best || sc > best.s || (sc === best.s && providerRank(r.provider_slug) < providerRank(best.r.provider_slug))) best = { r, s: sc };
+    }
+    return { line, slot: best ? { id: best.r.id, name: best.r.name, provider: best.r.provider, hasArt: best.r.status !== "missing" } : null };
+  });
+}
+
+export async function markOnStake(ids: string[], on = true): Promise<number> {
+  if (!ids.length) return 0;
+  const [res] = await getPool().query<import("mysql2").ResultSetHeader>("UPDATE slot_catalog SET on_stake = ? WHERE id IN (?)", [on ? 1 : 0, ids]);
+  cache = null;
+  return res.affectedRows;
+}
+
+/** Hosts allowed for Stake-only slot art (also allowed by the CSP img-src). */
+export const STAKE_IMAGE_HOSTS = ["mediumrare.imgix.net", "slot.report"];
+
+/** Adds a Stake-only slot slot.report doesn't list. The image is downloaded and must be a real image. */
+export async function addStakeOnlySlot(input: { name: string; provider: string; imageUrl: string }): Promise<string> {
+  let url: URL;
+  try { url = new URL(input.imageUrl); } catch { throw new EventError("invalid_input", "image URL is not a valid URL"); }
+  if (url.protocol !== "https:" || !STAKE_IMAGE_HOSTS.includes(url.hostname)) {
+    throw new EventError("invalid_input", `image must be an https link from ${STAKE_IMAGE_HOSTS.join(" or ")}`);
+  }
+  const r = await fetchHash(url.toString());
+  if (!r || r.status !== 200 || !r.type.startsWith("image/")) throw new EventError("invalid_input", "that link did not return an image");
+  if (url.hostname === "slot.report" && r.hash === (await getPlaceholderHash())) throw new EventError("invalid_input", "that is slot.report's placeholder, not the slot's art");
+  const slug = normalizeName(input.name).replace(/ /g, "-").slice(0, 150);
+  const provSlug = normalizeName(input.provider).replace(/ /g, "-").slice(0, 100) || "stake";
+  const id = `manual/${provSlug}/${slug}`.slice(0, 191);
+  await getPool().query(
+    `INSERT INTO slot_catalog (id, slug, name, name_norm, provider, provider_slug, image_status, image_url, image_checked_at, on_stake, source, active)
+     VALUES (?, ?, ?, ?, ?, ?, 'real', ?, UTC_TIMESTAMP(), 1, 'manual', 1)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), provider = VALUES(provider), image_url = VALUES(image_url), image_status = 'real', on_stake = 1, active = 1`,
+    [id, slug, input.name, normalizeName(input.name), input.provider, provSlug, url.toString()]
+  );
+  cache = null;
+  return id;
+}
+
+export async function getStakeSlots(limit = 500): Promise<{ id: string; name: string; provider: string; imageUrl: string | null; source: string }[]> {
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    "SELECT id, name, provider, image_status, image_url, source FROM slot_catalog WHERE on_stake = 1 ORDER BY source DESC, name ASC LIMIT ?",
+    [limit]
+  );
+  return rows.map((r) => ({ id: String(r.id), name: String(r.name), provider: String(r.provider), imageUrl: r.image_status === "real" ? String(r.image_url) : null, source: String(r.source) }));
 }

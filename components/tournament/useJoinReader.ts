@@ -27,6 +27,8 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void, opts: Relay
   const { match, endpoint } = opts;
   const [status, setStatus] = useState<ReaderStatus>("off");
   const [events, setEvents] = useState<JoinEvent[]>([]);
+  // Proof the socket really receives chat: last message of any kind.
+  const [lastSeen, setLastSeen] = useState<{ at: number; username: string } | null>(null);
   const cb = useRef(onJoin);
   useEffect(() => { cb.current = onJoin; }, [onJoin]);
 
@@ -54,6 +56,7 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void, opts: Relay
           if (msg.event !== info.chatEvent || !msg.data) return;
           let chat: KickChatEvent;
           try { chat = JSON.parse(msg.data); } catch { return; }
+          if (chat.sender?.username) setLastSeen({ at: Date.now(), username: chat.sender.username });
           if (!chat.content || !match.test(chat.content)) return;
           const userId = chat.sender?.id;
           const username = chat.sender?.username;
@@ -93,5 +96,5 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void, opts: Relay
     };
   }, [enabled, match, endpoint]);
 
-  return { status, events };
+  return { status, events, lastSeen };
 }
