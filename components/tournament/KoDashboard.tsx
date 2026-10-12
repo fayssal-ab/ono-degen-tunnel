@@ -24,7 +24,7 @@ const READER: Record<ReaderStatus, { label: string; tone: string }> = {
 };
 
 const OUTCOME: Record<string, string> = {
-  registered: "registered", rerolled: "slot rerolled", duplicate_message: "duplicate ignored", no_tournament: "no tournament",
+  registered: "registered", rerolled: "slot changed", duplicate_message: "duplicate ignored", no_tournament: "no tournament",
   registration_closed: "registration closed", full: "full (16/16)", locked_in_bracket: "locked in bracket", eliminated: "eliminated — ignored",
   pending_roll: "being rolled — ignored", no_slots: "no verified slots!", processing_failed: "server error", network_error: "network error",
 };
@@ -137,7 +137,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             ) : (
               <div className="py-16 text-center">
                 <p className="font-display text-3xl font-extrabold text-text-0">{state.eligible >= 2 || firstRoundOpen ? "Ready to roll" : "Waiting for players"}</p>
-                <p className="mt-2 text-sm text-text-2">{state.eligible} player(s) waiting · type <code className="text-gold">!join</code> in chat to enter</p>
+                <p className="mt-2 text-sm text-text-2">{state.eligible} player(s) waiting · type <code className="text-gold">!join &lt;slot&gt;</code> in chat to enter</p>
               </div>
             )}
 
@@ -179,7 +179,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             <div className="mt-4 border-t border-line pt-3">
               <p className="label mb-1">Chat log</p>
               <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[11px] text-text-2">
-                {reader.events.map((e, i) => <li key={i}><span className="text-text-1">{e.username}</span> · {OUTCOME[e.outcome] ?? e.outcome}</li>)}
+                {reader.events.map((e, i) => <li key={i}><span className="text-text-1">{e.username}</span> · {OUTCOME[e.outcome] ?? e.outcome}{e.slot ? <> → <span className="text-cyan">{e.slot}</span></> : null}</li>)}
               </ul>
             </div>
           )}

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { nextMatch, pickTwo, JOIN_RE } from "../lib/knockout";
-import { normalizeName, scoreName, classifyThumb } from "../lib/slotCatalog";
+import { normalizeName, scoreName, classifyThumb, cleanSlotRequest } from "../lib/slotCatalog";
 
 test("bracket progression R16 → QF → SF → Final", () => {
   assert.deepEqual(nextMatch(1, 0), { round: 2, index: 0, side: 1 });
@@ -52,4 +52,12 @@ test("thumbnail check rejects slot.report's placeholder", () => {
   assert.equal(classifyThumb({ status: 500, type: "text/html", hash: "x" }, "ph"), null);
   assert.equal(classifyThumb({ status: 200, type: "text/html", hash: "x" }, "ph"), null);
   assert.equal(classifyThumb(null, "ph"), null);
+});
+
+test("typed slot request: emotes stripped, length bounded, empty → null", () => {
+  assert.equal(cleanSlotRequest("  Fist of Demolition  "), "Fist of Demolition");
+  assert.equal(cleanSlotRequest("Wanted [emote:37226:KEKW] Dead"), "Wanted Dead");
+  assert.equal(cleanSlotRequest(""), null);
+  assert.equal(cleanSlotRequest("!"), null);
+  assert.equal(cleanSlotRequest("x".repeat(200))?.length, 80);
 });

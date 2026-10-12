@@ -38,7 +38,7 @@ export function KoOverlay({ initial }: { initial: KoState | null }) {
     body = (
       <div className={`${card} w-[1100px] text-center`} style={bg}>
         <p className="label text-volt">{t.title}</p>
-        <p className="mt-3 font-bang text-7xl tracking-wide text-text-0">TYPE <span className="text-gold">!JOIN</span> IN CHAT</p>
+        <p className="mt-3 font-bang text-7xl tracking-wide text-text-0">TYPE <span className="text-gold">!JOIN &lt;SLOT&gt;</span> IN CHAT</p>
         <p className="mt-4 font-display text-6xl font-extrabold tabular-nums text-text-0">{state.registered}<span className="text-text-2">/{t.max_players}</span></p>
         <div className="mt-8 grid grid-cols-3 gap-4">
           {latest.map((p) => (

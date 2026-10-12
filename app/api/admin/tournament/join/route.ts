@@ -3,6 +3,7 @@ import { isAdminRequest } from "@/lib/admin";
 import { json, jsonError, isSameOrigin } from "@/lib/http";
 import { withTx } from "@/lib/events/common";
 import { recordJoin, JOIN_RE } from "@/lib/knockout";
+import { findSlotByName } from "@/lib/slotCatalog";
 
 // Relay for `!join` messages read from Kick's public chat socket by the admin
 // tournament dashboard (same mechanism as giveaways). Identity is Kick's
@@ -28,7 +29,9 @@ export async function POST(request: Request) {
   }
   if (!JOIN_RE.test(body.content)) return json({ ok: true, outcome: "not_command" });
   try {
-    const result = await withTx((conn) => recordJoin(conn, { kickUserId: String(body.userId), username: body.username, messageId: `kick:${body.messageId}` }));
+    // `!join <slot name>` → that slot (resolved outside the transaction); bare `!join` → random
+    const slot = await findSlotByName(body.content.replace(/^\s*!join/i, ""));
+    const result = await withTx((conn) => recordJoin(conn, { kickUserId: String(body.userId), username: body.username, messageId: `kick:${body.messageId}`, slot }));
     return json({ ok: true, ...result });
   } catch (err) {
     console.error("ko join relay failed", err instanceof Error ? err.message : "unknown");

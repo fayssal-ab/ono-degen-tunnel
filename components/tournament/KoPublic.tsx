@@ -18,7 +18,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
         <div>
           <p className="label">{t.prize ? `Prize · ${t.prize}` : "Knockout"}</p>
           <h2 className="font-display text-3xl font-extrabold">{t.title}</h2>
-          {t.status === "open" && <p className="mt-1 text-sm text-text-1">Type <code className="rounded bg-bg-3 px-1.5 text-gold">!join</code> in Kick chat. Type it again before you&apos;re drawn to reroll your slot.</p>}
+          {t.status === "open" && <p className="mt-1 text-sm text-text-1">Type <code className="rounded bg-bg-3 px-1.5 text-gold">!join Gates of Olympus</code> in Kick chat to enter with that slot (plain <code className="rounded bg-bg-3 px-1.5 text-gold">!join</code> = random slot). Type it again before you&apos;re drawn to change your slot.</p>}
         </div>
         <Counter value={s.registered} max={t.max_players} open={t.status === "open"} />
       </div>

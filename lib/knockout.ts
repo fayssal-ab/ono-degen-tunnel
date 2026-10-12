@@ -69,7 +69,7 @@ export interface KoMatch {
   roll_seq: number | null;
 }
 
-/** `!join` at the start of the message; anything typed after it is ignored (the slot is always random). */
+/** `!join` at the start of the message; text after it names the viewer's slot (none = random). */
 export const JOIN_RE = /^\s*!join(?:\s.*)?$/i;
 
 /** Where the winner of (round, index) plays next. Null after the grand final. */
@@ -236,6 +236,8 @@ export interface JoinInput {
   kickUserId: string;
   username: string;
   messageId: string;
+  /** Slot the viewer named (`!join <slot>`), resolved beforehand; absent = random slot. */
+  slot?: { id: string; name: string; provider: string; imageUrl: string } | null;
 }
 
 export type JoinOutcome =
@@ -243,7 +245,7 @@ export type JoinOutcome =
   | "full" | "locked_in_bracket" | "eliminated" | "pending_roll" | "no_slots";
 
 /** Run inside a transaction (webhook or admin socket relay). */
-export async function recordJoin(conn: PoolConnection, input: JoinInput): Promise<{ outcome: JoinOutcome; count?: number }> {
+export async function recordJoin(conn: PoolConnection, input: JoinInput): Promise<{ outcome: JoinOutcome; count?: number; slot?: string }> {
   const [seen] = await conn.query<ResultSetHeader>("INSERT IGNORE INTO ko_join_seen (message_id) VALUES (?)", [input.messageId.slice(0, 191)]);
   if (!seen.affectedRows) return { outcome: "duplicate_message" };
   // The tournament row lock must be the FIRST read of this transaction: under
@@ -271,20 +273,24 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
       [t.id, p.id, p.id]
     );
     if (inMatch[0]) return { outcome: inMatch[0].status === "rolled" ? "pending_roll" : "locked_in_bracket" };
-    let slot;
-    try { slot = await randomPoolSlot(conn, [...taken, String(p.slot_id)]); } catch { return { outcome: "no_slots" }; }
+    let slot = input.slot ?? null;
+    if (!slot) {
+      try { slot = await randomPoolSlot(conn, [...taken, String(p.slot_id)]); } catch { return { outcome: "no_slots" }; }
+    }
     await conn.query(
       "UPDATE ko_participants SET slot_id = ?, slot_name = ?, slot_provider = ?, slot_image = ?, username = ?, rerolls = rerolls + 1 WHERE id = ?",
       [slot.id, slot.name, slot.provider, slot.imageUrl, input.username, p.id]
     );
-    return { outcome: "rerolled" };
+    return { outcome: "rerolled", slot: slot.name };
   }
 
   if (t.status !== "open") return { outcome: "registration_closed" };
   const count = assigned.length;
   if (count >= t.max_players) return { outcome: "full" };
-  let slot;
-  try { slot = await randomPoolSlot(conn, taken); } catch { return { outcome: "no_slots" }; }
+  let slot = input.slot ?? null;
+  if (!slot) {
+    try { slot = await randomPoolSlot(conn, taken); } catch { return { outcome: "no_slots" }; }
+  }
   await conn.query(
     `INSERT INTO ko_participants (tournament_id, kick_user_id, username, slot_id, slot_name, slot_provider, slot_image)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -293,7 +299,7 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
   if (count + 1 >= t.max_players) {
     await conn.query("UPDATE ko_tournaments SET status = 'closed', closed_at = UTC_TIMESTAMP() WHERE id = ?", [t.id]);
   }
-  return { outcome: "registered", count: count + 1 };
+  return { outcome: "registered", count: count + 1, slot: slot.name };
 }
 
 // ── roller ──

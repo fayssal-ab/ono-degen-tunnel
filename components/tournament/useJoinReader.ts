@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 // configured, and both paths share message-id de-duplication).
 
 export type ReaderStatus = "off" | "connecting" | "live" | "reconnecting" | "error";
-export interface JoinEvent { at: number; username: string; outcome: string }
+export interface JoinEvent { at: number; username: string; outcome: string; slot?: string }
 
 interface KickChatEvent { id?: string; content?: string; created_at?: string; sender?: { id?: number | string; username?: string } }
 
@@ -67,8 +67,8 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void, opts: Relay
             body: JSON.stringify({ messageId: chat.id, userId: String(userId), username, content: chat.content, sentAt: chat.created_at ?? null }),
           })
             .then((r) => r.json())
-            .then((d: { outcome?: string; error?: string }) => {
-              setEvents((list) => [{ at: Date.now(), username, outcome: d.outcome ?? d.error ?? "error" }, ...list].slice(0, 30));
+            .then((d: { outcome?: string; error?: string; slot?: string }) => {
+              setEvents((list) => [{ at: Date.now(), username, outcome: d.outcome ?? d.error ?? "error", slot: d.slot }, ...list].slice(0, 30));
               cb.current?.();
             })
             .catch(() => setEvents((list) => [{ at: Date.now(), username, outcome: "network_error" }, ...list].slice(0, 30)));

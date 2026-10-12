@@ -13,10 +13,17 @@ const STATE_TONE: Record<KoParticipant["state"], string> = {
 };
 
 export function SlotArt({ p, size = 96, className = "" }: { p: Pick<KoParticipant, "slot_image" | "slot_name">; size?: number; className?: string }) {
+  // A slot typed by the viewer that isn't in the catalogue has no art: show a
+  // clean name tile, never a placeholder image.
+  const initials = p.slot_name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
   return (
-    <span className={`relative block shrink-0 overflow-hidden rounded-xl border border-line bg-bg-3 ${className}`} style={{ width: size, height: size }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={p.slot_image} alt={p.slot_name} className="h-full w-full object-cover" />
+    <span className={`relative grid shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-gradient-to-br from-bg-3 to-bg-2 ${className}`} style={{ width: size, height: size }}>
+      {p.slot_image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={p.slot_image} alt={p.slot_name} className="h-full w-full object-cover" />
+      ) : (
+        <span className="font-display font-extrabold text-gold" style={{ fontSize: Math.max(10, size * 0.32) }}>{initials || "?"}</span>
+      )}
     </span>
   );
 }
@@ -32,7 +39,7 @@ export function ParticipantRow({ p, index }: { p: KoParticipant; index: number }
       <SlotArt p={p} size={44} />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold text-text-0">{p.username}</span>
-        <span className="block truncate text-xs text-text-2">{p.slot_name} · {p.slot_provider}</span>
+        <span className="block truncate text-xs text-text-2">{p.slot_name}{p.slot_provider ? ` · ${p.slot_provider}` : ""}</span>
       </span>
       <StateBadge state={p.state} />
     </li>
@@ -69,7 +76,7 @@ function FighterCard({ p, side, outcome, big }: { p: KoParticipant | null; side:
       </div>
       <p className={`max-w-[16ch] truncate font-display font-extrabold ${big ? "text-4xl" : "text-2xl"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
       <p className={`max-w-[22ch] truncate font-semibold ${big ? "text-xl" : "text-sm"} text-cyan`}>{p.slot_name}</p>
-      <p className={`${big ? "text-base" : "text-xs"} uppercase tracking-wider text-text-2`}>{p.slot_provider}</p>
+      {p.slot_provider && <p className={`${big ? "text-base" : "text-xs"} uppercase tracking-wider text-text-2`}>{p.slot_provider}</p>}
     </div>
   );
 }

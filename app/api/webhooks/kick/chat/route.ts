@@ -7,6 +7,7 @@ import { recordChatEntry } from "@/lib/giveaways";
 import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
 import { isConfiguredBroadcaster, messageSentAt } from "@/lib/kickEvents";
 import { recordJoin, JOIN_RE } from "@/lib/knockout";
+import { findSlotByName } from "@/lib/slotCatalog";
 
 // Public endpoint — Kick POSTs here for every chat.message.sent once
 // subscribed. Auth is the RSA signature (verified over the RAW body), not a
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     if (!isConfiguredBroadcaster(payload.broadcaster ?? null)) return NextResponse.json({ ok: true, ignored: "other_broadcaster" });
     const sentAt = messageSentAt(payload.created_at, timestamp);
     if (!sentAt) return NextResponse.json({ error: "invalid_timestamp" }, { status: 400 });
+    const joinSlot = JOIN_RE.test(payload.content) ? await findSlotByName(payload.content.replace(/^\s*!join/i, "")) : null;
     const conn = await getPool().getConnection();
     try {
       await conn.beginTransaction();
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
       // Tournament registration: needs Kick's stable user id. The chat message
       // id (shared with the public socket) de-duplicates across both paths.
       if (JOIN_RE.test(payload.content) && payload.sender.user_id != null) {
-        await recordJoin(conn, { kickUserId: String(payload.sender.user_id), username: payload.sender.username, messageId: `kick:${payload.message_id ?? messageId}` });
+        await recordJoin(conn, { kickUserId: String(payload.sender.user_id), username: payload.sender.username, messageId: `kick:${payload.message_id ?? messageId}`, slot: joinSlot });
       }
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }

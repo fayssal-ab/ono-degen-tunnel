@@ -226,3 +226,37 @@ t("Stake list: name matching, pool restricted to Stake slots, Stake-only image h
   await cat.markOnStake(["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed", "x/no-art"], false);
   assert.equal((await cat.getCatalogStats()).onStake, 0);
 });
+
+t("!join <slot name>: viewer picks the slot; unknown names kept as typed without art; repeat changes it", async () => {
+  // typed names resolve against the catalogue (typo-tolerant) or stay as typed
+  const hit = await cat.findSlotByName(" gates olympus ");
+  assert.deepEqual([hit?.matched, hit?.name, hit?.provider], [true, "Gates of Olympus", "Pragmatic Play"]);
+  assert.ok(hit?.imageUrl.endsWith("gates-of-olympus-thumb.webp"));
+  // too far to be sure → kept as typed, never swapped for a different game
+  const typo = await cat.findSlotByName("gatez of olympos");
+  assert.deepEqual([typo?.matched, typo?.name], [false, "gatez of olympos"]);
+  // close typo of the whole name still matches
+  assert.equal((await cat.findSlotByName("gates of olympuss"))?.name, "Gates of Olympus");
+  const unknown = await cat.findSlotByName("Fist of Demolition [emote:37226:KEKW]");
+  assert.deepEqual([unknown?.matched, unknown?.name, unknown?.provider, unknown?.imageUrl], [false, "Fist of Demolition", "", ""]);
+  assert.equal(await cat.findSlotByName("   "), null);
+  assert.equal(await cat.findSlotByName("[emote:1:x]"), null);
+
+  await q("UPDATE ko_tournaments SET status='cancelled' WHERE status IN ('open','closed')"); // isolate from earlier tests
+  const id = await ko.createKo({ title: "Pick", prize: "" });
+  await ko.openRegistration(id);
+  const j = (uid: string, slot: Awaited<ReturnType<typeof cat.findSlotByName>>) =>
+    common.withTx((c) => ko.recordJoin(c, { kickUserId: uid, username: `u${uid}`, messageId: `p${++msg}`, slot }));
+  const r1 = await j("pick1", hit);
+  assert.deepEqual([r1.outcome, r1.slot], ["registered", "Gates of Olympus"]);
+  const r2 = await j("pick1", unknown); // repeat with another name → changes to that slot
+  assert.deepEqual([r2.outcome, r2.slot], ["rerolled", "Fist of Demolition"]);
+  const [row] = await q("SELECT slot_name, slot_provider, slot_image FROM ko_participants WHERE tournament_id=? AND kick_user_id='pick1'", [id]);
+  assert.deepEqual([row.slot_name, row.slot_provider, row.slot_image], ["Fist of Demolition", "", ""]);
+  const r3 = await j("pick2", null); // bare !join → random verified slot
+  assert.equal(r3.outcome, "registered");
+  const [row2] = await q("SELECT slot_image FROM ko_participants WHERE tournament_id=? AND kick_user_id='pick2'", [id]);
+  assert.ok(String(row2.slot_image).startsWith("https://"));
+  assert.equal((await q("SELECT COUNT(*) n FROM ko_participants WHERE tournament_id=?", [id]))[0].n, 2);
+  await ko.resetKo(id);
+});

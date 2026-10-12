@@ -401,3 +401,52 @@ export async function getStakeSlots(limit = 500): Promise<{ id: string; name: st
   );
   return rows.map((r) => ({ id: String(r.id), name: String(r.name), provider: String(r.provider), imageUrl: r.image_status === "real" ? String(r.image_url) : null, source: String(r.source) }));
 }
+
+// ── viewer-chosen slot (`!join <slot name>`) ──
+
+export interface ChosenSlot extends AssignedSlot {
+  /** false = not in the catalogue: kept exactly as typed, no art, no provider */
+  matched: boolean;
+}
+
+/** Text a viewer typed after `!join`, minus Kick emote tokens; null when empty. */
+export function cleanSlotRequest(raw: string): string | null {
+  const t = raw.replace(/\[emote:\d+:[^\]]*\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+  return normalizeName(t).length >= 2 ? t : null;
+}
+
+/**
+ * The slot a viewer asked for. Catalogue match (exact, prefix, every word, or
+ * a close typo) → its real name, provider and verified art; Stake-marked and
+ * verified-art entries win ties. No match → the name as typed, without art or
+ * provider (never a guessed game). Runs outside any transaction (may verify art).
+ */
+export async function findSlotByName(raw: string): Promise<ChosenSlot | null> {
+  const typed = cleanSlotRequest(raw);
+  if (!typed) return null;
+  const q = normalizeName(typed);
+  const rows = await loadCache();
+  // Strict on purpose: below ~0.7 trigram similarity a "typo" can't be told
+  // apart from a different game ("fist of demolition" ≈ "Fist of Destruction"),
+  // so the name is kept as typed rather than swapped for another slot.
+  const scored = rows.map((r) => ({ r, s: scoreName(q, r.norm) })).filter((x) => x.s >= 280);
+  const top = scored.reduce((m, x) => Math.max(m, x.s), 0);
+  // Near-equal strong matches ("wanted" → several "Wanted …" games): prefer
+  // Stake-marked, then verified art, then the big streamer providers.
+  const near = scored.filter((x) => x.s >= top - (top >= 500 ? 30 : 0));
+  near.sort((a, b) =>
+    Number(b.r.onStake) - Number(a.r.onStake) ||
+    Number(b.r.status === "real") - Number(a.r.status === "real") ||
+    providerRank(a.r.provider_slug) - providerRank(b.r.provider_slug) ||
+    b.s - a.s);
+  const best = near[0] ?? null;
+  if (!best) return { id: `typed/${q.replace(/ /g, "-")}`.slice(0, 191), name: typed, provider: "", imageUrl: "", matched: false };
+  let { r } = best;
+  if (r.status === "unknown") {
+    try {
+      await verifyIds([{ id: r.id, slug: r.slug }], 3000);
+      r = (await loadCache()).find((x) => x.id === r.id) ?? r;
+    } catch { /* art host unreachable: no image this time */ }
+  }
+  return { id: r.id, name: r.name, provider: r.provider, imageUrl: r.status === "real" && r.image ? r.image : "", matched: true };
+}
