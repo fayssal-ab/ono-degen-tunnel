@@ -42,7 +42,8 @@ test("forged, expired or missing admin sessions are refused", () => {
   assert.equal(verifyAdminSession(createAdminSession("secret-pass", Date.now() - 8 * 86400_000), "secret-pass"), false);
   const req = (cookie?: string) => new Request("http://localhost/api/admin/x", { headers: cookie ? { cookie } : {} });
   assert.equal(isAdminRequest(req()), false);
-  assert.equal(isAdminRequest(req(`odt_admin=${good.slice(0, -1)}0`)), false);
+  const forged = good.slice(0, -1) + (good.endsWith("0") ? "1" : "0"); // always differs from the real signature
+  assert.equal(isAdminRequest(req(`odt_admin=${forged}`)), false);
   assert.equal(isAdminRequest(req("odt_admin=admin")), false);
   assert.equal(isAdminRequest(req(`odt_admin=${encodeURIComponent(good)}`)), true);
 });

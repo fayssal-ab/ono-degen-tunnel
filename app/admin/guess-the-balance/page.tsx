@@ -16,6 +16,7 @@ import { Icon } from "@/components/ui/Icon";
 import { RelativeTime } from "@/components/ui/RelativeTime";
 import { Flash, Field, AdminHeader, Hidden, Help, Utc, first, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
+import { GbChatListener } from "@/components/admin/GbChatListener";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/guess-the-balance";
@@ -143,12 +144,14 @@ export default async function AdminGuessBalance({ searchParams }: { searchParams
       <Flash searchParams={searchParams} />
 
       <div className="surface grid gap-3 p-5 text-sm sm:grid-cols-2">
-        <p className="label sm:col-span-2">Chat collection (Kick webhook)</p>
+        <p className="label sm:col-span-2">Chat collection (signed Kick webhook — the reader below covers chat while this page is open)</p>
         <p><Icon name={status.kickAppConfigured ? "CircleCheck" : "AlertTriangle"} className={`mr-1 inline h-4 w-4 ${status.kickAppConfigured ? "text-volt" : "text-danger"}`} />Kick app credentials {status.kickAppConfigured ? "set" : "missing (KICK_CLIENT_ID / KICK_CLIENT_SECRET)"}</p>
         <p><Icon name={status.broadcasterConfigured ? "CircleCheck" : "Info"} className={`mr-1 inline h-4 w-4 ${status.broadcasterConfigured ? "text-volt" : "text-gold"}`} />Broadcaster check {status.broadcasterConfigured ? "by user id" : "by channel slug (set KICK_BROADCASTER_USER_ID for the stable id)"}</p>
         <p>Last webhook event: {status.lastWebhookAt ? <RelativeTime iso={status.lastWebhookAt} /> : <span className="text-danger">never received</span>}</p>
         <p>Last guess: {status.lastGuessAt ? <RelativeTime iso={status.lastGuessAt} /> : "—"}</p>
       </div>
+
+      <GbChatListener active={rounds.some((r) => r.status === "open")} />
 
       <Help>
         Viewers type <code className="text-gold">!gb 12345.67</code> in Kick chat while a round is open. One guess per Kick account, latest sent counts; guesses sent after the

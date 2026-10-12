@@ -1,14 +1,18 @@
 import { isAdminRequest } from "@/lib/admin";
-import { searchSlots } from "@/lib/slotSearch";
+import { searchCatalog } from "@/lib/slotCatalog";
 import { json, jsonError } from "@/lib/http";
 
-// Admin-only slot autocomplete for the bonus-hunt / tournament / challenge
-// forms. Guarded so the key-bound slot.report list isn't exposed publicly.
+// Admin-only fuzzy slot search over the synced slot.report catalogue. Images
+// are returned only when verified as real art (never slot.report's placeholder).
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   if (!isAdminRequest(request)) return jsonError("unauthorized", 401);
-  const q = new URL(request.url).searchParams.get("q") ?? "";
-  const results = await searchSlots(q);
-  return json({ results });
+  const q = (new URL(request.url).searchParams.get("q") ?? "").slice(0, 80);
+  try {
+    const results = await searchCatalog(q);
+    return json({ results });
+  } catch {
+    return json({ results: [], error: "catalog_unavailable" });
+  }
 }

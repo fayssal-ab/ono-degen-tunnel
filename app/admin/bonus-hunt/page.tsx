@@ -3,14 +3,16 @@ import { z } from "zod";
 import { adminAction, requireAdmin } from "@/lib/adminAction";
 import {
   getAllHunts, getHuntEntries, computeHuntStats, createHunt, updateHunt, addHuntEntry, updateHuntEntry,
-  removeHuntEntry, moveHuntEntry, setHuntPayout, finishHunt, archiveHunt, deleteHunt, type Hunt, type HuntEntry,
+  removeHuntEntry, moveHuntEntry, addHuntEntryFromCatalog, setHuntPayout, finishHunt, archiveHunt, deleteHunt, type Hunt, type HuntEntry,
 } from "@/lib/bonusHunt";
-import { parseForm, zId, zText, zRequiredText, zMoney, zPositiveMoney, zUrl } from "@/lib/events/common";
+import { parseForm, zId, zText, zRequiredText, zMoney, zPositiveMoney, zUrl, EventError } from "@/lib/events/common";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
+import { SlotThumb } from "@/components/ui/SlotThumb";
 import { Flash, Field, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton, SlotNameInput } from "@/components/admin/client";
+import { SlotPicker } from "@/components/admin/SlotPicker";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/bonus-hunt";
@@ -36,10 +38,16 @@ async function updateAction(formData: FormData) {
   });
 }
 
+const PickForm = z.object({ hunt_id: zId, slot_id: zText(191), custom_name: zText(191), bet: zPositiveMoney });
+
 async function addEntryAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "hunt.entry_add", target: String(formData.get("hunt_id")), revalidate: REVALIDATE }, async () => {
-    await addHuntEntry(parseForm(HuntId, { hunt_id: formData.get("hunt_id") }).hunt_id, parseForm(EntryForm, formData));
+    const f = parseForm(PickForm, formData);
+    if (f.slot_id) return await addHuntEntryFromCatalog(f.hunt_id, f.slot_id, f.bet);
+    if (!f.custom_name) throw new EventError("invalid_input", "pick a slot from the list");
+    await addHuntEntry(f.hunt_id, { slot_name: f.custom_name, provider: "", bet: f.bet, image_url: "" });
+    return { name: f.custom_name, custom: true };
   });
 }
 
@@ -105,6 +113,7 @@ function EntryRow({ hunt, e, i, last }: { hunt: Hunt; e: HuntEntry; i: number; l
     <li className="rounded-xl border border-line bg-bg-1 p-3">
       <div className="flex flex-wrap items-center gap-3">
         <span className="w-6 font-mono text-xs text-text-2">{i + 1}</span>
+        <SlotThumb name={e.slot_name} src={e.image_url} size={40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm text-text-0">{e.slot_name}</p>
           <p className="truncate text-xs text-text-2">{e.provider || "—"} · bet {formatMoney(e.bet)}</p>
@@ -219,13 +228,10 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
           </ol>
 
           {hunt.status === "active" && !hunt.opening_started_at && (
-            <form action={addEntryAction} className="grid gap-2 rounded-xl border border-dashed border-line p-3 sm:grid-cols-[2fr_1fr_1fr_2fr_auto]">
+            <form action={addEntryAction} className="space-y-2 rounded-xl border border-dashed border-line p-3">
               <Hidden fields={{ hunt_id: hunt.id }} />
-              <SlotNameInput className={inputCls} />
-              <input name="provider" placeholder="Provider" maxLength={120} className={inputCls} />
-              <input name="bet" placeholder="Bet" inputMode="decimal" required className={inputCls} />
-              <input name="image_url" placeholder="Image URL (optional)" maxLength={512} className={inputCls} />
-              <SubmitButton className={btnGold}><Icon name="Plus" className="h-4 w-4" /> Add</SubmitButton>
+              <p className="label">Add a bonus — type the slot, pick it; image and provider come from the slot catalogue</p>
+              <SlotPicker defaultBet={entries.length ? entries[entries.length - 1].bet.replace(/\.?0+$/, "") : ""} />
             </form>
           )}
 

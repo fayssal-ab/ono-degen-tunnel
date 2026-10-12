@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseGbCommand, identityKey } from "../lib/guessBalance";
 import { computeStandings } from "../lib/races";
-import { decideMatch, nextSlot, QF_PAIRS } from "../lib/tournaments";
 import { claimProblems } from "../lib/challenges";
 import { parseWagerCsv, checkPeriodInput, validDate } from "../lib/periodAdmin";
 import { parseDistribution, parseForm, zUtcDateTime, zMoney, EventError } from "../lib/events/common";
@@ -54,17 +53,6 @@ test("race standings keep DECIMAL(20,8) precision and break ties deterministical
   // a decreasing cumulative (provider correction) never yields a negative score
   const neg = computeStandings({ baseline: new Map([["a", "100"]]), current: [{ casino_id: "a", username: "a", wagered: "90" }], baselineComplete: false });
   assert.equal(neg.standings.length, 0);
-});
-
-test("bracket: decimal comparison, tie detection and propagation slots", () => {
-  assert.equal(decideMatch(1, 8, "100.01", "100.001"), 1);
-  assert.equal(decideMatch(1, 8, "0.1", "0.10"), "tie");
-  assert.equal(decideMatch(4, 5, "12345678901234567.11", "12345678901234567.12"), 5);
-  assert.deepEqual(nextSlot(1, 0), { round: 2, index: 0, side: "a" });
-  assert.deepEqual(nextSlot(1, 3), { round: 2, index: 1, side: "b" });
-  assert.deepEqual(nextSlot(2, 1), { round: 3, index: 0, side: "b" });
-  assert.equal(nextSlot(3, 0), null);
-  assert.deepEqual(QF_PAIRS.flat().sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
 test("challenge claim checks thresholds in decimal and the play time window", () => {

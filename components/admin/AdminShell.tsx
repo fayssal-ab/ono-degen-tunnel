@@ -26,6 +26,7 @@ const SECTIONS = [
     { label: "Stream Schedule", href: "/admin/stream", icon: "Radio" },
   ] },
   { label: "Site", items: [
+    { label: "Slot catalogue", href: "/admin/slots", icon: "Library" },
     { label: "VIP Tiers", href: "/admin/vip", icon: "Crown" },
     { label: "Audit Log", href: "/admin/audit", icon: "ScrollText" },
     { label: "Settings", href: "/admin/settings", icon: "Settings" },

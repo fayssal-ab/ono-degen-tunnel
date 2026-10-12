@@ -6,6 +6,7 @@ import { getPool } from "@/lib/db";
 import { recordChatEntry } from "@/lib/giveaways";
 import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
 import { isConfiguredBroadcaster, messageSentAt } from "@/lib/kickEvents";
+import { recordJoin, JOIN_RE } from "@/lib/knockout";
 
 // Public endpoint — Kick POSTs here for every chat.message.sent once
 // subscribed. Auth is the RSA signature (verified over the RAW body), not a
@@ -20,6 +21,7 @@ const KickUser = z.object({
   channel_slug: z.string().max(191).nullable().optional(),
 });
 const ChatPayload = z.object({
+  message_id: z.string().max(191).optional(),
   content: z.string().max(10000),
   created_at: z.string().max(64).optional(),
   broadcaster: KickUser.partial({ username: true }).nullable().optional(),
@@ -56,6 +58,11 @@ export async function POST(request: Request) {
         kickUserId: payload.sender.user_id != null ? String(payload.sender.user_id) : null,
         username: payload.sender.username, content: payload.content, sentAt,
       }, conn);
+      // Tournament registration: needs Kick's stable user id. The chat message
+      // id (shared with the public socket) de-duplicates across both paths.
+      if (JOIN_RE.test(payload.content) && payload.sender.user_id != null) {
+        await recordJoin(conn, { kickUserId: String(payload.sender.user_id), username: payload.sender.username, messageId: `kick:${payload.message_id ?? messageId}` });
+      }
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }

@@ -61,6 +61,27 @@ export const ERROR_MESSAGES: Record<string, string> = {
   claim_not_found: "That claim no longer exists.",
   claim_not_pending: "This claim was already reviewed.",
   claim_invalid: "The claim does not meet the challenge conditions.",
+  // slot catalogue
+  slot_api_missing: "SLOT_REPORT_API_KEY is not configured, so the slot catalogue can't be synced.",
+  slot_api_failed: "slot.report did not return the catalogue. Try again later.",
+  slot_images_unreachable: "slot.report images could not be reached to verify thumbnails.",
+  slot_pool_empty: "No slot with a verified thumbnail is available yet. Sync the catalogue and verify images in Admin → Slots.",
+  slot_not_found: "That slot is not in the catalogue.",
+  // knockout
+  ko_not_found: "That tournament no longer exists.",
+  ko_finished: "This tournament is finished.",
+  ko_cancelled: "This tournament was reset.",
+  ko_already_running: "A tournament is already running. Finish it or reset it first.",
+  ko_full: "All 16 places are taken.",
+  ko_not_open: "Registration is not open.",
+  ko_bracket_sealed: "The bracket is already sealed (byes assigned), registration can't reopen.",
+  roll_pending: "Confirm or cancel the current roll first.",
+  first_round_full: "All round-of-16 battles are already set.",
+  not_enough_players: "Not enough unassigned players to roll a battle.",
+  no_pending_roll: "There is no roll waiting for confirmation.",
+  battle_already_live: "A battle is already live. Pick its winner first.",
+  no_ready_battle: "No battle is ready yet — roll players or finish the previous round.",
+  battle_not_live: "Start the battle before choosing a winner.",
 };
 
 export function explainError(code: string): string {

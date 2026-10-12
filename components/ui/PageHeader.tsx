@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FeatureIcon, type FeatureColor } from "./FeatureIcon";
+import { bangSize } from "./bangSize";
 
 // Consistent page header across every route (kicker + title + optional lead +
 // right-aligned slot). A giant outlined watermark word sits behind the title
@@ -37,11 +38,11 @@ export function PageHeader({
         </span>
       )}
       <div className={`relative z-10 flex flex-wrap items-end justify-between gap-4 ${mark ? "-mt-[0.3em]" : ""}`}>
-        <div className="flex items-start gap-4">
+        <div className="flex min-w-0 items-start gap-4">
           {icon && <FeatureIcon icon={icon} color={iconColor} size="lg" className="mt-1" />}
-          <div className="max-w-2xl">
+          <div className="min-w-0 max-w-2xl">
             {kicker && <p className="label">{kicker}</p>}
-            <h1 className="font-bang mt-1.5 text-3xl tracking-wide md:text-4xl">{title}</h1>
+            <h1 className={`font-bang mt-1.5 tracking-wide ${bangSize(title, "text-3xl md:text-4xl")}`}>{title}</h1>
             {lead && <p className="mt-2 text-sm text-text-1 md:text-base">{lead}</p>}
           </div>
         </div>

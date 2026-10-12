@@ -123,18 +123,18 @@ export interface TournamentWin {
   title: string;
   prize: string;
   champion: string;
+  slot: string;
   finished_at: string;
 }
 
 export async function getTournamentWins(limit = 12): Promise<TournamentWin[]> {
   const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT t.title, t.prize, t.finished_at, s.slot_name FROM tournament t
-     JOIN tournament_matches m ON m.tournament_id = t.id AND m.round = 3 AND m.winner_seed IS NOT NULL
-     JOIN tournament_slots s ON s.tournament_id = t.id AND s.seed = m.winner_seed
+    `SELECT t.title, t.prize, t.finished_at, p.username, p.slot_name FROM ko_tournaments t
+     JOIN ko_participants p ON p.id = t.champion_id
      WHERE t.status = 'finished' ORDER BY t.finished_at DESC LIMIT ?`,
     [limit]
   );
-  return rows.map((r) => ({ title: String(r.title), prize: String(r.prize), champion: String(r.slot_name), finished_at: String(r.finished_at) }));
+  return rows.map((r) => ({ title: String(r.title), prize: String(r.prize), champion: String(r.username), slot: String(r.slot_name), finished_at: String(r.finished_at) }));
 }
 
 export interface GbWin {

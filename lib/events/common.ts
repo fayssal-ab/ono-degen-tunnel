@@ -30,7 +30,7 @@ export async function withTx<T>(fn: (conn: PoolConnection) => Promise<T>): Promi
 }
 
 /** Serialises "only one active X" checks (rows seeded by migration 0007). */
-export async function lockApp(conn: PoolConnection, name: "period" | "hunt" | "gb" | "tournament" | "race"): Promise<void> {
+export async function lockApp(conn: PoolConnection, name: "period" | "hunt" | "gb" | "tournament" | "race" | "ko" | "slots"): Promise<void> {
   const [rows] = await conn.query<RowDataPacket[]>("SELECT name FROM app_locks WHERE name = ? FOR UPDATE", [name]);
   if (!rows[0]) throw new EventError("migration_missing");
 }

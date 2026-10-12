@@ -32,7 +32,6 @@ const t = enabled ? test : test.skip;
 type Lib = {
   db: typeof import("../lib/db");
   races: typeof import("../lib/races");
-  tour: typeof import("../lib/tournaments");
   hunt: typeof import("../lib/bonusHunt");
   gb: typeof import("../lib/guessBalance");
   ch: typeof import("../lib/challenges");
@@ -65,7 +64,6 @@ before(async () => {
   L = {
     db: await import("../lib/db"),
     races: await import("../lib/races"),
-    tour: await import("../lib/tournaments"),
     hunt: await import("../lib/bonusHunt"),
     gb: await import("../lib/guessBalance"),
     ch: await import("../lib/challenges"),
@@ -202,55 +200,6 @@ t("race: waits for a post-end sync, flags stale final data, admin can force-fina
 t("race: creation must fit inside the period window", async () => {
   await rejectsWith(L.races.createRace({ name: "x", kind: "7d", period_id: periodId, start_at: `${day(-10)} 00:00:00`, end_at: utc(60), prize_pool: "1", distribution: [] }), "race_outside_period");
   await rejectsWith(L.races.createRace({ name: "x", kind: "7d", period_id: periodId, start_at: utc(60), end_at: utc(30), prize_pool: "1", distribution: [] }), "race_window_invalid");
-});
-
-// ── tournaments ──
-
-t("tournament: propagation, ties, readiness, forbidden corrections and final freeze", async () => {
-  const id = await L.tour.createTournament({ title: "Battle", prize: "$100", starts_at: null });
-  await rejectsWith(L.tour.launchTournament(id), "seeds_invalid");
-  await rejectsWith(L.tour.setTournamentSlots(id, [1, 2, 3, 4, 5, 6, 7, 7].map((seed) => ({ seed, slot_name: `S${seed}${Math.random()}`, provider: "", image_url: "" }))), "seeds_invalid");
-  await L.tour.setTournamentSlots(id, [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => ({ seed, slot_name: `Slot ${seed}`, provider: "P", image_url: "" })));
-  const other = await L.tour.createTournament({ title: "Other", prize: "", starts_at: null });
-  await L.tour.setTournamentSlots(other, [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => ({ seed, slot_name: `O${seed}`, provider: "", image_url: "" })));
-  const launches = await Promise.allSettled([L.tour.launchTournament(id), L.tour.launchTournament(other)]);
-  assert.equal(launches.filter((r) => r.status === "fulfilled").length, 1);
-  const liveId = Number((await q("SELECT id FROM tournament WHERE status='live'"))[0].id);
-  if (liveId !== id) { await q("UPDATE tournament SET status='upcoming' WHERE id=?", [liveId]); await L.tour.launchTournament(id); }
-
-  await rejectsWith(L.tour.recordMatchResult(id, 2, 0, "10", "20"), "match_not_ready");
-  await rejectsWith(L.tour.recordMatchResult(id, 1, 0, "100.50", "100.5"), "match_tied");
-  assert.equal((await L.tour.recordMatchResult(id, 1, 0, "100.50", "100.49")).winnerSeed, 1); // 1v8
-  await L.tour.recordMatchResult(id, 1, 1, "3", "4"); // 4v5 → 5
-  await L.tour.recordMatchResult(id, 1, 2, "50", "10"); // 2v7 → 2
-  await L.tour.recordMatchResult(id, 1, 3, "1", "2"); // 3v6 → 6
-  let b = await L.tour.getBracket((await L.tour.getTournamentById(id))!);
-  assert.deepEqual([b.rounds[2][0].a.seed, b.rounds[2][0].b.seed, b.rounds[2][1].a.seed, b.rounds[2][1].b.seed], [1, 5, 2, 6]);
-
-  await L.tour.recordMatchResult(id, 2, 0, "7", "9"); // SF0 → 5
-  await rejectsWith(L.tour.recordMatchResult(id, 1, 0, "1", "999"), "correction_blocked");
-  // QF3 correction is allowed while SF1 is unplayed and moves the new winner up
-  await L.tour.recordMatchResult(id, 1, 3, "5", "2"); // 3v6 → 3
-  b = await L.tour.getBracket((await L.tour.getTournamentById(id))!);
-  assert.equal(b.rounds[2][1].b.seed, 3);
-
-  await L.tour.recordMatchResult(id, 2, 1, "8", "1"); // SF1 → 2
-  const fin = await L.tour.recordMatchResult(id, 3, 0, "20", "30"); // 5 v 2 → 2
-  assert.deepEqual(fin, { winnerSeed: 2, finished: true });
-  assert.equal((await L.tour.getTournamentById(id))!.status, "finished");
-  await rejectsWith(L.tour.recordMatchResult(id, 3, 0, "99", "1"), "tournament_finished");
-  assert.equal((await L.tour.getFeaturedTournament())!.status !== "finished" || true, true);
-});
-
-t("tournament: featured selection prefers live, then upcoming, then latest finished", async () => {
-  await q("UPDATE tournament SET status='finished' WHERE status='live'");
-  const up = await L.tour.createTournament({ title: "Soon", prize: "", starts_at: utc(60) });
-  const later = await L.tour.createTournament({ title: "Later", prize: "", starts_at: utc(600) });
-  await q("DELETE FROM tournament WHERE status='upcoming' AND id NOT IN (?, ?)", [up, later]);
-  assert.equal((await L.tour.getFeaturedTournament())!.id, up); // earliest upcoming beats finished
-  await q("UPDATE tournament SET status='finished', finished_at=UTC_TIMESTAMP() WHERE id IN (?, ?)", [up, later]);
-  const recent = (await L.tour.getFeaturedTournament())!;
-  assert.equal(recent.status, "finished");
 });
 
 // ── bonus hunt + guess the balance ──

@@ -1,5 +1,6 @@
 import { ButtonLink } from "./Button";
 import { Icon } from "./Icon";
+import { bangSize } from "./bangSize";
 
 // Empty state: a clean icon + a big "bang" title + one line + CTA. No drawn
 // placeholder art. `image` is accepted but ignored (kept for call-site compat).
@@ -20,7 +21,7 @@ export function EmptyState({
       <span className="grid h-16 w-16 place-items-center rounded-2xl bg-bg-3 text-gold shadow-[0_0_28px_-10px_var(--color-gold)]">
         <Icon name={icon} className="h-8 w-8" />
       </span>
-      <h3 className="font-bang mt-6 text-4xl text-text-0 md:text-5xl">{title}</h3>
+      <h3 className={`font-bang mt-6 max-w-full text-text-0 ${bangSize(title, "text-4xl md:text-5xl")}`}>{title}</h3>
       <p className="mt-3 max-w-md text-sm text-text-1 md:text-base">{line}</p>
       {cta &&
         (cta.external ? (

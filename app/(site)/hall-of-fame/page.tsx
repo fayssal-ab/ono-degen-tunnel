@@ -85,7 +85,7 @@ export default async function HallOfFamePage() {
             panel: (
               <List empty={tournaments.length === 0}>
                 {tournaments.map((t, i) => (
-                  <Row key={i} left={t.champion} sub={t.title} right={t.prize || "—"} />
+                  <Row key={i} left={t.champion} sub={`${t.title} · ${t.slot}`} right={t.prize || "—"} />
                 ))}
               </List>
             ),

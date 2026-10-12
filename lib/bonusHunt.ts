@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import type { PoolConnection, ResultSetHeader } from "mysql2/promise";
 import { d } from "./money";
 import { EventError, withTx, lockApp } from "./events/common";
+import { getSlot } from "./slotCatalog";
 
 // Bonus hunt (prompt §5.6). Algorithm ported from JBALLIN: the hunt collects
 // bonuses with a bet each; payouts fill in as they're opened; break-even is
@@ -220,6 +221,25 @@ export async function addHuntEntry(huntId: number, input: HuntEntryInput): Promi
       [huntId, input.slot_name, input.provider, input.bet, input.image_url || null, Number(count[0].p) + 1]
     );
   });
+}
+
+/**
+ * Add a bonus from the slot catalogue: name, provider and (verified) image
+ * come from the catalogue row, never from the browser.
+ */
+export async function addHuntEntryFromCatalog(huntId: number, slotId: string, bet: string): Promise<{ name: string }> {
+  const slot = await getSlot(slotId);
+  if (!slot) throw new EventError("slot_not_found");
+  await withTx(async (conn) => {
+    await lockEditableHunt(conn, huntId);
+    const [count] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n, COALESCE(MAX(position), 0) AS p FROM bonus_hunt_entries WHERE hunt_id = ?", [huntId]);
+    if (Number(count[0].n) >= 500) throw new EventError("hunt_too_many_entries");
+    await conn.query(
+      "INSERT INTO bonus_hunt_entries (hunt_id, slot_id, slot_name, provider, bet, image_url, position) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [huntId, slot.id, slot.name, slot.provider, bet, slot.imageUrl, Number(count[0].p) + 1]
+    );
+  });
+  return { name: slot.name };
 }
 
 export async function updateHuntEntry(huntId: number, entryId: number, input: HuntEntryInput): Promise<void> {
