@@ -36,7 +36,7 @@ export default async function AdminTournaments() {
       </Help>
       {pool === 0 && (
         <p role="alert" className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm">
-          The random slot pool is empty (no thumbnails verified yet). <Link href="/admin/slots" className="text-gold underline">Sync and verify the slot catalogue</Link> before opening registration.
+          The Stake slot catalogue isn&apos;t loaded yet. <Link href="/admin/slots" className="text-gold underline">Sync the slot catalogue</Link> before opening registration.
         </p>
       )}
       <KoDashboard initial={initial} overlayUrl={`${SITE_URL.replace(/\/$/, "")}/overlay/tournament`} />

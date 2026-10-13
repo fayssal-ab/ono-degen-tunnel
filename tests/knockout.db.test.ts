@@ -36,21 +36,23 @@ before(async () => {
   await root.query(`CREATE DATABASE \`${NAME}\``);
   await root.changeUser({ database: NAME });
   for (const f of readdirSync("db/migrations").filter((n) => n.endsWith(".sql")).sort()) await root.query(readFileSync(join("db/migrations", f), "utf8"));
-  // a small verified catalogue (real slot.report ids/images as fixtures; no network in tests)
-  const slots: [string, string, string, string, string][] = [];
-  for (let i = 0; i < 40; i++) slots.push([`pragmatic-play/slot-${i}`, `slot-${i}`, `Slot ${i}`, `slot ${i}`, "Pragmatic Play"]);
-  await root.query(
-    "INSERT INTO slot_catalog (id, slug, name, name_norm, provider, provider_slug, image_status, image_url) VALUES ?",
-    [slots.map(([id, slug, name, norm, prov]) => [id, slug, name, norm, prov, "pragmatic-play", "real", `https://slot.report/images/slots/${slug}-thumb.webp`])]
-  );
-  await root.query("INSERT INTO slot_catalog (id, slug, name, name_norm, provider, provider_slug, image_status, image_url, ambiguous) VALUES ('wazdan/disputed','disputed','Disputed','disputed','Wazdan','wazdan','real','x',1), ('x/no-art','no-art','No Art','no art','X','x','missing',NULL,0)");
-  await root.query("INSERT INTO slot_catalog (id, slug, name, name_norm, provider, provider_slug, image_status, image_url) VALUES ('pragmatic-play/gates-of-olympus','gates-of-olympus','Gates of Olympus','gates of olympus','Pragmatic Play','pragmatic-play','real','https://slot.report/images/slots/gates-of-olympus-thumb.webp')");
   await root.end();
   db = await import("../lib/db");
   ko = await import("../lib/knockout");
   cat = await import("../lib/slotCatalog");
   common = await import("../lib/events/common");
   hunt = await import("../lib/bonusHunt");
+  // Stake catalogue fixture in the feed's format (no network in tests)
+  const img = (i: number) => i.toString(16).padStart(64, "a");
+  const slots: unknown[][] = [];
+  for (let i = 0; i < 600; i++) slots.push([i, `Slot ${i}`, 0, `slot-${i}`, img(i), 96, 0, 0, null, null, 100 + i]);
+  slots.push([9001, "Gates of Olympus", 0, "gates-of-olympus", img(9001), 96.5, 1, 0, 5000, null, 5]);
+  slots.push([9002, "Wanted Dead or a Wild", 1, "wanted-dead-or-a-wild", img(9002), 96.4, 1, 0, 12500, null, 20]);
+  slots.push([9003, "Wanted Outlaws", 2, "wanted-outlaws", img(9003), 96, 0, 0, null, null, 900]);
+  slots.push([9004, "Soul Strings", 3, "glasscannon-soul-strings", img(9004), 96.7, 1, 1, null, null, 365]);
+  slots.push([9005, "No Art", 0, "no-art", "", 96, 0, 0, null, null, 50]);
+  slots.push([9006, "Rare Slot", 0, "rare-slot", img(9006), 96, 0, 0, null, null, 5000]);
+  await cat.importStakeCatalog(cat.parseStakeFeed({ image_base: "https://mediumrare.imgix.net/", providers: ["Pragmatic Play", "Hacksaw Gaming", "All For One Studios", "Glass Cannon"], slots }));
 });
 after(async () => { if (NAME) await db.getPool().end(); });
 
@@ -70,10 +72,11 @@ t("registration: 16 unique players max under concurrent !join, repeats only rero
   assert.equal((await q("SELECT status FROM ko_tournaments WHERE id=?", [tid]))[0].status, "closed"); // auto-closed at 16
   assert.ok(results.some((r) => r.outcome === "full" || r.outcome === "registration_closed"));
 
-  // pool excludes no-art and disputed slots; slots are unique while the pool allows
+  // slots are unique while the pool allows
   const slots = await q("SELECT slot_id FROM ko_participants WHERE tournament_id=?", [tid]);
   assert.equal(new Set(slots.map((s) => s.slot_id)).size, 16);
-  assert.ok(slots.every((s) => !["wazdan/disputed", "x/no-art"].includes(String(s.slot_id))));
+  // random slots: Stake's top played with art only (no art / unpopular never drawn)
+  assert.ok(slots.every((s) => !["stake/no-art", "stake/rare-slot"].includes(String(s.slot_id))));
 
   // a registered player's repeated !join → same row, same position, new slot, counter unchanged
   const [p] = await q("SELECT id, slot_id, rerolls FROM ko_participants WHERE tournament_id=? ORDER BY id LIMIT 1", [tid]);
@@ -207,44 +210,37 @@ t("reset cancels the running tournament and allows a new one; refresh-safe state
   assert.ok(await ko.createKo({ title: "Fresh", prize: "" }));
 });
 
-t("catalogue: fuzzy search, hunt bonus from catalogue uses server data", async () => {
+t("Stake catalogue: feed parsed, popular first, only-on-Stake flag, art from Stake, hunt uses server data", async () => {
   const res = await cat.searchCatalog("gates olympus");
   assert.equal(res[0].name, "Gates of Olympus");
   assert.equal(res[0].provider, "Pragmatic Play");
-  assert.ok(res[0].imageUrl?.endsWith("gates-of-olympus-thumb.webp"));
-  const noArt = await cat.searchCatalog("no art");
-  assert.equal(noArt[0].imageUrl, null); // never a placeholder URL
+  assert.ok(res[0].imageUrl?.startsWith("https://mediumrare.imgix.net/"));
+  assert.equal((await cat.searchCatalog("wanted"))[0].name, "Wanted Dead or a Wild"); // most played first
+  const soul = (await cat.searchCatalog("soul strings"))[0];
+  assert.deepEqual([soul.name, soul.provider, soul.onlyOnStake], ["Soul Strings", "Glass Cannon", true]);
+  assert.equal((await cat.searchCatalog("no art"))[0].imageUrl, null);
+  const stats = await cat.getCatalogStats();
+  assert.equal(stats.total, 606);
+  assert.equal(stats.onlyOnStake, 1);
+  assert.equal(stats.pool, 604); // top-1000 with art (no-art and rank 5000 excluded)
   const hid = await hunt.createHunt({ title: "H", start_balance: "100", image_url: "" });
-  await hunt.addHuntEntryFromCatalog(hid, "pragmatic-play/gates-of-olympus", "2");
+  await hunt.addHuntEntryFromCatalog(hid, "stake/gates-of-olympus", "2");
   const [e] = await q("SELECT slot_id, slot_name, provider, image_url FROM bonus_hunt_entries WHERE hunt_id=?", [hid]);
-  assert.deepEqual([e.slot_id, e.slot_name, e.provider], ["pragmatic-play/gates-of-olympus", "Gates of Olympus", "Pragmatic Play"]);
+  assert.deepEqual([e.slot_id, e.slot_name, e.provider], ["stake/gates-of-olympus", "Gates of Olympus", "Pragmatic Play"]);
+  assert.ok(String(e.image_url).startsWith("https://mediumrare.imgix.net/"));
   await rejects(hunt.addHuntEntryFromCatalog(hid, "nope/nope", "1"), "slot_not_found");
-});
-
-t("Stake list: name matching, pool restricted to Stake slots, Stake-only image host checked", async () => {
-  const m = await cat.matchStakeNames("Gates of Olympus\nslot 3\nDrac's Stacks\n\nGates of Olympus");
-  assert.equal(m.length, 3); // de-duplicated, blanks dropped
-  assert.equal(m[0].slot?.id, "pragmatic-play/gates-of-olympus");
-  assert.equal(m[1].slot?.id, "pragmatic-play/slot-3");
-  assert.equal(m[2].slot, null); // not in the catalogue → add as Stake-only
-  await cat.markOnStake(["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed", "x/no-art"]);
-  // only marked slots with verified art are drawn (disputed one allowed: the admin chose it)
-  const drawn = new Set<string>();
-  for (let i = 0; i < 60; i++) drawn.add((await common.withTx((c) => cat.randomPoolSlot(c))).id);
-  assert.deepEqual([...drawn].sort(), ["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed"]);
-  assert.equal((await cat.getCatalogStats()).pool, 3);
-  assert.equal((await cat.searchCatalog("gates"))[0].onStake, true);
-  await rejects(cat.addStakeOnlySlot({ name: "Bank Basher", provider: "Twist Gaming", imageUrl: "https://evil.example/x.png" }), "invalid_input");
-  await rejects(cat.addStakeOnlySlot({ name: "Bank Basher", provider: "Twist Gaming", imageUrl: "http://mediumrare.imgix.net/x" }), "invalid_input");
-  await cat.markOnStake(["pragmatic-play/gates-of-olympus", "pragmatic-play/slot-3", "wazdan/disputed", "x/no-art"], false);
-  assert.equal((await cat.getCatalogStats()).onStake, 0);
+  // a feed that's suspiciously small is refused (catalogue kept)
+  await rejects(cat.importStakeCatalog(cat.parseStakeFeed({ slots: [[1, "x", 0, "x", "", 0, 0, 0, null, null, 1]] })), "slot_api_failed");
+  assert.equal((await cat.getCatalogStats()).total, 606);
 });
 
 t("!join <slot name>: viewer picks the slot; unknown names kept as typed without art; repeat changes it", async () => {
   // typed names resolve against the catalogue (typo-tolerant) or stay as typed
   const hit = await cat.findSlotByName(" gates olympus ");
   assert.deepEqual([hit?.matched, hit?.name, hit?.provider], [true, "Gates of Olympus", "Pragmatic Play"]);
-  assert.ok(hit?.imageUrl.endsWith("gates-of-olympus-thumb.webp"));
+  assert.ok(hit?.imageUrl.startsWith("https://mediumrare.imgix.net/"));
+  assert.equal((await cat.findSlotByName("wanted"))?.name, "Wanted Dead or a Wild"); // near-equal matches → most played
+  assert.equal((await cat.findSlotByName("Soul Strings"))?.provider, "Glass Cannon"); // Stake exclusive with art
   // too far to be sure → kept as typed, never swapped for a different game
   const typo = await cat.findSlotByName("gatez of olympos");
   assert.deepEqual([typo?.matched, typo?.name], [false, "gatez of olympos"]);
@@ -290,21 +286,4 @@ t("prize ledger: pending until confirmed; only paid awards count; idempotent; vo
   await prizes.reopenAward(Number(a.id));
   await prizes.voidAward(Number(a.id), "rerolled");
   assert.equal(await prizes.getPaidTotal(), before);
-});
-
-t("adding art for a typed slot fills it in for players, hunt bonuses and challenges", async () => {
-  await q("UPDATE ko_tournaments SET status='cancelled' WHERE status IN ('open','closed')");
-  const id = await ko.createKo({ title: "Art", prize: "" });
-  await ko.openRegistration(id);
-  const typed = await cat.findSlotByName("Clash of Titans");
-  await common.withTx((c) => ko.recordJoin(c, { kickUserId: "art1", username: "art1", messageId: `a${++msg}`, slot: typed }));
-  const hid = Number((await q("SELECT id FROM bonus_hunt ORDER BY id DESC LIMIT 1"))[0].id);
-  await q("INSERT INTO bonus_hunt_entries (hunt_id, slot_name, bet) VALUES (?, 'clash of titans', 1)", [hid]);
-  const n = await cat.backfillSlotArt("Clash of Titans", "Twist Gaming", "https://mediumrare.imgix.net/abc");
-  assert.ok(n >= 2);
-  const [p] = await q("SELECT slot_image, slot_provider FROM ko_participants WHERE tournament_id=? AND kick_user_id='art1'", [id]);
-  assert.deepEqual([p.slot_image, p.slot_provider], ["https://mediumrare.imgix.net/abc", "Twist Gaming"]);
-  const [e] = await q("SELECT image_url FROM bonus_hunt_entries WHERE hunt_id=? AND slot_name='clash of titans'", [hid]);
-  assert.equal(e.image_url, "https://mediumrare.imgix.net/abc");
-  await ko.resetKo(id);
 });

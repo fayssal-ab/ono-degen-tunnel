@@ -1,4 +1,3 @@
-import { preload } from "react-dom";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { BRAND_NAME, STREAMER } from "@/lib/constants";
@@ -70,8 +69,6 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // fetched before anything else: shown by the loading screen and the hero
-  preload("/LOGO/logo-320.webp", { as: "image", fetchPriority: "high" });
   return (
     <html
       lang="en"

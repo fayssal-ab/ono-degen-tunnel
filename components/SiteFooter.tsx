@@ -127,8 +127,8 @@ export async function SiteFooter() {
                 {l.label}
               </a>
             ))}
-            <a href="https://slot.report" target="_blank" rel="noopener" className="underline decoration-line-strong underline-offset-2 hover:text-text-0">
-              Slot data by slot.report
+            <a href="https://sharkz.gg" target="_blank" rel="noopener" className="underline decoration-line-strong underline-offset-2 hover:text-text-0">
+              Slot data via sharkz.gg
             </a>
             <span className="ml-auto inline-flex items-center gap-1.5">
               <Icon name="Lock" className="h-3 w-3" /> © {new Date().getFullYear()} {BRAND_NAME}

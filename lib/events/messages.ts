@@ -62,10 +62,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   claim_not_pending: "This claim was already reviewed.",
   claim_invalid: "The claim does not meet the challenge conditions.",
   // slot catalogue
-  slot_api_missing: "SLOT_REPORT_API_KEY is not configured, so the slot catalogue can't be synced.",
-  slot_api_failed: "slot.report did not return the catalogue. Try again later.",
-  slot_images_unreachable: "slot.report images could not be reached to verify thumbnails.",
-  slot_pool_empty: "No slot with a verified thumbnail is available yet. Sync the catalogue and verify images in Admin → Slots.",
+  slot_api_failed: "The Stake slot feed did not return the catalogue. Try again later.",
+  slot_pool_empty: "The Stake slot catalogue isn't loaded yet. Sync it in Admin → Slot catalogue.",
   slot_not_found: "That slot is not in the catalogue.",
   // knockout
   ko_not_found: "That tournament no longer exists.",

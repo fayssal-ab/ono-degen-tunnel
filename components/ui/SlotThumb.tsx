@@ -1,4 +1,4 @@
-// Slot box-art thumbnail. Remote images (slot.report / casino CDNs) are allowed
+// Slot box-art thumbnail. Remote images (Stake CDN / casino CDNs) are allowed
 // by the CSP; falls back to a branded gradient tile with the slot's initials
 // when there's no image, so a missing thumb never leaves an empty box.
 export function SlotThumb({

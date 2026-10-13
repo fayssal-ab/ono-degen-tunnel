@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 // thumbnails → pick one. Submits `slot_id` (catalogue entry, the server reads
 // name/provider/art from it) plus `slot_name` (the typed name when no pick).
 
-interface Result { id: string; name: string; provider: string; imageUrl: string | null; onStake?: boolean }
+interface Result { id: string; name: string; provider: string; imageUrl: string | null; onlyOnStake?: boolean }
 
 export function SlotField({ defaultName = "", defaultImage = null, defaultProvider = "" }: { defaultName?: string; defaultImage?: string | null; defaultProvider?: string }) {
   const [q, setQ] = useState(defaultName);
@@ -58,7 +58,7 @@ export function SlotField({ defaultName = "", defaultImage = null, defaultProvid
                 {r.imageUrl ? <img src={r.imageUrl} alt="" className="h-full w-full object-cover" /> : <span className="text-[9px] text-text-2">—</span>}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-text-0">{r.name}{r.onStake && <span className="ml-2 rounded bg-volt/15 px-1 text-[10px] font-bold text-volt">STAKE</span>}</span>
+                <span className="block truncate text-sm text-text-0">{r.name}{r.onlyOnStake && <span className="ml-2 rounded bg-volt/15 px-1 text-[10px] font-bold text-volt">ONLY ON STAKE</span>}</span>
                 <span className="block truncate text-xs text-text-2">{r.provider}</span>
               </span>
             </button>

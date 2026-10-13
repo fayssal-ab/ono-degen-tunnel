@@ -1,10 +1,8 @@
 import { adminAction, requireAdmin } from "@/lib/adminAction";
-import { getCatalogStats, syncCatalog, verifyBatch } from "@/lib/slotCatalog";
+import { getCatalogStats, syncCatalog, POOL_TOP } from "@/lib/slotCatalog";
 import { Icon } from "@/components/ui/Icon";
-import { Flash, AdminHeader, Help, Utc, btnGold, btnGhost, type SearchParams } from "@/components/admin/ui";
+import { Flash, AdminHeader, Help, Utc, btnGold, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
-import { VerifyAll } from "@/components/admin/VerifyAll";
-import { StakeSlots } from "@/components/admin/StakeSlots";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/slots";
@@ -14,22 +12,16 @@ async function syncAction() {
   await adminAction({ path: PATH, audit: "slots.sync" }, async () => await syncCatalog());
 }
 
-async function verifyAction() {
-  "use server";
-  await adminAction({ path: PATH, audit: "slots.verify" }, async () => await verifyBatch(300, 4000));
-}
-
 export default async function AdminSlots({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
   let stats = null;
   try { stats = await getCatalogStats(); } catch { /* shown below */ }
   const tiles = stats ? [
-    { label: "Slots in catalogue", value: stats.total },
-    { label: "Verified real art", value: stats.real },
-    { label: "No official art", value: stats.missing },
-    { label: "Not checked yet", value: stats.unknown },
-    { label: "Disputed provider", value: stats.ambiguous },
-    { label: stats.onStake > 0 ? "Tournament pool (Stake only)" : "Tournament pool", value: stats.pool },
+    { label: "Stake slots", value: stats.total },
+    { label: "Only on Stake", value: stats.onlyOnStake },
+    { label: "With Stake art", value: stats.withArt },
+    { label: "Providers", value: stats.providers },
+    { label: `Tournament pool (top ${POOL_TOP})`, value: stats.pool },
   ] : [];
 
   return (
@@ -37,9 +29,10 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
       <AdminHeader kicker="Data" title="Slot catalogue" />
       <Flash searchParams={searchParams} />
       <Help>
-        Slot names, providers and ids come from <a href="https://slot.report" className="text-gold hover:underline" target="_blank" rel="noreferrer">slot.report</a> (synced daily by the cron).
-        slot.report returns a branded placeholder for slots it has no art for, so every thumbnail is downloaded and checked before it is shown; slots without real art appear as a name tile.
-        Stake has no public game API, so which slots are on Stake comes from the Stake list below; once it has entries, the tournament draws only from it.
+        Stake&apos;s slot catalogue — names, providers, official Stake art and the “Only on Stake” flag — comes from the{" "}
+        <a href="https://sharkz.gg" className="text-gold hover:underline" target="_blank" rel="noreferrer">sharkz.gg</a> feed (used with permission)
+        and is re-synced automatically every day. Random tournament slots are drawn from Stake&apos;s {POOL_TOP} most played slots.
+        Nothing to add by hand: a name that isn&apos;t a Stake slot just shows as a name tile.
       </Help>
       {!stats ? (
         <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm">Catalogue tables unavailable — run the migrations.</p>
@@ -56,12 +49,7 @@ export default async function AdminSlots({ searchParams }: { searchParams: Searc
           <p className="text-sm text-text-2">Last sync <Utc value={stats.syncedAt} /></p>
         </>
       )}
-      <div className="flex flex-wrap gap-2">
-        <form action={syncAction}><SubmitButton className={btnGold}><Icon name="RefreshCw" className="h-4 w-4" /> Sync catalogue now</SubmitButton></form>
-        <form action={verifyAction}><SubmitButton className={btnGhost}><Icon name="ImageUp" className="h-4 w-4" /> Check one batch</SubmitButton></form>
-      </div>
-      {stats && <VerifyAll unknown={stats.unknown} />}
-      {stats && <StakeSlots />}
+      <form action={syncAction}><SubmitButton className={btnGold}><Icon name="RefreshCw" className="h-4 w-4" /> Sync Stake catalogue now</SubmitButton></form>
     </div>
   );
 }

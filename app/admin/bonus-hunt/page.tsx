@@ -5,7 +5,7 @@ import {
   getAllHunts, getHuntEntries, computeHuntStats, createHunt, updateHunt, addHuntEntry, updateHuntEntry,
   removeHuntEntry, moveHuntEntry, addHuntEntryFromCatalog, setHuntPayout, finishHunt, archiveHunt, deleteHunt, type Hunt, type HuntEntry,
 } from "@/lib/bonusHunt";
-import { parseForm, zId, zText, zRequiredText, zMoney, zPositiveMoney, zUrl, EventError } from "@/lib/events/common";
+import { parseForm, zId, zText, zRequiredText, zMoney, zPositiveMoney, EventError } from "@/lib/events/common";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -20,14 +20,14 @@ const PATH = "/admin/bonus-hunt";
 const REVALIDATE = ["/bonus-hunt", "/guess-the-balance", "/hall-of-fame"];
 
 const HuntForm = z.object({ title: zRequiredText(120), start_balance: zMoney });
-const EntryForm = z.object({ slot_name: zRequiredText(191), provider: zText(120), bet: zPositiveMoney, image_url: zUrl });
+const EntryForm = z.object({ slot_name: zRequiredText(191), bet: zPositiveMoney });
 const Ids = z.object({ hunt_id: zId, entry_id: zId });
 const HuntId = z.object({ hunt_id: zId });
 
 async function createAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "hunt.create", revalidate: REVALIDATE }, async () => {
-    const f = parseForm(HuntForm.extend({ image_url: zUrl }), formData);
+    const f = { ...parseForm(HuntForm, formData), image_url: "" };
     return { id: await createHunt(f) };
   });
 }
@@ -58,7 +58,10 @@ async function updateEntryAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "hunt.entry_update", target: String(formData.get("hunt_id")), revalidate: REVALIDATE }, async () => {
     const ids = parseForm(Ids, { hunt_id: formData.get("hunt_id"), entry_id: formData.get("entry_id") });
-    await updateHuntEntry(ids.hunt_id, ids.entry_id, parseForm(EntryForm, formData));
+    // name, provider and art from the Stake catalogue (name kept as typed when it isn't a Stake slot)
+    const f = parseForm(EntryForm, formData);
+    const slot = await findSlotByName(f.slot_name);
+    await updateHuntEntry(ids.hunt_id, ids.entry_id, { slot_name: slot?.name ?? f.slot_name, provider: slot?.provider ?? "", bet: f.bet, image_url: slot?.imageUrl ?? "" });
   });
 }
 
@@ -152,12 +155,10 @@ function EntryRow({ hunt, e, i, last }: { hunt: Hunt; e: HuntEntry; i: number; l
       {editable && (
         <details className="mt-2">
           <summary className="cursor-pointer text-xs text-text-2 hover:text-text-0">Edit</summary>
-          <form action={updateEntryAction} className="mt-2 grid gap-2 sm:grid-cols-4">
+          <form action={updateEntryAction} className="mt-2 grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
             <Hidden fields={ids} />
             <SlotNameInput defaultValue={e.slot_name} className={inputCls} />
-            <input name="provider" defaultValue={e.provider ?? ""} placeholder="Provider" maxLength={120} className={inputCls} />
-            <input name="bet" defaultValue={e.bet} inputMode="decimal" required className={inputCls} />
-            <input name="image_url" defaultValue={e.image_url ?? ""} placeholder="Image URL" maxLength={512} className={inputCls} />
+            <input name="bet" defaultValue={e.bet} inputMode="decimal" required aria-label="Bet" className={inputCls} />
             <SubmitButton className={btnGhost}>Save</SubmitButton>
           </form>
         </details>
@@ -192,7 +193,6 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
           <p className="label sm:col-span-3">New hunt</p>
           <Field label="Title"><input name="title" required maxLength={120} placeholder="Sunday hunt" className={inputCls} /></Field>
           <Field label="Start balance ($)" hint="Reference bankroll announced on stream"><input name="start_balance" required inputMode="decimal" placeholder="5000" className={inputCls} /></Field>
-          <Field label="Image URL (optional)"><input name="image_url" maxLength={512} className={inputCls} /></Field>
           <div className="sm:col-span-3"><SubmitButton className={btnGold}><Icon name="Plus" className="h-4 w-4" /> Create hunt</SubmitButton></div>
         </form>
       )}

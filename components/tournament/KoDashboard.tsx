@@ -188,12 +188,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             <p className="text-sm text-text-2">{t.status === "open" ? "Waiting for the first !join…" : "Open registration to start collecting !join."}</p>
           ) : (
             <ol className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-              {state.participants.map((p, i) => (
-                <div key={p.id}>
-                  <ParticipantRow p={p} index={i} />
-                  {!p.slot_image && <AddArt name={p.slot_name} onDone={refresh} />}
-                </div>
-              ))}
+              {state.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} />)}
             </ol>
           )}
           {reader.events.length > 0 && (
@@ -245,42 +240,3 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   );
 }
 
-/**
- * Stake-only slots aren't in any public catalogue: paste the game's image link
- * from Stake once; it's checked, saved as a Stake-only slot and shown for every
- * player/bonus/challenge using that slot (and future !join).
- */
-function AddArt({ name, onDone }: { name: string; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState("");
-  const [url, setUrl] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  if (!open) {
-    return <button onClick={() => setOpen(true)} className="ml-9 mt-1 text-[11px] text-gold hover:underline">+ Add image for “{name}”</button>;
-  }
-  return (
-    <form
-      className="ml-9 mt-1 space-y-1 rounded-lg border border-line bg-bg-1 p-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setBusy(true); setMsg(null);
-        try {
-          const res = await fetch("/api/admin/slots/stake", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add", name, provider, imageUrl: url }) });
-          const d = (await res.json()) as { ok: boolean; detail?: string | null; error?: string };
-          if (!d.ok) setMsg(d.detail ?? d.error ?? "Refused");
-          else { setOpen(false); onDone(); }
-        } catch { setMsg("Network error"); } finally { setBusy(false); }
-      }}
-    >
-      <input required value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="Provider (e.g. Twist Gaming)" maxLength={120} className="h-8 w-full rounded-md border border-line bg-bg-2 px-2 text-xs" />
-      <input required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Image link from Stake (https://mediumrare.imgix.net/…)" maxLength={512} className="h-8 w-full rounded-md border border-line bg-bg-2 px-2 text-xs" />
-      <p className="text-[10px] text-text-2">On Stake: right-click the game tile → Copy image address.</p>
-      <div className="flex gap-2">
-        <button disabled={busy} className="rounded-md bg-gold px-2 py-1 text-xs font-semibold text-bg-0">{busy ? "Checking…" : "Save image"}</button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-text-2">Cancel</button>
-      </div>
-      {msg && <p className="text-[11px] text-danger">{msg}</p>}
-    </form>
-  );
-}

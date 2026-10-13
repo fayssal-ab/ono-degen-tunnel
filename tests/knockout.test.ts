@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { nextMatch, pickTwo, JOIN_RE } from "../lib/knockout";
-import { normalizeName, scoreName, classifyThumb, cleanSlotRequest } from "../lib/slotCatalog";
+import { normalizeName, scoreName, cleanSlotRequest, parseStakeFeed } from "../lib/slotCatalog";
 
 test("bracket progression R16 → QF → SF → Final", () => {
   assert.deepEqual(nextMatch(1, 0), { round: 2, index: 0, side: 1 });
@@ -45,13 +45,24 @@ test("slot search: normalisation and fuzzy ranking", () => {
   assert.deepEqual(rank("zzzz"), []);
 });
 
-test("thumbnail check rejects slot.report's placeholder", () => {
-  assert.equal(classifyThumb({ status: 200, type: "image/webp", hash: "abc" }, "ph"), "real");
-  assert.equal(classifyThumb({ status: 200, type: "image/webp", hash: "ph" }, "ph"), "missing");
-  assert.equal(classifyThumb({ status: 404, type: "text/html", hash: "x" }, "ph"), "missing");
-  assert.equal(classifyThumb({ status: 500, type: "text/html", hash: "x" }, "ph"), null);
-  assert.equal(classifyThumb({ status: 200, type: "text/html", hash: "x" }, "ph"), null);
-  assert.equal(classifyThumb(null, "ph"), null);
+test("Stake feed parsing: providers, art URL, only-on-Stake, popularity, bad rows skipped", () => {
+  const rows = parseStakeFeed({
+    image_base: "https://mediumrare.imgix.net/",
+    providers: ["Pragmatic Play", "Glass Cannon"],
+    slots: [
+      [1, "Gates of Olympus", 0, "gates-of-olympus", "a".repeat(64), 96.5, 1, 0, 5000, null, 3],
+      [2, "Soul Strings", 1, "glasscannon-soul-strings", "b".repeat(64), 96.7, 1, 1, null, null, 365],
+      [3, "Gates of Olympus", 0, "gates-of-olympus", "c".repeat(64), 0, 0, 0, null, null, 9], // duplicate slug
+      [4, "", 0, "empty", "d".repeat(64), 0, 0, 0, null, null, 1], // no name
+      [5, "Bad Image", 0, "bad-image", "javascript:alert(1)", 0, 0, 0, null, null, 2],
+    ],
+  });
+  assert.deepEqual(rows.map((r) => r.id), ["stake/gates-of-olympus", "stake/glasscannon-soul-strings", "stake/bad-image"]);
+  assert.equal(rows[0].imageUrl, `https://mediumrare.imgix.net/${"a".repeat(64)}?w=280&h=367&fit=min&auto=format`);
+  assert.deepEqual([rows[1].provider, rows[1].onlyOnStake, rows[1].popularity], ["Glass Cannon", true, 365]);
+  assert.equal(rows[2].imageUrl, null); // never an injected URL
+  // an untrusted image_base falls back to Stake's CDN
+  assert.ok(parseStakeFeed({ image_base: "http://evil/", slots: [[1, "X", 0, "x", "e".repeat(64)]] })[0].imageUrl?.startsWith("https://mediumrare.imgix.net/"));
 });
 
 test("typed slot request: emotes stripped, length bounded, empty → null", () => {

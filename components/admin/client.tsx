@@ -85,7 +85,7 @@ interface Suggestion {
 }
 
 /**
- * Slot name input with slot.report suggestions (admin-only endpoint). Picking
+ * Slot name input with Stake catalogue suggestions (admin-only endpoint). Picking
  * a suggestion fills the sibling `${prefix}provider` / `${prefix}image_url`
  * inputs. Degrades to a plain input when no API key is configured.
  */

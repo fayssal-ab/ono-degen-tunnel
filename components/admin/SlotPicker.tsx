@@ -11,8 +11,7 @@ interface Result {
   name: string;
   provider: string;
   imageUrl: string | null;
-  ambiguous: boolean;
-  onStake?: boolean;
+  onlyOnStake?: boolean;
 }
 
 function Tile({ name, src, size = 44 }: { name: string; src: string | null; size?: number }) {
@@ -94,14 +93,14 @@ export function SlotPicker({ defaultBet = "" }: { defaultBet?: string }) {
       {query.length >= 2 && (
         <div id="slot-picker-list" role="listbox" className="max-h-96 overflow-y-auto rounded-xl border border-line bg-bg-2">
           {loading && shown.length === 0 && <p className="p-3 text-sm text-text-2">Searching…</p>}
-          {error === "catalog_unavailable" && <p className="p-3 text-sm text-danger">Slot catalogue unavailable — sync it in Admin → Slots.</p>}
+          {error === "catalog_unavailable" && <p className="p-3 text-sm text-danger">Slot catalogue unavailable — sync it in Admin → Slot catalogue.</p>}
           {shown.map((r, i) => (
             <button type="button" key={r.id} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onClick={() => submit(r.id)}
               className={`flex w-full items-center gap-3 px-3 py-2 text-left ${i === active ? "bg-bg-3" : ""}`}>
               <Tile name={r.name} src={r.imageUrl} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-text-0">{r.name}{r.onStake && <span className="ml-2 rounded bg-volt/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-volt">Stake</span>}</span>
-                <span className="block truncate text-xs text-text-2">{r.provider}{r.ambiguous ? " · provider disputed in catalogue" : ""}{!r.imageUrl ? " · no official art" : ""}</span>
+                <span className="block truncate text-sm text-text-0">{r.name}{r.onlyOnStake && <span className="ml-2 rounded bg-volt/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-volt">Only on Stake</span>}</span>
+                <span className="block truncate text-xs text-text-2">{r.provider}</span>
               </span>
               <span className="text-xs text-gold">Add</span>
             </button>
