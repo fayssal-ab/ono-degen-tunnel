@@ -36,15 +36,18 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
   --font-bang: var(--font-clash), system-ui, sans-serif;
 
-  /* strict type scale 12/14/16/20/28/40/64/96 */
+  /* type scale 12/14/16/20/28/40/64/96 on desktop. The large steps are fluid
+     (viewport-based clamp) so phones and tablets get proportionate sizes
+     (≈ 20/24/32/41px at 390px) while desktop keeps the full editorial scale. */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-2xl: 2.5rem;
-  --text-3xl: 4rem;
-  --text-4xl: 6rem;
+  --text-lg: clamp(1.0625rem, 0.98rem + 0.35vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.02rem + 0.95vw, 1.75rem);
+  --text-2xl: clamp(1.5rem, 1.06rem + 1.85vw, 2.5rem);
+  --text-3xl: clamp(1.875rem, 1rem + 4.15vw, 4rem);
+  --text-4xl: clamp(2.25rem, 1rem + 6.4vw, 6rem);
+  --text-5xl: clamp(2.5rem, 1.2rem + 5vw, 3rem);
 
   --radius-card: 16px;
 
@@ -351,7 +354,7 @@ body {
   line-height: 0.78;
   color: transparent;
   -webkit-text-stroke: 1.5px color-mix(in srgb, var(--color-line-strong) 95%, transparent);
-  font-size: clamp(3.25rem, 11vw, 8rem);
+  font-size: clamp(2.25rem, 10vw, 8rem);
   opacity: 0.55;
   user-select: none;
   pointer-events: none;
@@ -359,7 +362,7 @@ body {
 }
 /* more restrained watermark for per-page headers */
 .watermark-sm {
-  font-size: clamp(2.5rem, 7vw, 4.75rem);
+  font-size: clamp(1.9rem, 7vw, 4.75rem);
   opacity: 0.5;
 }
 /* a faint accent wash on the watermark for the brand feel */
@@ -438,7 +441,8 @@ html.has-custom-cursor [contenteditable="true"] {
 
 /* particle field sits in the CONTENT area, not under the fixed sidebar, so the
    left-hand tiles aren't hidden behind it on desktop. */
-.pf-field { position: fixed; inset: 0; }
+.pf-field { position: fixed; inset: 0; display: none; }
+@media (min-width: 768px) { .pf-field { display: block; } }
 @media (min-width: 1024px) {
   .pf-field { left: var(--sidebar-w); }
   html.sidebar-collapsed .pf-field { left: var(--sidebar-w-rail); }

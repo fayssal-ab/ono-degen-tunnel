@@ -46,7 +46,7 @@ const FEATURES: { href: string; icon: string; title: string; body: string; tone:
   { href: "/leaderboard", icon: "Trophy", title: "Leaderboard", body: "Climb the monthly board. Top ranks split the pool.", tone: "gold", big: true },
   { href: "/giveaways", icon: "Gift", title: "Giveaways", body: "Drawn live, provably fair.", tone: "volt" },
   { href: "/races", icon: "Flag", title: "Races", body: "24h & weekly sprints.", tone: "gold" },
-  { href: "/tournaments", icon: "Swords", title: "Tournaments", body: "8-slot slot battles.", tone: "gold" },
+  { href: "/tournaments", icon: "Swords", title: "Tournaments", body: "16 players, join from chat.", tone: "gold" },
   { href: "/bonus-hunt", icon: "Dices", title: "Bonus Hunt", body: "Live, to the dollar.", tone: "volt" },
   { href: "/vip", icon: "Crown", title: "VIP Club", body: "The deeper you go, the bigger the perks.", tone: "gold", big: true },
 ];
@@ -87,8 +87,8 @@ export default async function HomePage() {
                     />
                     <Icon name="ArrowUpRight" className="h-4 w-4 text-text-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   </div>
-                  <div className="relative mt-6">
-                    <h3 className="text-lg">{f.title}</h3>
+                  <div className="relative mt-6 min-w-0">
+                    <h3 className="text-base [overflow-wrap:anywhere] xl:text-lg">{f.title}</h3>
                     <p className="mt-1 text-sm text-text-2">{f.body}</p>
                   </div>
                 </Link>

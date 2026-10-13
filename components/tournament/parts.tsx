@@ -18,17 +18,21 @@ const STATE_TONE: Record<KoParticipant["state"], string> = {
   registered: "border-cyan/40 text-cyan", in_knockout: "border-volt/40 text-volt", eliminated: "border-danger/40 text-danger", champion: "border-gold/60 text-gold",
 };
 
-export function SlotArt({ p, size = 96, className = "" }: { p: Pick<KoParticipant, "slot_image" | "slot_name">; size?: number; className?: string }) {
+export function SlotArt({ p, size = 96, fluid, className = "" }: {
+  p: Pick<KoParticipant, "slot_image" | "slot_name">; size?: number; className?: string;
+  /** CSS length overriding `size` (e.g. clamp(...)) so the art scales with the screen */
+  fluid?: string;
+}) {
   // A slot typed by the viewer that isn't in the catalogue has no art: show a
   // clean name tile, never a placeholder image.
   const initials = p.slot_name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
   return (
-    <span className={`relative grid shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-gradient-to-br from-bg-3 to-bg-2 ${className}`} style={{ width: size, height: size }}>
+    <span className={`relative grid shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-gradient-to-br from-bg-3 to-bg-2 ${className}`} style={{ width: fluid ?? size, height: fluid ?? size }}>
       {p.slot_image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={p.slot_image} alt={p.slot_name} className="h-full w-full object-cover" />
       ) : (
-        <span className="font-display font-extrabold text-gold" style={{ fontSize: Math.max(10, size * 0.32) }}>{initials || "?"}</span>
+        <span className="font-display font-extrabold text-gold" style={{ fontSize: fluid ? `calc(${fluid} * 0.32)` : Math.max(10, size * 0.32) }}>{initials || "?"}</span>
       )}
     </span>
   );
@@ -68,7 +72,7 @@ function FighterCard({ p, side, outcome, big }: { p: KoParticipant | null; side:
   if (!p) {
     return (
       <div className={`flex flex-col items-center gap-3 ${side === "l" ? "ko-slide-l" : "ko-slide-r"}`}>
-        <span className="grid place-items-center rounded-2xl border border-dashed border-line-strong text-text-2" style={{ width: size, height: size }}>?</span>
+        <span className="grid place-items-center rounded-2xl border border-dashed border-line-strong text-text-2" style={{ width: big ? size : "clamp(84px, 26vw, 132px)", height: big ? size : "clamp(84px, 26vw, 132px)" }}>?</span>
         <span className="font-display text-xl text-text-2">TBD</span>
       </div>
     );
@@ -76,11 +80,11 @@ function FighterCard({ p, side, outcome, big }: { p: KoParticipant | null; side:
   return (
     <div className={`flex min-w-0 flex-col items-center gap-3 text-center transition-all duration-500 ${side === "l" ? "ko-slide-l" : "ko-slide-r"} ${outcome === "lose" ? "scale-90 opacity-40 grayscale" : ""}`}>
       <div className={`relative overflow-hidden rounded-2xl ${outcome === "win" ? "ko-glow" : ""}`}>
-        <SlotArt p={p} size={size} className="rounded-2xl" />
+        <SlotArt p={p} size={size} fluid={big ? undefined : "clamp(84px, 26vw, 132px)"} className="rounded-2xl" />
         <span className="ko-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-1 text-center text-xs font-black uppercase tracking-[0.3em] text-bg-0">Winner</span>}
       </div>
-      <p className={`max-w-[16ch] truncate font-display font-extrabold ${big ? "text-4xl" : "text-2xl"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
+      <p className={`max-w-[16ch] truncate font-display font-extrabold ${big ? "text-4xl" : "text-lg sm:text-2xl"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
       <p className={`max-w-[22ch] truncate font-semibold ${big ? "text-xl" : "text-sm"} text-cyan`}>{p.slot_name}</p>
       {p.slot_provider && <p className={`${big ? "text-base" : "text-xs"} uppercase tracking-wider text-text-2`}>{p.slot_provider}</p>}
     </div>
@@ -100,7 +104,7 @@ export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean
       </p>
       <div className={`grid grid-cols-[1fr_auto_1fr] items-center ${big ? "gap-10" : "gap-4"}`}>
         <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} />
-        <span className={`ko-vs font-bang ${big ? "text-8xl" : "text-5xl"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text text-transparent`}>VS</span>
+        <span className={`ko-vs font-bang ${big ? "text-8xl" : "text-4xl sm:text-5xl"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text text-transparent`}>VS</span>
         <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} />
       </div>
     </div>
@@ -247,10 +251,10 @@ export function ChampionCard({ p, compact = false, celebrate = false }: { p: KoP
         <span key={i} className="ko-burst pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 rounded-full"
           style={{ background: b.c, animationDelay: b.d, ["--bx" as string]: b.bx, ["--by" as string]: b.by }} />
       ))}
-      <p className={`ko-crown ${compact ? "text-2xl" : "text-6xl"}`}>👑</p>
-      <div className={`mx-auto mt-2 w-fit ${compact ? "" : "mt-4"}`}><SlotArt p={p} size={compact ? 56 : 160} /></div>
-      <p className={`mt-2 truncate font-display font-extrabold text-gold ${compact ? "text-base" : "text-5xl"}`}>{p.username}</p>
-      <p className={`truncate text-cyan ${compact ? "text-[11px]" : "text-xl"}`}>{p.slot_name}</p>
+      <p className={`ko-crown ${compact ? "text-2xl" : "text-4xl md:text-6xl"}`}>👑</p>
+      <div className={`mx-auto mt-2 w-fit ${compact ? "" : "mt-4"}`}><SlotArt p={p} size={56} fluid={compact ? undefined : "clamp(96px, 28vw, 160px)"} /></div>
+      <p className={`mt-2 truncate font-display font-extrabold text-gold ${compact ? "text-base" : "text-3xl md:text-5xl"}`}>{p.username}</p>
+      <p className={`truncate text-cyan ${compact ? "text-[11px]" : "text-base md:text-xl"}`}>{p.slot_name}</p>
       {!compact && <p className="mt-2 label text-gold">Tournament champion</p>}
     </div>
   );

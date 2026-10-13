@@ -139,7 +139,8 @@ export function PlanetGame() {
 
   return (
     <>
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
+      {/* phones: hidden — the planets and score chip would cover content and taps */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-30 hidden overflow-hidden lg:block">
         {planets.map((p) => (
           <button
             key={p.id}
@@ -181,7 +182,7 @@ export function PlanetGame() {
       </div>
 
       {/* score HUD */}
-      <div className="pointer-events-none fixed bottom-24 left-4 z-40 lg:bottom-6 lg:left-[calc(var(--sidebar-w)+1rem)]">
+      <div className="pointer-events-none fixed bottom-6 left-[calc(var(--sidebar-w)+1rem)] z-40 hidden lg:block">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-bg-1/90 px-3 py-1.5 font-mono text-sm font-bold text-gold backdrop-blur">
           <Icon name="Trophy" className="h-4 w-4" /> {score}
         </span>

@@ -101,19 +101,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           >
             <Icon name={menuOpen ? "X" : "Menu"} className="h-4 w-4" /> Menu
           </button>
-          <span className="font-display text-sm font-bold lg:hidden">{BRAND_NAME}</span>
+          <span className="hidden truncate font-display text-sm font-bold sm:inline lg:hidden">{BRAND_NAME}</span>
           <div className="ml-auto flex items-center gap-2">
             <Link
               href="/"
+              aria-label="View site"
               className="press inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3 text-sm text-text-1 hover:text-text-0"
             >
-              <Icon name="ExternalLink" className="h-4 w-4" /> View site
+              <Icon name="ExternalLink" className="h-4 w-4" /> <span className="hidden sm:inline">View site</span>
             </Link>
             <button
               onClick={logout}
+              aria-label="Log out"
               className="press inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3 text-sm text-text-1 hover:border-danger hover:text-danger"
             >
-              <Icon name="LogOut" className="h-4 w-4" /> Log out
+              <Icon name="LogOut" className="h-4 w-4" /> <span className="hidden sm:inline">Log out</span>
             </button>
           </div>
         </header>
