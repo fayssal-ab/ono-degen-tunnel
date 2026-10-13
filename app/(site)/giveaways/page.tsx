@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import Link from "next/link";
 import { getOpenGiveaways, getPastWinners } from "@/lib/giveaways";
 import { KICK_URL } from "@/lib/constants";
@@ -165,18 +166,7 @@ export default async function GiveawaysPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {winners.map((w, i) => (
               <div key={i} className="surface surface-hover flex items-center gap-3 p-4">
-                <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-bg-3 ring-1 ring-line-strong">
-                  {w.avatar ? (
-                    // real Kick profile avatar (files.kick.com); cross-origin <img>
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={w.avatar} alt="" loading="lazy" className="h-11 w-11 rounded-full object-cover" />
-                  ) : (
-                    // initials fallback when the user has no Kick avatar
-                    <span className="font-display text-sm font-bold text-text-1">
-                      {w.username.slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                </span>
+                <UserAvatar src={w.avatar} name={w.username} className="h-11 w-11 rounded-full ring-1 ring-line-strong" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-sm text-text-0">{w.username}</p>
                   <p className="truncate text-xs text-text-2">{w.prize} · {w.giveaway_title}</p>

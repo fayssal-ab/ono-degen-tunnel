@@ -34,6 +34,14 @@ const jetbrainsMono = localFont({
   src: [{ path: "./fonts/JetBrainsMono-500.woff2", weight: "500", style: "normal" }],
 });
 
+// Graffiti letters for avatar fallbacks only (A–Z, 0–9 subset; OFL).
+const tag = localFont({
+  variable: "--font-tag",
+  display: "swap",
+  preload: false,
+  src: [{ path: "./fonts/RubikWetPaint-tag.ttf", weight: "400", style: "normal" }],
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL),
   title: {
@@ -72,7 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${clash.variable} ${interTight.variable} ${jetbrainsMono.variable}`}
+      className={`${clash.variable} ${interTight.variable} ${jetbrainsMono.variable} ${tag.variable}`}
       suppressHydrationWarning
     >
       <body>{children}</body>

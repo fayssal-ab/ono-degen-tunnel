@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 
@@ -79,18 +80,7 @@ function chime(muted: boolean) {
 }
 
 function Avatar({ src, name, size = 44 }: { src: string | null; name: string; size?: number }) {
-  if (src)
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" width={size} height={size} className="h-full w-full rounded-full object-cover" />;
-  const initial = name.slice(0, 1).toUpperCase();
-  return (
-    <span
-      className="grid h-full w-full place-items-center rounded-full font-display font-bold text-bg-0"
-      style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-hi))", fontSize: size * 0.4 }}
-    >
-      {initial}
-    </span>
-  );
+  return <UserAvatar src={src} name={name} className="h-full w-full rounded-full" style={{ width: size, height: size }} />;
 }
 
 const CARD = 136;
