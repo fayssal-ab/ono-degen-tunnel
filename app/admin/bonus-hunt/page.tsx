@@ -14,6 +14,7 @@ import { Flash, Field, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGho
 import { SubmitButton, SlotNameInput } from "@/components/admin/client";
 import { SlotPicker } from "@/components/admin/SlotPicker";
 import { findSlotByName } from "@/lib/slotCatalog";
+import { SITE_URL } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/bonus-hunt";
@@ -179,9 +180,16 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
   return (
     <div className="space-y-8">
       <AdminHeader kicker="Watch" title="Bonus Hunt">
-        <Link href="/bonus-hunt" className={btnGhost}><Icon name="ExternalLink" className="h-4 w-4" /> Public page</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/overlay/bonus-hunt" target="_blank" className={btnGhost}><Icon name="MonitorPlay" className="h-4 w-4" /> OBS overlay</Link>
+          <Link href="/bonus-hunt" className={btnGhost}><Icon name="ExternalLink" className="h-4 w-4" /> Public page</Link>
+        </div>
       </AdminHeader>
       <Flash searchParams={searchParams} />
+      <p className="text-xs text-text-2">
+        OBS: Browser Source with <code className="text-gold">{SITE_URL.replace(/\/$/, "")}/overlay/bonus-hunt</code> (width 1920, height 1080).
+        Add <code className="text-gold">?side=right</code> to place it on the right, <code className="text-gold">&amp;rows=12</code> for more visible rows.
+      </p>
       <Help>
         One active hunt at a time. Add bonuses (slot + bet) and reorder them freely until the first payout: from then on the list is locked and any
         linked Guess the Balance round closes in the same step. A payout of 0 counts as opened. <strong className="text-text-0">Final balance = sum of payouts</strong>;

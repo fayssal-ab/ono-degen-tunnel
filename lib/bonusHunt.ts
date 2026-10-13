@@ -344,3 +344,22 @@ export async function getHuntFinalBalance(conn: PoolConnection, huntId: number):
   if (!r || !["finished", "archived"].includes(String(r.status)) || Number(r.n) === 0 || Number(r.unopened) > 0) return null;
   return d(String(r.total)).toFixed(8);
 }
+
+// ── stream overlay ──
+
+export interface HuntOverlayState {
+  hunt: Hunt;
+  entries: HuntEntry[];
+  stats: HuntStats;
+}
+
+/** Active hunt, else the most recently finished one (so the overlay can show the final result). */
+export async function getFeaturedHuntState(): Promise<HuntOverlayState | null> {
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    "SELECT * FROM bonus_hunt WHERE status IN ('active','finished') ORDER BY FIELD(status,'active','finished'), COALESCE(finished_at, created_at) DESC LIMIT 1"
+  );
+  const hunt = (rows[0] as Hunt | undefined) ?? null;
+  if (!hunt) return null;
+  const entries = await getHuntEntries(hunt.id);
+  return { hunt, entries, stats: computeHuntStats(String(hunt.start_balance), entries) };
+}
