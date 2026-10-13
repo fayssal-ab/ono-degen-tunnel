@@ -287,3 +287,17 @@ t("prize ledger: pending until confirmed; only paid awards count; idempotent; vo
   await prizes.voidAward(Number(a.id), "rerolled");
   assert.equal(await prizes.getPaidTotal(), before);
 });
+
+t("sync upgrades slots saved without art once the Stake catalogue has that exact name", async () => {
+  await q("UPDATE ko_tournaments SET status='cancelled' WHERE status IN ('open','closed')");
+  const id = await ko.createKo({ title: "Upgrade", prize: "" });
+  await ko.openRegistration(id);
+  const typed = { id: "typed/soul-strings", name: "soul strings", provider: "", imageUrl: "" };
+  await common.withTx((c) => ko.recordJoin(c, { kickUserId: "up1", username: "up1", messageId: `u${++msg}`, slot: typed }));
+  const n = await cat.upgradeTypedSlots(cat.parseStakeFeed({ image_base: "https://mediumrare.imgix.net/", providers: ["Glass Cannon"], slots: [[1, "Soul Strings", 0, "glasscannon-soul-strings", "f".repeat(64), 96.7, 1, 1, null, null, 365]] }));
+  assert.ok(n >= 1);
+  const [p] = await q("SELECT slot_id, slot_name, slot_provider, slot_image FROM ko_participants WHERE tournament_id=? AND kick_user_id='up1'", [id]);
+  assert.deepEqual([p.slot_id, p.slot_name, p.slot_provider], ["stake/glasscannon-soul-strings", "Soul Strings", "Glass Cannon"]);
+  assert.ok(String(p.slot_image).startsWith("https://mediumrare.imgix.net/"));
+  await ko.resetKo(id);
+});

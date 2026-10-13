@@ -142,12 +142,46 @@ export async function importStakeCatalog(rows: StakeSlotRow[]): Promise<{ total:
   return { total: rows.length, onlyOnStake: rows.filter((r) => r.onlyOnStake).length };
 }
 
-export async function syncCatalog(): Promise<{ total: number; onlyOnStake: number; generated: string | null }> {
+export async function syncCatalog(): Promise<{ total: number; onlyOnStake: number; upgraded: number; generated: string | null }> {
   const res = await fetch(FEED_URL, { cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new EventError("slot_api_failed", `slot feed answered ${res.status}`);
   const feed = (await res.json()) as StakeFeed;
-  const result = await importStakeCatalog(parseStakeFeed(feed));
-  return { ...result, generated: typeof feed.generated === "string" ? feed.generated : null };
+  const rows = parseStakeFeed(feed);
+  const result = await importStakeCatalog(rows);
+  const upgraded = await upgradeTypedSlots(rows);
+  return { ...result, upgraded, generated: typeof feed.generated === "string" ? feed.generated : null };
+}
+
+/**
+ * Slots saved without art (typed name that wasn't in the catalogue at the
+ * time) get the Stake name, provider and art once the catalogue has a slot
+ * with exactly that name: tournament players, hunt bonuses, challenges.
+ */
+export async function upgradeTypedSlots(rows: StakeSlotRow[]): Promise<number> {
+  const byName = new Map<string, StakeSlotRow>();
+  for (const r of [...rows].sort((a, b) => (a.popularity ?? 1e9) - (b.popularity ?? 1e9))) {
+    const k = normalizeName(r.name);
+    if (r.imageUrl && !byName.has(k)) byName.set(k, r);
+  }
+  const pool = getPool();
+  let n = 0;
+  const [players] = await pool.query<RowDataPacket[]>("SELECT id, slot_name FROM ko_participants WHERE slot_image = '' OR slot_image IS NULL");
+  for (const p of players) {
+    const r = byName.get(normalizeName(String(p.slot_name)));
+    if (!r) continue;
+    await pool.query("UPDATE ko_participants SET slot_id = ?, slot_name = ?, slot_provider = ?, slot_image = ? WHERE id = ?", [r.id, r.name, r.provider, r.imageUrl, p.id]);
+    n++;
+  }
+  for (const table of ["bonus_hunt_entries", "challenges"] as const) {
+    const [list] = await pool.query<RowDataPacket[]>(`SELECT id, slot_name FROM ${table} WHERE image_url IS NULL OR image_url = ''`);
+    for (const e of list) {
+      const r = byName.get(normalizeName(String(e.slot_name)));
+      if (!r) continue;
+      await pool.query(`UPDATE ${table} SET slot_name = ?, provider = ?, image_url = ? WHERE id = ?`, [r.name, r.provider, r.imageUrl, e.id]);
+      n++;
+    }
+  }
+  return n;
 }
 
 export async function catalogIsStale(): Promise<boolean> {
