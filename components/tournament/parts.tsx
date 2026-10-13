@@ -67,32 +67,40 @@ export function Counter({ value, max, open }: { value: number; max: number; open
   );
 }
 
-function FighterCard({ p, side, outcome, big, result }: { p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean; result?: KoMatch["p1_result"] }) {
-  const size = big ? 220 : 132;
+// Fighter column: art, username, slot, provider, result. Every column has the
+// same structure and width (minmax(0,1fr)) so both sides line up and a long
+// name truncates instead of running into the VS.
+function FighterCard({ p, side, outcome, big, result, showPending }: {
+  p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean; result?: KoMatch["p1_result"]; showPending?: boolean;
+}) {
+  const art = big ? "220px" : "clamp(84px, 24vw, 128px)";
+  const anim = side === "l" ? "ko-slide-l" : "ko-slide-r";
   if (!p) {
     return (
-      <div className={`flex flex-col items-center gap-3 ${side === "l" ? "ko-slide-l" : "ko-slide-r"}`}>
-        <span className="grid place-items-center rounded-2xl border border-dashed border-line-strong text-text-2" style={{ width: big ? size : "clamp(84px, 26vw, 132px)", height: big ? size : "clamp(84px, 26vw, 132px)" }}>?</span>
+      <div className={`flex min-w-0 flex-col items-center gap-2 text-center ${anim}`}>
+        <span className="grid place-items-center rounded-2xl border border-dashed border-line-strong text-2xl text-text-2" style={{ width: art, height: art }}>?</span>
         <span className="font-display text-xl text-text-2">TBD</span>
       </div>
     );
   }
   return (
-    <div className={`flex min-w-0 flex-col items-center gap-3 text-center transition-all duration-500 ${side === "l" ? "ko-slide-l" : "ko-slide-r"} ${outcome === "lose" ? "scale-90 opacity-40 grayscale" : ""}`}>
-      <div className={`relative overflow-hidden rounded-2xl ${outcome === "win" ? "ko-glow" : ""}`}>
-        <SlotArt p={p} size={size} fluid={big ? undefined : "clamp(84px, 26vw, 132px)"} className="rounded-2xl" />
+    <div className={`flex min-w-0 flex-col items-center gap-1.5 text-center transition-[opacity,filter] duration-500 ${anim} ${outcome === "lose" ? "opacity-45 grayscale" : ""}`}>
+      <div className={`relative mb-1 overflow-hidden rounded-2xl ${outcome === "win" ? "ko-glow" : ""}`}>
+        <SlotArt p={p} fluid={art} className="rounded-2xl" />
         <span className="ko-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-        {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-1 text-center text-xs font-black uppercase tracking-[0.3em] text-bg-0">Winner</span>}
+        {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-1 text-center text-[10px] font-black uppercase tracking-[0.3em] text-bg-0">Winner</span>}
       </div>
-      <p className={`max-w-[16ch] truncate font-display font-extrabold ${big ? "text-4xl" : "text-lg sm:text-2xl"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
-      <p className={`max-w-[22ch] truncate font-semibold ${big ? "text-xl" : "text-sm"} text-cyan`}>{p.slot_name}</p>
-      {p.slot_provider && <p className={`${big ? "text-base" : "text-xs"} uppercase tracking-wider text-text-2`}>{p.slot_provider}</p>}
-      {result && (
-        <div className="text-center">
-          <p className={`font-display font-extrabold tabular-nums ${big ? "text-6xl" : "text-3xl"} ${outcome === "win" ? "text-gold" : "text-text-1"}`}>x{result.multi}</p>
-          <p className={`font-mono ${big ? "text-base" : "text-[11px]"} text-text-2`}>${Number(result.payout).toLocaleString("en-US")} / ${Number(result.cost).toLocaleString("en-US")}</p>
+      <p className={`w-full truncate font-display font-extrabold leading-tight ${big ? "text-4xl" : "text-[clamp(1rem,3.2vw,1.35rem)]"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
+      <p className={`w-full truncate font-semibold leading-tight ${big ? "text-xl" : "text-sm"} text-cyan`}>{p.slot_name}</p>
+      <p className={`w-full truncate leading-tight ${big ? "text-sm" : "text-[10px]"} uppercase tracking-wider text-text-2`}>{p.slot_provider || " "}</p>
+      {result ? (
+        <div className="mt-2">
+          <p className={`font-display font-extrabold tabular-nums leading-none ${big ? "text-6xl" : "text-[clamp(1.5rem,4.5vw,2.1rem)]"} ${outcome === "win" ? "text-gold" : "text-text-1"}`}>x{result.multi}</p>
+          <p className={`mt-1 font-mono ${big ? "text-base" : "text-[11px]"} text-text-2`}>${Number(result.payout).toLocaleString("en-US")} / ${Number(result.cost).toLocaleString("en-US")}</p>
         </div>
-      )}
+      ) : showPending ? (
+        <p className={`mt-2 font-mono uppercase tracking-[0.2em] text-text-2 ${big ? "text-sm" : "text-[10px]"}`}>Bonus pending</p>
+      ) : null}
     </div>
   );
 }
@@ -100,6 +108,8 @@ function FighterCard({ p, side, outcome, big, result }: { p: KoParticipant | nul
 /** Animated 1v1 card. `key` it by match id + status so the entrance replays. */
 export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean }) {
   const outcome = (p: KoParticipant | null) => (match.winner_id == null || !p ? null : match.winner_id === p.id ? "win" : "lose");
+  const art = big ? "220px" : "clamp(84px, 24vw, 128px)";
+  const pending = match.status === "live";
   return (
     <div className="relative">
       <p className="label mb-4 text-center">
@@ -108,70 +118,105 @@ export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean
         {match.status === "rolled" && <span className="ml-2 text-gold">· awaiting confirmation</span>}
         {match.status === "bye" && <span className="ml-2 text-volt">· bye</span>}
       </p>
-      <div className={`grid grid-cols-[1fr_auto_1fr] items-center ${big ? "gap-10" : "gap-4"}`}>
-        <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} result={match.p1_result} />
-        <span className={`ko-vs font-bang ${big ? "text-8xl" : "text-4xl sm:text-5xl"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text text-transparent`}>VS</span>
-        <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} result={match.p2_result} />
+      <div className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start ${big ? "gap-10" : "gap-2 sm:gap-4"}`}>
+        <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} result={match.p1_result} showPending={pending} />
+        {/* VS sits on the art's centre line, whatever the text below */}
+        <span className="grid place-items-center" style={{ height: art }}>
+          <span className={`ko-vs font-bang leading-none ${big ? "text-8xl" : "text-[clamp(22px,4vw,32px)]"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text px-1 text-transparent`}>VS</span>
+        </span>
+        <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} result={match.p2_result} showPending={pending} />
       </div>
     </div>
   );
 }
 
+type Spinner = Pick<KoParticipant, "username" | "slot_name" | "slot_image" | "slot_provider">;
+const BYE: Spinner = { username: "BYE", slot_name: "Free pass", slot_image: "", slot_provider: "" };
+
 /**
- * Roller reveal: the result is already decided server-side (crypto.randomInt)
- * and stored; this only animates it — names cycle fast, slow down, land on
- * player 1, then player 2, then the VS card appears.
+ * Roller animation state: the result is already decided server-side
+ * (crypto.randomInt) and stored; this only animates it — entrants cycle fast,
+ * slow down, land on player 1, then player 2.
  */
-export function RollReveal({ match, pool, big = false, onDone }: { match: KoMatch; pool: KoParticipant[]; big?: boolean; onDone?: () => void }) {
-  // Snapshot the names once: the parent re-polls state every ~1.5 s and a new
+export function useRollSpin(match: KoMatch, pool: KoParticipant[], onDone?: () => void) {
+  // Snapshot the pool once: the parent re-polls state every ~1.5 s and a new
   // array identity must not restart the reveal.
-  const [names] = useState(() => (pool.length ? pool.map((p) => p.username) : ["…"]));
+  const [items] = useState<Spinner[]>(() => (pool.length ? pool.map((p) => ({ ...p })) : [BYE]));
   const [phase, setPhase] = useState<0 | 1 | 2>(0); // 0 spinning p1, 1 spinning p2, 2 done
-  const [shown, setShown] = useState<[string, string]>([names[0], names[0]]);
+  const [shown, setShown] = useState<[Spinner, Spinner]>([items[0], items[0]]);
   const done = useRef(onDone);
-  useEffect(() => { done.current = onDone; }, [onDone]);
+  const finals = useRef<[Spinner, Spinner]>([match.p1 ?? BYE, match.p2 ?? BYE]);
+  useEffect(() => { done.current = onDone; finals.current = [match.p1 ?? BYE, match.p2 ?? BYE]; }, [onDone, match.p1, match.p2]);
+  const p1Id = match.p1?.id ?? 0;
+  const p2Id = match.p2?.id ?? 0;
 
   useEffect(() => {
     const reduce = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
+    const [f1, f2] = finals.current;
     if (reduce) {
-      timers.push(setTimeout(() => { setPhase(2); done.current?.(); }, 0));
+      timers.push(setTimeout(() => { setShown([f1, f2]); setPhase(2); done.current?.(); }, 0));
       return () => timers.forEach(clearTimeout);
     }
-    const spin = (slot: 0 | 1, finalName: string, then: () => void) => {
+    const spin = (slot: 0 | 1, final: Spinner, then: () => void) => {
       let delay = 45;
-      let i = Math.floor(Math.random() * names.length); // visual only
+      let i = Math.floor(Math.random() * items.length); // visual only
       const step = () => {
         if (cancelled) return;
-        i = (i + 1) % names.length;
-        setShown((s) => (slot === 0 ? [names[i], s[1]] : [s[0], names[i]]));
+        i = (i + 1) % items.length;
+        setShown((s) => (slot === 0 ? [items[i], s[1]] : [s[0], items[i]]));
         delay *= 1.12;
         if (delay < 420) timers.push(setTimeout(step, delay));
-        else { setShown((s) => (slot === 0 ? [finalName, s[1]] : [s[0], finalName])); timers.push(setTimeout(then, 650)); }
+        else { setShown((s) => (slot === 0 ? [final, s[1]] : [s[0], final])); timers.push(setTimeout(then, 750)); }
       };
       step();
     };
-    spin(0, match.p1?.username ?? "BYE", () => {
+    spin(0, f1, () => {
       setPhase(1);
-      spin(1, match.p2?.username ?? "BYE", () => { setPhase(2); done.current?.(); });
+      spin(1, f2, () => { setPhase(2); done.current?.(); });
     });
     return () => { cancelled = true; timers.forEach(clearTimeout); };
-  }, [match.id, match.roll_seq, match.p1?.username, match.p2?.username, names]);
+  }, [match.id, match.roll_seq, p1Id, p2Id, items]);
 
-  if (phase === 2) return <VsScreen key={`vs-${match.id}`} match={match} big={big} />;
+  return { phase, shown };
+}
+
+/** One roller slot: avatar + username, slot name small underneath. */
+export function RollSlot({ s, state, big = false, compact = false }: { s: Spinner | null; state: "waiting" | "spinning" | "locked"; big?: boolean; compact?: boolean }) {
+  const art = big ? 132 : compact ? 64 : 72;
+  const tone = state === "locked" ? "border-gold/70 bg-gold/10 ko-glow" : state === "spinning" ? "border-line-strong bg-bg-1" : "border-line bg-bg-1/60";
   return (
-    <div className="flex flex-col items-center gap-6 py-6">
+    <div className={`flex min-w-0 items-center gap-3 rounded-2xl border ${compact ? "p-2.5" : "p-3"} transition-colors ${tone}`}>
+      {s && state !== "waiting" ? (
+        <SlotArt p={s} size={art} className={state === "spinning" ? "opacity-80" : ""} />
+      ) : (
+        <span className="grid shrink-0 place-items-center rounded-xl border border-dashed border-line-strong text-text-2" style={{ width: art, height: art }}>?</span>
+      )}
+      <span className="min-w-0 flex-1 text-left">
+        <span className={`block truncate font-display font-extrabold leading-tight ${big ? "text-4xl" : compact ? "text-[18px]" : "text-xl"} ${state === "locked" ? "text-gold" : state === "spinning" ? "text-text-0" : "text-text-2"}`}>
+          {s && state !== "waiting" ? s.username : "Waiting…"}
+        </span>
+        <span className={`mt-0.5 block truncate leading-tight ${big ? "text-lg" : compact ? "text-[12px]" : "text-xs"} ${state === "locked" ? "text-cyan" : "text-text-2"}`}>
+          {s && state !== "waiting" ? s.slot_name : " "}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** Roller reveal for the dashboard / big overlay; ends on the VS card. */
+export function RollReveal({ match, pool, big = false, onDone }: { match: KoMatch; pool: KoParticipant[]; big?: boolean; onDone?: () => void }) {
+  const { phase, shown } = useRollSpin(match, pool, onDone);
+  if (phase === 2) return <VsScreen key={`vs-${match.id}`} match={match} big={big} />;
+  const st = (slot: 0 | 1) => (phase > slot ? "locked" : phase === slot ? "spinning" : "waiting");
+  return (
+    <div className="flex flex-col items-center gap-5 py-4">
       <p className="label text-gold">Rolling {phase === 0 ? "player 1" : "player 2"}…</p>
-      <div className={`grid w-full grid-cols-[1fr_auto_1fr] items-center ${big ? "gap-10" : "gap-4"}`}>
-        {[0, 1].map((slot) => (
-          <div key={slot} className={`rounded-2xl border px-4 py-6 text-center ${phase > slot ? "border-gold/60 bg-gold/10" : "border-line bg-bg-1"} ${slot === 1 ? "col-start-3" : ""}`}>
-            <p className={`truncate font-display font-extrabold ${big ? "text-5xl" : "text-2xl"} ${phase > slot ? "text-gold" : phase === slot ? "text-text-0" : "text-text-2"}`}>
-              {phase >= slot ? shown[slot] : "?"}
-            </p>
-          </div>
-        ))}
-        <span className={`col-start-2 row-start-1 font-bang ${big ? "text-7xl" : "text-4xl"} text-text-2`}>VS</span>
+      <div className={`grid w-full items-center ${big ? "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-10" : "mx-auto max-w-md grid-cols-1 gap-2"}`}>
+        <RollSlot s={shown[0]} state={st(0)} big={big} />
+        <span className={`text-center font-bang leading-none ${big ? "text-7xl" : "text-[22px]"} text-text-2`}>VS</span>
+        <RollSlot s={shown[1]} state={st(1)} big={big} />
       </div>
     </div>
   );
