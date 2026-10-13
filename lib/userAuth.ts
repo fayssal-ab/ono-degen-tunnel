@@ -160,6 +160,8 @@ export async function signInWith(p: Provider, profile: Profile, currentAccountId
     const owner = rows[0] ? Number(rows[0].account_id) : null;
     if (owner != null) {
       if (currentAccountId != null && currentAccountId !== owner) throw new AuthError("identity_taken");
+      const [ban] = await conn.query<RowDataPacket[]>("SELECT banned FROM user_accounts WHERE id = ?", [owner]);
+      if (Number(ban[0]?.banned)) throw new AuthError("banned");
       await conn.query("UPDATE user_identities SET username = ?, avatar = ? WHERE provider = ? AND provider_user_id = ?", [profile.username, profile.avatar, p, profile.id]);
       await conn.query("UPDATE user_accounts SET last_login_at = CURRENT_TIMESTAMP, avatar = IF(avatar = '', ?, avatar) WHERE id = ?", [profile.avatar, owner]);
       return owner;
@@ -214,7 +216,8 @@ export async function destroyUserSession(token: string | undefined): Promise<voi
 export async function accountForToken(token: string | undefined): Promise<number | null> {
   if (!token || token.length > 100) return null;
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT account_id FROM user_sessions WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP", [hashToken(token)]);
+    `SELECT s.account_id FROM user_sessions s JOIN user_accounts a ON a.id = s.account_id
+      WHERE s.token_hash = ? AND s.expires_at > CURRENT_TIMESTAMP AND a.banned = 0`, [hashToken(token)]);
   return rows[0] ? Number(rows[0].account_id) : null;
 }
 
@@ -276,6 +279,7 @@ export const AUTH_MESSAGES: Record<string, string> = {
   identity_taken: "That account is already linked to another ONO account. Sign in with it and unlink it there first.",
   provider_already_linked: "You already have an account of that type linked. Unlink it first.",
   last_identity: "You can't unlink your only sign-in method — link the other one first.",
+  banned: "This account is suspended. Contact the team on Discord if you think it's a mistake.",
   not_linked: "That account isn't linked.",
   rate_limited: "Too many attempts. Wait a minute and try again.",
   failed: "Sign-in failed. Please try again.",

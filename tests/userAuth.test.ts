@@ -160,3 +160,34 @@ dbt("prize claim: only the Kick winner claims, admin pays, winner confirms recei
   assert.equal(row.status, "pending");
   assert.equal(row.received_at, null, "undo clears the receipt");
 });
+
+dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {
+  const ua = await import("../lib/userAdmin");
+  const a = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);
+  await auth.signInWith("discord", { id: "d-ban", username: "bad#d", avatar: "" }, a);
+  const token = await auth.createUserSession(a);
+  const found = await ua.listUsers({ q: "badact", limit: 10, offset: 0 });
+  assert.equal(found.total, 1);
+  assert.equal(found.rows[0].kick_name, "BadActor");
+  assert.equal(found.rows[0].discord_name, "bad#d");
+  assert.equal(Number(found.rows[0].sessions), 1);
+  assert.equal((await ua.listUsers({ q: "100%_", limit: 10, offset: 0 })).total, 0, "LIKE wildcards are escaped");
+
+  await ua.setBanned(a, true, "spam");
+  assert.equal(await auth.accountForToken(token), null, "ban ends sessions");
+  await assert.rejects(auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null), (e: unknown) => e instanceof auth.AuthError && e.code === "banned");
+  const t2 = await auth.createUserSession(a);
+  assert.equal(await auth.accountForToken(t2), null, "a banned account's session never resolves");
+  assert.equal((await ua.listUsers({ filter: "banned", limit: 10, offset: 0 })).rows.some((r) => r.id === a), true);
+  assert.ok((await ua.getUserStats()).banned >= 1);
+
+  await ua.setBanned(a, false, "");
+  assert.equal(await auth.accountForToken(t2), a, "unban restores sign-in");
+  assert.equal(await ua.signOutEverywhere(a), 1);
+  assert.equal(await auth.accountForToken(t2), null);
+
+  await ua.deleteUser(a);
+  assert.equal(await auth.getAccount(a), null);
+  const again = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);
+  assert.notEqual(again, a, "deleted users can sign up again as a new account");
+});
