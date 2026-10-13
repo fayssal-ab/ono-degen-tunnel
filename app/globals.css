@@ -582,3 +582,12 @@ iframe[src*=".netlify/scripts/hud"],
 @media (prefers-reduced-motion: reduce) {
   .ko-slide-l, .ko-slide-r, .ko-vs, .ko-glow, .ko-crown, .ko-burst, .ko-sheen { animation: none !important; }
 }
+
+/* Images, icons and canvases can't be selected, dragged or long-press-saved;
+   text stays selectable. */
+img, svg, video, canvas, picture {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}

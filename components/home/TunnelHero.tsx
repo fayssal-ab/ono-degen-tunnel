@@ -56,10 +56,14 @@ export function TunnelHero({
         <h1 className="sr-only">{BRAND_NAME}</h1>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/LOGO/LOGO.png"
+          src="/LOGO/logo-640.webp"
+          srcSet="/LOGO/logo-320.webp 320w, /LOGO/logo-640.webp 640w"
+          sizes="(min-width: 768px) 320px, 240px"
           alt={BRAND_NAME}
           width={320}
           height={292}
+          fetchPriority="high"
+          decoding="async"
           className="mt-3 w-60 drop-shadow-[0_0_40px_rgba(245,196,81,0.25)] md:w-80"
         />
 

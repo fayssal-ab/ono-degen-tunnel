@@ -84,7 +84,7 @@ export function Sidebar({ live, hidden = [] }: { live: boolean; hidden?: string[
         <div className={`flex h-16 items-center border-b border-line ${collapsed ? "justify-center px-2" : "gap-3 px-4"}`}>
           <Link href="/" className="flex items-center gap-3 overflow-hidden" title={BRAND_NAME}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/LOGO/LOGO.png" alt="" className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(245,196,81,0.4)]" />
+            <img src="/LOGO/logo-128.webp" alt="" width={40} height={37} className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(245,196,81,0.4)]" />
             {!collapsed && <span className="font-bang text-gradient-gold truncate text-base tracking-wide">{BRAND_NAME}</span>}
           </Link>
         </div>
