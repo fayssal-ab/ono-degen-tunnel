@@ -7,7 +7,7 @@ import { EventError } from "@/lib/events/common";
 import { explainError } from "@/lib/events/messages";
 import {
   createKo, openRegistration, closeRegistration, resetKo, rollPlayers, confirmRoll, cancelRoll,
-  startBattle, focusNext, declareWinner,
+  startBattle, focusNext, declareWinner, recordBattleResult,
 } from "@/lib/knockout";
 
 // Admin control endpoint for the knockout dashboard. Admin cookie + same
@@ -16,6 +16,8 @@ import {
 export const dynamic = "force-dynamic";
 
 const Id = z.number().int().positive().max(2_147_483_647);
+const Money = z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/);
+const Bonus = z.object({ cost: Money, payout: Money });
 const Amount = z.union([z.null(), z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/)]);
 const Body = z.discriminatedUnion("action", [
   z.object({
@@ -24,6 +26,7 @@ const Body = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next"]), id: Id }),
   z.object({ action: z.literal("winner"), id: Id, matchId: z.number().int().positive(), side: z.union([z.literal(1), z.literal(2)]) }),
+  z.object({ action: z.literal("result"), id: Id, matchId: z.number().int().positive(), p1: Bonus, p2: Bonus }),
 ]);
 
 export async function POST(request: Request) {
@@ -48,10 +51,11 @@ export async function POST(request: Request) {
       case "start": result = { matchId: await startBattle(body.id) }; break;
       case "next": result = { matchId: await focusNext(body.id) }; break;
       case "winner": result = await declareWinner(body.id, body.matchId, body.side); break;
+      case "result": result = await recordBattleResult(body.id, body.matchId, body.p1, body.p2); break;
     }
     await logAudit("admin", `ko.${body.action}`, "id" in body ? String(body.id) : "", { ...body, result });
     revalidatePath("/tournaments");
-    if (body.action === "winner") revalidatePath("/hall-of-fame");
+    if (body.action === "winner" || body.action === "result") revalidatePath("/hall-of-fame");
     return json({ ok: true, result });
   } catch (err) {
     if (err instanceof EventError) return json({ ok: false, error: err.code, detail: err.detail ?? null, message: explainError(err.code) }, 409);

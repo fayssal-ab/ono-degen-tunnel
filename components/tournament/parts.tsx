@@ -67,7 +67,7 @@ export function Counter({ value, max, open }: { value: number; max: number; open
   );
 }
 
-function FighterCard({ p, side, outcome, big }: { p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean }) {
+function FighterCard({ p, side, outcome, big, result }: { p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean; result?: KoMatch["p1_result"] }) {
   const size = big ? 220 : 132;
   if (!p) {
     return (
@@ -87,6 +87,12 @@ function FighterCard({ p, side, outcome, big }: { p: KoParticipant | null; side:
       <p className={`max-w-[16ch] truncate font-display font-extrabold ${big ? "text-4xl" : "text-lg sm:text-2xl"} ${outcome === "win" ? "text-gold" : "text-text-0"}`}>{p.username}</p>
       <p className={`max-w-[22ch] truncate font-semibold ${big ? "text-xl" : "text-sm"} text-cyan`}>{p.slot_name}</p>
       {p.slot_provider && <p className={`${big ? "text-base" : "text-xs"} uppercase tracking-wider text-text-2`}>{p.slot_provider}</p>}
+      {result && (
+        <div className="text-center">
+          <p className={`font-display font-extrabold tabular-nums ${big ? "text-6xl" : "text-3xl"} ${outcome === "win" ? "text-gold" : "text-text-1"}`}>x{result.multi}</p>
+          <p className={`font-mono ${big ? "text-base" : "text-[11px]"} text-text-2`}>${Number(result.payout).toLocaleString("en-US")} / ${Number(result.cost).toLocaleString("en-US")}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -103,9 +109,9 @@ export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean
         {match.status === "bye" && <span className="ml-2 text-volt">· bye</span>}
       </p>
       <div className={`grid grid-cols-[1fr_auto_1fr] items-center ${big ? "gap-10" : "gap-4"}`}>
-        <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} />
+        <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} result={match.p1_result} />
         <span className={`ko-vs font-bang ${big ? "text-8xl" : "text-4xl sm:text-5xl"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text text-transparent`}>VS</span>
-        <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} />
+        <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} result={match.p2_result} />
       </div>
     </div>
   );
@@ -172,13 +178,14 @@ export function RollReveal({ match, pool, big = false, onDone }: { match: KoMatc
 }
 
 function BracketCell({ m, champion }: { m: KoMatch; champion: number | null }) {
-  const row = (p: KoParticipant | null) => {
+  const row = (p: KoParticipant | null, res: KoMatch["p1_result"]) => {
     const won = p && m.winner_id === p.id;
     const lost = p && m.winner_id != null && m.winner_id !== p.id;
     return (
       <div className={`flex items-center gap-2 px-2 py-1.5 ${won ? "bg-gold/10" : ""} ${lost ? "opacity-40" : ""}`}>
         {p ? <SlotArt p={p} size={26} className="rounded-md" /> : <span className="h-[26px] w-[26px] rounded-md border border-dashed border-line" />}
         <span className={`min-w-0 flex-1 truncate text-xs ${won ? "font-semibold text-gold" : "text-text-1"}`}>{p ? p.username : m.status === "void" ? "—" : "TBD"}</span>
+        {res && <span className={`font-mono text-[10px] ${won ? "text-gold" : "text-text-2"}`}>x{res.multi}</span>}
         {won && champion === p?.id && <span className="text-xs">👑</span>}
       </div>
     );
@@ -186,9 +193,9 @@ function BracketCell({ m, champion }: { m: KoMatch; champion: number | null }) {
   const tone = m.status === "live" ? "border-danger/60 shadow-[0_0_18px_-6px_var(--color-danger)]" : m.status === "rolled" ? "border-gold/50" : m.winner_id ? "border-gold/30" : "border-line";
   return (
     <div className={`overflow-hidden rounded-lg border bg-bg-2 ${tone} ${m.status === "void" ? "opacity-30" : ""}`}>
-      {row(m.p1)}
+      {row(m.p1, m.p1_result)}
       <div className="h-px bg-line" />
-      {m.status === "bye" ? <div className="px-2 py-1.5 text-xs text-text-2">bye</div> : row(m.p2)}
+      {m.status === "bye" ? <div className="px-2 py-1.5 text-xs text-text-2">bye</div> : row(m.p2, m.p2_result)}
     </div>
   );
 }

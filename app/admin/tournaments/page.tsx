@@ -31,7 +31,7 @@ export default async function AdminTournaments() {
         Open registration → viewers type <code className="text-gold">!join &lt;slot name&gt;</code> in Kick chat (connect Kick chat below so the site receives chat by itself; otherwise keep this page open and active) → they enter with that slot
         (catalogue art + provider when the name is found, otherwise the name as typed). Plain <code className="text-gold">!join</code> gives a random slot. Typing it again changes only
         their slot until they are rolled into the bracket. 16 players close registration automatically.
-        Roll 2 players → confirm → start → pick the winner. Rolled positions and slots lock; losers are eliminated for good; winners follow the fixed bracket.
+        Roll 2 players → confirm → start → enter each bonus cost and payout: the higher multiplier wins automatically (exact tie = replay). Rolled positions and slots lock; losers are eliminated for good; winners follow the fixed bracket.
         With fewer than 16, close registration and remaining slots become byes.
       </Help>
       {pool === 0 && (

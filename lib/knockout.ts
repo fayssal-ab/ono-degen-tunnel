@@ -1,5 +1,6 @@
 import "server-only";
 import { randomInt } from "node:crypto";
+import Decimal from "decimal.js";
 import type { RowDataPacket, PoolConnection, ResultSetHeader } from "mysql2/promise";
 import { getPool } from "./db";
 import { EventError, withTx, lockApp } from "./events/common";
@@ -78,6 +79,35 @@ export interface KoMatch {
   p2: KoParticipant | null;
   winner_id: number | null;
   roll_seq: number | null;
+  /** bonus result per side: cost (buy) and payout; multiplier = payout / cost */
+  p1_result: BattleResult | null;
+  p2_result: BattleResult | null;
+}
+
+export interface BattleResult {
+  cost: string;
+  payout: string;
+  multi: string; // payout / cost, 2 decimals
+}
+
+/**
+ * Decides a battle from each side's bonus cost and payout. The higher
+ * multiplier (payout ÷ cost, exact decimals) wins; an exact tie is not
+ * decided (replay). Pure, unit-tested.
+ */
+export function decideBattle(p1: { cost: string; payout: string }, p2: { cost: string; payout: string }): { side: 1 | 2 | "tie"; m1: string; m2: string } {
+  const c1 = new Decimal(p1.cost), c2 = new Decimal(p2.cost);
+  if (c1.lte(0) || c2.lte(0)) throw new EventError("invalid_input", "bonus cost must be above 0");
+  const m1 = new Decimal(p1.payout).div(c1);
+  const m2 = new Decimal(p2.payout).div(c2);
+  const cmp = m1.cmp(m2);
+  return { side: cmp === 0 ? "tie" : cmp > 0 ? 1 : 2, m1: m1.toFixed(2), m2: m2.toFixed(2) };
+}
+
+function resultOf(cost: unknown, payout: unknown): BattleResult | null {
+  if (cost == null || payout == null) return null;
+  const c = new Decimal(String(cost));
+  return { cost: String(cost), payout: String(payout), multi: c.gt(0) ? new Decimal(String(payout)).div(c).toFixed(2) : "0.00" };
 }
 
 /** `!join` at the start of the message; text after it names the viewer's slot (none = random). */
@@ -163,6 +193,8 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
     p2: m.p2_id ? byId.get(Number(m.p2_id)) ?? null : null,
     winner_id: m.winner_id ? Number(m.winner_id) : null,
     roll_seq: m.roll_seq != null ? Number(m.roll_seq) : null,
+    p1_result: resultOf(m.p1_cost, m.p1_payout),
+    p2_result: resultOf(m.p2_cost, m.p2_payout),
   }));
   const inMatch = new Set<number>();
   for (const m of mRows) {
@@ -420,13 +452,41 @@ export async function focusNext(id: number): Promise<number | null> {
   });
 }
 
-export async function declareWinner(id: number, matchId: number, side: 1 | 2): Promise<{ winnerId: number; champion: boolean }> {
+/**
+ * Records both bonus results (cost + payout) of the live battle; the system
+ * picks the winner by multiplier — no manual choice. Exact tie → refused
+ * (announce a replay and enter the replay's results).
+ */
+export async function recordBattleResult(
+  id: number, matchId: number,
+  p1: { cost: string; payout: string }, p2: { cost: string; payout: string }
+): Promise<{ winnerId: number; champion: boolean; m1: string; m2: string }> {
+  const d = decideBattle(p1, p2);
+  if (d.side === "tie") throw new EventError("battle_tied", `both at x${d.m1}`);
   return withTx(async (conn) => {
-    await lockRunning(conn, id);
-    const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE id = ? AND tournament_id = ? FOR UPDATE", [matchId, id]);
-    const m = rows[0];
-    if (!m) throw new EventError("match_not_found");
-    if (m.status !== "live") throw new EventError("battle_not_live", "start the battle first");
+    const m = await lockLiveMatch(conn, id, matchId);
+    await conn.query("UPDATE ko_matches SET p1_cost = ?, p1_payout = ?, p2_cost = ?, p2_payout = ? WHERE id = ?", [p1.cost, p1.payout, p2.cost, p2.payout, matchId]);
+    const r = await finishMatch(conn, id, m, d.side as 1 | 2);
+    return { ...r, m1: d.m1, m2: d.m2 };
+  });
+}
+
+async function lockLiveMatch(conn: PoolConnection, id: number, matchId: number): Promise<RowDataPacket> {
+  await lockRunning(conn, id);
+  const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE id = ? AND tournament_id = ? FOR UPDATE", [matchId, id]);
+  const m = rows[0];
+  if (!m) throw new EventError("match_not_found");
+  if (m.status !== "live") throw new EventError("battle_not_live", "start the battle first");
+  return m;
+}
+
+export async function declareWinner(id: number, matchId: number, side: 1 | 2): Promise<{ winnerId: number; champion: boolean }> {
+  return withTx(async (conn) => finishMatch(conn, id, await lockLiveMatch(conn, id, matchId), side));
+}
+
+async function finishMatch(conn: PoolConnection, id: number, m: RowDataPacket, side: 1 | 2): Promise<{ winnerId: number; champion: boolean }> {
+  const matchId = Number(m.id);
+  {
     const winner = Number(side === 1 ? m.p1_id : m.p2_id);
     const loser = Number(side === 1 ? m.p2_id : m.p1_id);
     await conn.query("UPDATE ko_matches SET status = 'done', winner_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?", [winner, matchId]);
@@ -435,7 +495,7 @@ export async function declareWinner(id: number, matchId: number, side: 1 | 2): P
     await conn.query("UPDATE ko_tournaments SET focus_match_id = ? WHERE id = ?", [matchId, id]);
     const champion = await propagate(conn, id);
     return { winnerId: winner, champion: champion === winner };
-  });
+  }
 }
 
 // ── bracket propagation ──

@@ -163,13 +163,15 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
               <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("cancel_roll")} className={ghost}>Cancel roll</button>
               <button disabled={busy !== null || !!state.live || !!state.pendingRoll || !state.nextReady} onClick={() => act("start")} className={volt}>▶ Start battle</button>
             </div>
+            {state.live && (
+              <BattleResultForm
+                key={state.live.id}
+                match={state.live}
+                busy={busy !== null}
+                onSubmit={(p1, p2) => act("result", { matchId: state.live!.id, p1, p2 })}
+              />
+            )}
             <div className="mt-2 flex flex-wrap justify-center gap-2">
-              <button disabled={busy !== null || !state.live} onClick={() => state.live && act("winner", { matchId: state.live.id, side: 1 }, `${state.live.p1?.username} wins?`)} className={gold}>
-                {state.live?.p1 ? `${state.live.p1.username} wins` : "Player 1 wins"}
-              </button>
-              <button disabled={busy !== null || !state.live} onClick={() => state.live && act("winner", { matchId: state.live.id, side: 2 }, `${state.live.p2?.username} wins?`)} className={gold}>
-                {state.live?.p2 ? `${state.live.p2.username} wins` : "Player 2 wins"}
-              </button>
               <button disabled={busy !== null || !!state.live} onClick={() => act("next")} className={ghost}>Next battle →</button>
             </div>
             {state.eligible === 1 && t.status === "open" && firstRoundOpen && (
@@ -240,3 +242,53 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   );
 }
 
+type Bonus = { cost: string; payout: string };
+const MONEY = /^\d{1,9}(\.\d{1,2})?$/;
+
+/** multiplier preview (display only; the server decides with exact decimals) */
+function multi(b: Bonus): string | null {
+  if (!MONEY.test(b.cost) || !MONEY.test(b.payout) || Number(b.cost) <= 0) return null;
+  return (Number(b.payout) / Number(b.cost)).toFixed(2);
+}
+
+/**
+ * Live battle result: what each player's bonus cost and paid. The higher
+ * multiplier wins automatically; exact tie → replay.
+ */
+function BattleResultForm({ match, busy, onSubmit }: { match: KoMatch; busy: boolean; onSubmit: (p1: Bonus, p2: Bonus) => void }) {
+  const [p1, setP1] = useState<Bonus>({ cost: "", payout: "" });
+  const [p2, setP2] = useState<Bonus>({ cost: "", payout: "" });
+  const m1 = multi(p1), m2 = multi(p2);
+  const lead = m1 && m2 ? (Number(m1) > Number(m2) ? 1 : Number(m2) > Number(m1) ? 2 : 0) : null;
+  const input = "h-11 w-full rounded-xl border border-line bg-bg-1 px-3 text-right font-mono text-sm focus:border-gold focus:outline-none";
+  const side = (n: 1 | 2, b: Bonus, set: (v: Bonus) => void, m: string | null) => (
+    <div className={`rounded-xl border p-3 ${lead === n ? "border-gold/60 bg-gold/10" : "border-line bg-bg-1"}`}>
+      <p className="truncate text-sm font-semibold text-text-0">{(n === 1 ? match.p1 : match.p2)?.username ?? `Player ${n}`}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <label className="block"><span className="label">Bonus cost ($)</span>
+          <input inputMode="decimal" value={b.cost} onChange={(e) => set({ ...b, cost: e.target.value.trim() })} placeholder="100" className={input} />
+        </label>
+        <label className="block"><span className="label">Payout ($)</span>
+          <input inputMode="decimal" value={b.payout} onChange={(e) => set({ ...b, payout: e.target.value.trim() })} placeholder="125" className={input} />
+        </label>
+      </div>
+      <p className={`mt-2 text-center font-display text-3xl font-extrabold ${lead === n ? "text-gold" : "text-text-1"}`}>{m ? `x${m}` : "x—"}</p>
+    </div>
+  );
+  return (
+    <form
+      className="mt-6 space-y-3"
+      onSubmit={(e) => { e.preventDefault(); if (m1 && m2) onSubmit(p1, p2); }}
+    >
+      <p className="label text-center">Bonus results — the higher multiplier wins automatically</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {side(1, p1, setP1, m1)}
+        {side(2, p2, setP2, m2)}
+      </div>
+      {lead === 0 && <p className="text-center text-sm text-gold">Exact tie — replay the bonus and enter the replay&apos;s results.</p>}
+      <div className="flex justify-center">
+        <button disabled={busy || !m1 || !m2 || lead === 0} className={gold}>Save result{lead ? ` — ${(lead === 1 ? match.p1 : match.p2)?.username ?? ""} wins` : ""}</button>
+      </div>
+    </form>
+  );
+}

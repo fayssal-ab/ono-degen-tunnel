@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nextMatch, pickTwo, JOIN_RE } from "../lib/knockout";
+import { nextMatch, pickTwo, JOIN_RE, decideBattle } from "../lib/knockout";
 import { normalizeName, scoreName, cleanSlotRequest, parseStakeFeed } from "../lib/slotCatalog";
 
 test("bracket progression R16 → QF → SF → Final", () => {
@@ -81,4 +81,12 @@ test("prize amounts are read from prize text", async () => {
   assert.equal(parsePrizeAmount("20 USD"), "20.00");
   assert.equal(parsePrizeAmount("VIP role"), null);
   assert.equal(parsePrizeAmount(""), null);
+});
+
+test("battle decided by multiplier (payout ÷ cost), exact decimals, tie not decided", () => {
+  assert.deepEqual(decideBattle({ cost: "100", payout: "125" }, { cost: "200", payout: "178" }), { side: 1, m1: "1.25", m2: "0.89" });
+  assert.equal(decideBattle({ cost: "40", payout: "10" }, { cost: "1", payout: "0.26" }).side, 2); // 0.25 vs 0.26
+  assert.equal(decideBattle({ cost: "3", payout: "1" }, { cost: "6", payout: "2" }).side, "tie"); // 0.333… exactly equal
+  assert.equal(decideBattle({ cost: "100", payout: "0" }, { cost: "50", payout: "0" }).side, "tie");
+  assert.throws(() => decideBattle({ cost: "0", payout: "10" }, { cost: "1", payout: "1" }));
 });

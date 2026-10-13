@@ -301,3 +301,22 @@ t("sync upgrades slots saved without art once the Stake catalogue has that exact
   assert.ok(String(p.slot_image).startsWith("https://mediumrare.imgix.net/"));
   await ko.resetKo(id);
 });
+
+t("battle result: costs + payouts stored, higher multiplier wins automatically, tie refused", async () => {
+  await q("UPDATE ko_tournaments SET status='cancelled' WHERE status IN ('open','closed')");
+  const id = await ko.createKo({ title: "Multi", prize: "" });
+  await ko.openRegistration(id);
+  for (const u of ["m1", "m2"]) await join_(u);
+  const r = await ko.rollPlayers(id); await ko.confirmRoll(id);
+  const mid = await ko.startBattle(id);
+  await rejects(ko.recordBattleResult(id, mid, { cost: "100", payout: "50" }, { cost: "50", payout: "25" }), "battle_tied");
+  const res = await ko.recordBattleResult(id, mid, { cost: "100", payout: "125" }, { cost: "200", payout: "178" });
+  assert.deepEqual([res.m1, res.m2], ["1.25", "0.89"]);
+  assert.equal(res.winnerId, r.p1);
+  const st = await ko.getKoState((await ko.getKoById(id))!);
+  const m = st.matches.find((x) => x.id === mid)!;
+  assert.deepEqual([m.p1_result?.multi, m.p2_result?.multi, m.winner_id], ["1.25", "0.89", r.p1]);
+  assert.equal((await q("SELECT state FROM ko_participants WHERE id=?", [r.p2]))[0].state, "eliminated");
+  await rejects(ko.recordBattleResult(id, mid, { cost: "1", payout: "9" }, { cost: "1", payout: "1" }), "battle_not_live"); // no second result
+  await ko.resetKo(id);
+});
