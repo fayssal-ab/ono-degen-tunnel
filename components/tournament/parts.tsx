@@ -73,7 +73,7 @@ export function Counter({ value, max, open }: { value: number; max: number; open
 function FighterCard({ p, side, outcome, big, result, showPending }: {
   p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean; result?: KoMatch["p1_result"]; showPending?: boolean;
 }) {
-  const art = big ? "220px" : "clamp(84px, 24vw, 128px)";
+  const art = big ? "220px" : "clamp(84px, min(24vw, 11vw + 40px), 190px)";
   const anim = side === "l" ? "ko-slide-l" : "ko-slide-r";
   // small (dashboard / public page): each player sits in their own card
   const box = big ? "" : `rounded-2xl border p-3 sm:p-4 ${outcome === "win" ? "border-gold/60 bg-gold/10" : "border-line bg-bg-1/60"}`;
@@ -110,7 +110,7 @@ function FighterCard({ p, side, outcome, big, result, showPending }: {
 /** Animated 1v1 card. `key` it by match id + status so the entrance replays. */
 export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean }) {
   const outcome = (p: KoParticipant | null) => (match.winner_id == null || !p ? null : match.winner_id === p.id ? "win" : "lose");
-  const art = big ? "220px" : "clamp(84px, 24vw, 128px)";
+  const art = big ? "220px" : "clamp(84px, min(24vw, 11vw + 40px), 190px)";
   const pending = match.status === "live";
   return (
     <div className="relative">

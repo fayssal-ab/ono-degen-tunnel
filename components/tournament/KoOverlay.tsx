@@ -3,20 +3,21 @@
 import { useMemo, useState } from "react";
 import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
-import { FitScreen } from "@/components/overlay/FitScreen";
 import { Podium, RollReveal, RollSlot, VsScreen, matchLabel, SlotArt, useRollSpin } from "./parts";
 
-// Stream overlay. Default: one card that fills the browser-source window
-// (the streamer sizes and places it in OBS) — registration call-to-action
-// with the latest picks, then the live battle, then the podium. Fixed design
-// size so the scale doesn't jump between states. `layout=full` keeps the big
-// centred 1920×1080 version. Transparent everywhere except the card.
+// Stream overlay. Default: a compact card, sized to its content, in a corner
+// of the 1920×1080 scene — registration call-to-action with the latest picks,
+// then the live battle (avatars, names, slots), then the podium. No title or
+// prize bar: only the players. `layout=full` keeps the big centred version.
+// Transparent everywhere except the card.
 
-const CARD_W = 660;
-const CARD_H = 500;
+export type OverlayPos = "bl" | "br" | "tl" | "tr";
+const POS: Record<OverlayPos, string> = {
+  bl: "items-end justify-start", br: "items-end justify-end", tl: "items-start justify-start", tr: "items-start justify-end",
+};
 const money = (v: string | number) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
-export function KoOverlay({ initial, layout = "compact" }: { initial: KoState | null; layout?: "compact" | "full" }) {
+export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial: KoState | null; layout?: "compact" | "full"; pos?: OverlayPos }) {
   const { state } = useKoState(initial, 1200);
   const [revealed, setRevealed] = useState<number | null>(null);
   const pool = useMemo(() => state?.participants.filter((p) => p.state === "registered") ?? [], [state]);
@@ -28,21 +29,14 @@ export function KoOverlay({ initial, layout = "compact" }: { initial: KoState | 
   const rolling = focus?.status === "rolled" && revealed !== focus.roll_seq;
   const match = focus ?? (t.status === "closed" ? state.nextReady : null);
 
-  let pill: { text: string; tone: string } = { text: "Registration closed", tone: "border-white/15 text-text-1" };
   let body: React.ReactNode = null;
   if (state.champion) {
-    pill = { text: "Champion crowned", tone: "border-gold/60 text-gold" };
     body = <CompactPodium state={state} />;
   } else if (match) {
-    pill = match.status === "live" ? { text: "● Live", tone: "border-danger/70 bg-danger/15 text-danger" }
-      : rolling ? { text: "Rolling…", tone: "border-gold/60 text-gold" }
-      : match.winner_id ? { text: "Result", tone: "border-gold/60 text-gold" }
-      : { text: "Up next", tone: "border-cyan/60 text-cyan" };
     body = rolling && focus
       ? <CompactRoll key={`roll-${focus.roll_seq}`} match={focus} pool={pool} onDone={() => setRevealed(focus.roll_seq)} />
-      : <CompactBattle key={`${match.id}-${match.status}-${match.winner_id}`} match={match} state={state} />;
+      : <CompactBattle key={`${match.id}-${match.status}-${match.winner_id}`} match={match} />;
   } else if (t.status === "open") {
-    pill = { text: `● Entries open · ${state.registered}`, tone: "border-volt/60 bg-volt/10 text-volt" };
     body = <CompactJoin state={state} />;
   } else if (t.status === "closed" && state.registered > 0) {
     body = <p className="px-6 py-8 text-center font-display text-[24px] font-extrabold text-text-0">Bracket rolling soon<span className="mt-1 block font-sans text-[14px] font-normal text-text-2">{state.registered} players in</span></p>;
@@ -50,32 +44,12 @@ export function KoOverlay({ initial, layout = "compact" }: { initial: KoState | 
     return null;
   }
 
-  const prizes = [t.prize_1, t.prize_2, t.prize_3];
-  const hasPrizes = prizes.some((p) => p != null);
   return (
-    <FitScreen width={CARD_W} height={CARD_H}>
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10" style={{ background: "rgba(5,7,13,0.9)" }}>
-        <header className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/LOGO/logo-128.webp" alt="" width={30} height={28} className="h-7 w-7 object-contain" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] uppercase tracking-[0.25em] text-text-2">
-            <span className="font-bold text-text-0">Slot tournament</span> · {t.title}
-          </span>
-          <span className={`shrink-0 rounded-full border px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] ${pill.tone}`}>{pill.text}</span>
-        </header>
-        <div className="flex min-h-0 flex-1 flex-col justify-center">{body}</div>
-        {(hasPrizes || t.prize) && (
-          <footer className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
-            <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.25em] text-text-2">Prizes</span>
-            {hasPrizes ? prizes.map((p, i) => p != null && (
-              <span key={i} className={`rounded-full border px-3 py-1 font-mono text-xs font-bold ${i === 0 ? "border-gold/60 bg-gold/10 text-gold" : "border-white/15 text-text-0"}`}>
-                <span className="mr-1 text-[10px] font-normal uppercase text-text-2">{["1st", "2nd", "3rd"][i]}</span>{money(p)}
-              </span>
-            )) : <span className="font-display text-[16px] font-bold text-gold">{t.prize}</span>}
-          </footer>
-        )}
+    <div className={`flex min-h-dvh p-10 ${POS[pos]}`}>
+      <div className="w-[660px] overflow-hidden rounded-3xl border border-white/10 shadow-2xl" style={{ background: "rgba(5,7,13,0.9)" }}>
+        {body}
       </div>
-    </FitScreen>
+    </div>
   );
 }
 
@@ -121,12 +95,6 @@ function CompactJoin({ state }: { state: KoState }) {
   );
 }
 
-function battleLabel(match: KoMatch, state: KoState): string {
-  if (match.round === 4) return matchLabel(match);
-  const n = state.matches.filter((m) => m.round === match.round).length;
-  return `${matchLabel(match).split(" · ")[0]} · Battle ${match.match_index + 1} of ${n}`;
-}
-
 function CompactFighter({ p, side, outcome, result, live }: { p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; result: KoMatch["p1_result"]; live: boolean }) {
   return (
     <div className={`flex min-w-0 flex-col items-center rounded-2xl border p-3 text-center transition-[opacity,filter] duration-500 ${side === "r" ? "ko-slide-r" : "ko-slide-l"}
@@ -152,14 +120,12 @@ function CompactFighter({ p, side, outcome, result, live }: { p: KoParticipant |
   );
 }
 
-function CompactBattle({ match, state }: { match: KoMatch; state: KoState }) {
+function CompactBattle({ match }: { match: KoMatch }) {
   const outcome = (p: KoParticipant | null) => (match.winner_id == null || !p ? null : match.winner_id === p.id ? "win" : "lose");
   const live = match.status === "live";
   return (
     <div className="p-5">
-      <p className="mb-3 text-center font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-text-1">
-        {match.round === 4 ? <span className="font-bang text-[24px] tracking-widest text-gold">{matchLabel(match)}</span> : battleLabel(match, state)}
-      </p>
+      {match.round === 4 && <p className="mb-3 text-center font-bang text-[24px] tracking-widest text-gold">{matchLabel(match)}</p>}
       {match.status === "bye" ? (
         <div className="mx-auto max-w-sm"><CompactFighter p={match.p1} side="l" outcome="win" result={null} live={false} /><p className="mt-2 text-center text-xs text-volt">Bye — goes through</p></div>
       ) : (
@@ -178,7 +144,6 @@ function CompactRoll({ match, pool, onDone }: { match: KoMatch; pool: KoParticip
   const st = (slot: 0 | 1) => (phase > slot ? "locked" : phase === slot ? "spinning" : "waiting");
   return (
     <div className="p-5">
-      <p className="mb-3 text-center font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-gold">Rolling {phase === 0 ? "player 1" : "player 2"}…</p>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <RollSlot s={shown[0]} state={st(0)} compact />
         <span className="px-1 font-bang text-[32px] leading-none text-text-2">VS</span>
