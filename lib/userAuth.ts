@@ -39,6 +39,18 @@ export function providerConfig(p: Provider): ProviderConfig | null {
   return { clientId, clientSecret, redirectUri };
 }
 
+/**
+ * Origin the browser is on (Host header, which Netlify keeps public), so the
+ * post-login redirect lands on the domain whose cookie was just set even if
+ * NEXT_PUBLIC_SITE_URL points elsewhere. Falls back to SITE_URL.
+ */
+export function publicOrigin(request: Request): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (!host || !/^[a-z0-9.-]+(:\d{1,5})?$/i.test(host)) return site();
+  const proto = process.env.NODE_ENV === "production" ? "https" : new URL(request.url).protocol.replace(":", "");
+  return `${proto}://${host}`;
+}
+
 // ── signed flow state ─────────────────────────────────────────────────────
 export interface OAuthState { p: Provider; s: string; v: string; m: "login" | "link"; n: string; e: number }
 function secret(): string {

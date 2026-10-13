@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { SITE_URL } from "@/lib/constants";
 import {
-  AuthError, OAUTH_COOKIE, USER_COOKIE, createUserSession, currentAccountId, decodeState, fetchProfile, isProvider, sessionCookieOptions, signInWith,
+  AuthError, OAUTH_COOKIE, USER_COOKIE, createUserSession, currentAccountId, decodeState, fetchProfile, isProvider, publicOrigin, sessionCookieOptions, signInWith,
 } from "@/lib/userAuth";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const jar = await cookies();
   const st = decodeState(jar.get(OAUTH_COOKIE)?.value);
   const done = (path: string) => {
-    const res = NextResponse.redirect(new URL(path, SITE_URL));
+    const res = NextResponse.redirect(new URL(path, publicOrigin(request)));
     res.cookies.set(OAUTH_COOKIE, "", { path: "/api/auth", maxAge: 0 });
     return res;
   };

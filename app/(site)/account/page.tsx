@@ -92,7 +92,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <LogoutButton />
       </section>
 
-      <section className="surface p-6">
+      <section id="linked" className="surface scroll-mt-24 p-6">
         <h2 className="label mb-4">Linked accounts</h2>
         <ul className="space-y-3">
           {PROVIDERS.map((p) => {
@@ -112,7 +112,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="surface p-6">
+        <section id="tournaments" className="surface scroll-mt-24 p-6">
           <h2 className="label mb-4">My tournaments</h2>
           {!kick ? (
             <p className="text-sm text-text-2">Link your Kick account to see the tournaments you joined with <code className="text-gold">!join</code>.</p>
@@ -136,7 +136,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </ul>
           )}
         </section>
-        <section className="surface p-6">
+        <section id="prizes" className="surface scroll-mt-24 p-6">
           <h2 className="label mb-4">My prizes</h2>
           {!kick ? (
             <p className="text-sm text-text-2">Link your Kick account to see prizes won under your Kick username.</p>

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { SITE_URL } from "@/lib/constants";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
-import { AuthError, OAUTH_COOKIE, beginOAuth, currentAccountId, isProvider, safeNext } from "@/lib/userAuth";
+import { AuthError, OAUTH_COOKIE, beginOAuth, currentAccountId, isProvider, publicOrigin, safeNext } from "@/lib/userAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const { provider } = await params;
   const url = new URL(request.url);
   const next = safeNext(url.searchParams.get("next"));
-  const back = (code: string) => NextResponse.redirect(new URL(`/account?error=${code}`, SITE_URL));
+  const back = (code: string) => NextResponse.redirect(new URL(`/account?error=${code}`, publicOrigin(request)));
   if (!isProvider(provider)) return back("failed");
   const limit = await rateLimit(`oauth:${clientIp(request)}`, 20, 300);
   if (!limit.ok) return back("rate_limited");
