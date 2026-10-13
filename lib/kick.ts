@@ -100,6 +100,60 @@ export async function subscribeToChatMessages(broadcasterUserId: number): Promis
   return data;
 }
 
+export interface ChatSubscription {
+  id: string;
+  broadcasterUserId: number;
+  event: string;
+  method: string;
+}
+
+/** chat.message.sent webhook subscriptions of this Kick app. */
+export async function listChatSubscriptions(): Promise<ChatSubscription[]> {
+  const token = await getAppAccessToken();
+  const res = await fetch(`${API_BASE}/events/subscriptions`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store", signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Kick subscriptions lookup failed: ${res.status}`);
+  const data = (await res.json()) as { data?: { id: string; broadcaster_user_id: number; event: string; method: string }[] };
+  return (data.data ?? [])
+    .filter((s) => s.event === "chat.message.sent")
+    .map((s) => ({ id: String(s.id), broadcasterUserId: Number(s.broadcaster_user_id), event: s.event, method: s.method }));
+}
+
+export async function unsubscribeEvents(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const token = await getAppAccessToken();
+  const qs = ids.map((id) => `id=${encodeURIComponent(id)}`).join("&");
+  const res = await fetch(`${API_BASE}/events/subscriptions?${qs}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store", signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Kick unsubscribe failed: ${res.status}`);
+}
+
+/** ONO's broadcaster id: KICK_BROADCASTER_USER_ID when set, else looked up from KICK_CHANNEL. */
+export async function configuredBroadcasterId(): Promise<number> {
+  const env = Number(process.env.KICK_BROADCASTER_USER_ID);
+  return Number.isInteger(env) && env > 0 ? env : getBroadcasterUserId(KICK_CHANNEL);
+}
+
+/**
+ * Whether Kick pushes ONO's chat to /api/webhooks/kick/chat. When true the
+ * server receives !join / !gb itself, with or without an admin page open.
+ */
+export async function chatWebhookStatus(): Promise<{ configured: boolean; connected: boolean; subscriptionIds: string[]; error?: string }> {
+  if (!kickConfigured()) return { configured: false, connected: false, subscriptionIds: [] };
+  try {
+    const broadcaster = await configuredBroadcasterId();
+    const subs = (await listChatSubscriptions()).filter((s) => s.broadcasterUserId === broadcaster);
+    return { configured: true, connected: subs.length > 0, subscriptionIds: subs.map((s) => s.id) };
+  } catch (err) {
+    return { configured: true, connected: false, subscriptionIds: [], error: err instanceof Error ? err.message.slice(0, 120) : "unknown" };
+  }
+}
+
 let cachedPublicKey: string | null = null;
 
 async function getPublicKey(): Promise<string> {

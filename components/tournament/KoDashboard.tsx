@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { KoState, KoMatch } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
+import { KickWebhookPanel } from "@/components/admin/KickWebhookPanel";
 import { useJoinReader, type ReaderStatus } from "./useJoinReader";
 import { Bracket16, Counter, ParticipantRow, Podium, RollReveal, VsScreen, ROUND_NAMES } from "./parts";
 
@@ -35,7 +36,9 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const { state, error, refresh } = useKoState(initial, 1500);
   const t = state?.tournament ?? null;
   const running = t != null && (t.status === "open" || t.status === "closed");
-  const reader = useJoinReader(running, refresh);
+  // Kick webhook connected → the server gets chat itself; the browser reader only covers the gap.
+  const [webhook, setWebhook] = useState<boolean | null>(null);
+  const reader = useJoinReader(running && webhook !== true, refresh);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [revealed, setRevealed] = useState<number | null>(null);
@@ -109,12 +112,13 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
 
   return (
     <div className="space-y-6">
+      <KickWebhookPanel onStatus={setWebhook} />
       {/* header */}
       <div className="surface flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <p className="label">Tournament #{t.id}{t.prize ? ` · ${t.prize}` : ""}</p>
           <h2 className="font-display text-2xl font-extrabold">{t.title}</h2>
-          <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}</p>
+          <p className={`mt-1 text-xs ${webhook ? "text-volt" : READER[reader.status].tone}`}>● {webhook ? "Kick chat connected via webhook" : READER[reader.status].label}</p>
           <p className="text-[11px] text-text-2">
             {reader.lastSeen ? <>Last chat message: <span className="text-text-1">{reader.lastSeen.username}</span> at {new Date(reader.lastSeen.at).toLocaleTimeString()}</> : "No chat message received yet on this page"}
           </p>
