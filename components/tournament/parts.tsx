@@ -75,16 +75,18 @@ function FighterCard({ p, side, outcome, big, result, showPending }: {
 }) {
   const art = big ? "220px" : "clamp(84px, 24vw, 128px)";
   const anim = side === "l" ? "ko-slide-l" : "ko-slide-r";
+  // small (dashboard / public page): each player sits in their own card
+  const box = big ? "" : `rounded-2xl border p-3 sm:p-4 ${outcome === "win" ? "border-gold/60 bg-gold/10" : "border-line bg-bg-1/60"}`;
   if (!p) {
     return (
-      <div className={`flex min-w-0 flex-col items-center gap-2 text-center ${anim}`}>
+      <div className={`flex min-w-0 flex-col items-center gap-2 text-center ${anim} ${box}`}>
         <span className="grid place-items-center rounded-2xl border border-dashed border-line-strong text-2xl text-text-2" style={{ width: art, height: art }}>?</span>
         <span className="font-display text-xl text-text-2">TBD</span>
       </div>
     );
   }
   return (
-    <div className={`flex min-w-0 flex-col items-center gap-1.5 text-center transition-[opacity,filter] duration-500 ${anim} ${outcome === "lose" ? "opacity-45 grayscale" : ""}`}>
+    <div className={`flex min-w-0 flex-col items-center gap-1.5 text-center transition-[opacity,filter] duration-500 ${anim} ${box} ${outcome === "lose" ? "opacity-45 grayscale" : ""}`}>
       <div className={`relative mb-1 overflow-hidden rounded-2xl ${outcome === "win" ? "ko-glow" : ""}`}>
         <SlotArt p={p} fluid={art} className="rounded-2xl" />
         <span className="ko-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
@@ -118,10 +120,10 @@ export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean
         {match.status === "rolled" && <span className="ml-2 text-gold">· awaiting confirmation</span>}
         {match.status === "bye" && <span className="ml-2 text-volt">· bye</span>}
       </p>
-      <div className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start ${big ? "gap-10" : "gap-2 sm:gap-4"}`}>
+      <div className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch ${big ? "gap-10" : "gap-2 sm:gap-3"}`}>
         <FighterCard p={match.p1} side="l" outcome={outcome(match.p1)} big={big} result={match.p1_result} showPending={pending} />
         {/* VS sits on the art's centre line, whatever the text below */}
-        <span className="grid place-items-center" style={{ height: art }}>
+        <span className={`grid place-items-center self-start ${big ? "" : "py-3 sm:py-4"}`} style={{ height: art, boxSizing: "content-box" }}>
           <span className={`ko-vs font-bang leading-none ${big ? "text-8xl" : "text-[clamp(22px,4vw,32px)]"} bg-gradient-to-b from-gold-hi to-magenta bg-clip-text px-1 text-transparent`}>VS</span>
         </span>
         <FighterCard p={match.p2} side="r" outcome={outcome(match.p2)} big={big} result={match.p2_result} showPending={pending} />

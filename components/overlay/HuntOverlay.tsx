@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HuntOverlayState } from "@/lib/bonusHunt";
+import { FitScreen } from "./FitScreen";
 
 // Bonus hunt OBS overlay: header stats + the bonus list (slot art, name,
 // bet, payout, multiplier). The next bonus to open is highlighted and kept
-// in view; the list scrolls by itself as bonuses are opened.
+// in view; the list scrolls by itself as bonuses are opened. Scales to the
+// OBS window width; a taller window shows more rows.
 
 const money = (v: string | number | null | undefined) =>
   v == null ? "—" : `$${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -20,7 +22,7 @@ function Thumb({ src, name }: { src: string | null; name: string }) {
   );
 }
 
-export function HuntOverlay({ initial, rows, side }: { initial: HuntOverlayState | null; rows: number; side: "left" | "right" }) {
+export function HuntOverlay({ initial }: { initial: HuntOverlayState | null }) {
   const [state, setState] = useState(initial);
   const listRef = useRef<HTMLOListElement>(null);
 
@@ -56,8 +58,8 @@ export function HuntOverlay({ initial, rows, side }: { initial: HuntOverlayState
   const profit = stats.profit != null ? Number(stats.profit) : null;
 
   return (
-    <div className={`flex min-h-dvh items-start p-8 ${side === "right" ? "justify-end" : "justify-start"}`}>
-      <div className="w-[470px] overflow-hidden rounded-3xl border border-white/10 shadow-2xl" style={{ background: "rgba(5,7,13,0.9)" }}>
+    <FitScreen width={470}>
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10" style={{ background: "rgba(5,7,13,0.9)" }}>
         {/* header */}
         <div className="border-b border-white/10 p-5">
           <div className="flex items-center justify-between gap-3">
@@ -93,9 +95,9 @@ export function HuntOverlay({ initial, rows, side }: { initial: HuntOverlayState
 
         {/* bonus list */}
         {entries.length === 0 ? (
-          <p className="p-6 text-center text-sm text-white/60">Collecting bonuses…</p>
+          <p className="flex-1 p-6 text-center text-sm text-white/60">Collecting bonuses…</p>
         ) : (
-          <ol ref={listRef} className="overflow-hidden px-3 py-2" style={{ height: Math.min(entries.length, rows) * rowH + 16 }}>
+          <ol ref={listRef} className="relative min-h-0 flex-1 overflow-hidden px-3 py-2">
             {entries.map((e, i) => {
               const opened = e.payout != null;
               const mult = opened && Number(e.bet) > 0 ? Number(e.payout) / Number(e.bet) : null;
@@ -134,6 +136,6 @@ export function HuntOverlay({ initial, rows, side }: { initial: HuntOverlayState
           </div>
         )}
       </div>
-    </div>
+    </FitScreen>
   );
 }

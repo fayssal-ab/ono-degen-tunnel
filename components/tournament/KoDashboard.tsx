@@ -236,7 +236,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
       </section>
 
       <p className="text-xs text-text-2">
-        OBS: add a Browser Source (1920×1080) with <code className="text-gold">{overlayUrl}</code> — it updates by itself and shows no controls. It sits bottom-left; add <code className="text-gold">?pos=br</code> (or <code className="text-gold">tl</code> / <code className="text-gold">tr</code>) for another corner, or <code className="text-gold">?layout=full</code> for the big centred version.
+        OBS: add a Browser Source (1920×1080) with <code className="text-gold">{overlayUrl}</code> — it updates by itself and shows no controls. The card fills the source window: resize and place it in OBS. <code className="text-gold">?layout=full</code> gives the big centred version.
       </p>
     </div>
   );

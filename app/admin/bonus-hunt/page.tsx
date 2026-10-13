@@ -187,8 +187,7 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
       </AdminHeader>
       <Flash searchParams={searchParams} />
       <p className="text-xs text-text-2">
-        OBS: Browser Source with <code className="text-gold">{SITE_URL.replace(/\/$/, "")}/overlay/bonus-hunt</code> (width 1920, height 1080).
-        Add <code className="text-gold">?side=right</code> to place it on the right, <code className="text-gold">&amp;rows=12</code> for more visible rows.
+        OBS: Browser Source with <code className="text-gold">{SITE_URL.replace(/\/$/, "")}/overlay/bonus-hunt</code> — it fills the source window, so size and place it in OBS (a taller window shows more bonuses, e.g. 500 × 1000).
       </p>
       <Help>
         One active hunt at a time. Add bonuses (slot + bet) and reorder them freely until the first payout: from then on the list is locked and any

@@ -3,20 +3,20 @@
 import { useMemo, useState } from "react";
 import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
+import { FitScreen } from "@/components/overlay/FitScreen";
 import { Podium, RollReveal, RollSlot, VsScreen, matchLabel, SlotArt, useRollSpin } from "./parts";
 
-// Stream overlay. Default: a compact card pinned to a corner of the 1920×1080
-// scene (gameplay stays visible) — registration call-to-action with the
-// latest picks, then the live battle, then the podium. `layout=full` keeps
-// the big centred version. Transparent everywhere except the card.
+// Stream overlay. Default: one card that fills the browser-source window
+// (the streamer sizes and places it in OBS) — registration call-to-action
+// with the latest picks, then the live battle, then the podium. Fixed design
+// size so the scale doesn't jump between states. `layout=full` keeps the big
+// centred 1920×1080 version. Transparent everywhere except the card.
 
-export type OverlayPos = "bl" | "br" | "tl" | "tr";
-const POS: Record<OverlayPos, string> = {
-  bl: "items-end justify-start", br: "items-end justify-end", tl: "items-start justify-start", tr: "items-start justify-end",
-};
+const CARD_W = 660;
+const CARD_H = 500;
 const money = (v: string | number) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
-export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial: KoState | null; layout?: "compact" | "full"; pos?: OverlayPos }) {
+export function KoOverlay({ initial, layout = "compact" }: { initial: KoState | null; layout?: "compact" | "full" }) {
   const { state } = useKoState(initial, 1200);
   const [revealed, setRevealed] = useState<number | null>(null);
   const pool = useMemo(() => state?.participants.filter((p) => p.state === "registered") ?? [], [state]);
@@ -53,8 +53,8 @@ export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial
   const prizes = [t.prize_1, t.prize_2, t.prize_3];
   const hasPrizes = prizes.some((p) => p != null);
   return (
-    <div className={`flex min-h-dvh p-10 ${POS[pos]}`}>
-      <div className="w-[660px] overflow-hidden rounded-3xl border border-white/10 shadow-2xl" style={{ background: "rgba(5,7,13,0.9)" }}>
+    <FitScreen width={CARD_W} height={CARD_H}>
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10" style={{ background: "rgba(5,7,13,0.9)" }}>
         <header className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/LOGO/logo-128.webp" alt="" width={30} height={28} className="h-7 w-7 object-contain" />
@@ -63,7 +63,7 @@ export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial
           </span>
           <span className={`shrink-0 rounded-full border px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] ${pill.tone}`}>{pill.text}</span>
         </header>
-        {body}
+        <div className="flex min-h-0 flex-1 flex-col justify-center">{body}</div>
         {(hasPrizes || t.prize) && (
           <footer className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
             <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.25em] text-text-2">Prizes</span>
@@ -75,7 +75,7 @@ export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial
           </footer>
         )}
       </div>
-    </div>
+    </FitScreen>
   );
 }
 
