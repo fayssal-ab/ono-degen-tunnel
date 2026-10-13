@@ -3,14 +3,14 @@ import type { NextConfig } from "next";
 // Security headers (prompt §7.11). CSP allows the Kick player + Kick api/image
 // hosts and nothing else third-party; everything else is self. `frame-src`
 // carries player.kick.com so the stream embed works; `img-src` carries the
-// Kick/casino avatar + slot-thumb hosts we actually load.
+// Kick/Discord/casino avatar + slot-thumb hosts we actually load.
 const csp = [
   "default-src 'self'",
   // Next injects small inline bootstrap scripts; 'unsafe-inline' is required
   // for the App Router runtime. No external script origins are allowed.
   "script-src 'self' 'unsafe-inline'" + (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://files.kick.com https://*.kick.com https://slot.report https://mediumrare.imgix.net",
+  "img-src 'self' data: blob: https://files.kick.com https://*.kick.com https://slot.report https://mediumrare.imgix.net https://cdn.discordapp.com",
   "font-src 'self' data:",
   "frame-src https://player.kick.com https://kick.com",
   // wss://*.pusher.com = Kick's public chat socket (live giveaway listener)
