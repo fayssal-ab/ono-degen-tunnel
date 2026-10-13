@@ -83,6 +83,13 @@ export const ERROR_MESSAGES: Record<string, string> = {
   battle_tied: "Both multipliers are exactly equal — announce a replay and enter the replay's results.",
   award_not_found: "That prize no longer exists.",
   award_not_pending: "This prize was already confirmed or voided.",
+  award_not_yours: "This prize isn't linked to your Kick account.",
+  award_not_paid: "This prize hasn't been paid yet — confirm it once you receive it.",
+  award_already_received: "You already confirmed this prize.",
+  signed_out: "You're signed out. Sign in again.",
+  rate_limited: "Too many requests. Wait a minute and try again.",
+  bad_origin: "Request refused.",
+  payout_invalid: "Pick where to send the prize and enter your username there.",
 };
 
 export function explainError(code: string): string {

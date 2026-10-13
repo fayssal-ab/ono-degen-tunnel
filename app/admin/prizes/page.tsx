@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
 import { adminAction, requireAdmin } from "@/lib/adminAction";
-import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, type Award } from "@/lib/prizes";
+import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, PAYOUT_LABEL, type Award } from "@/lib/prizes";
 import { parseForm, zId, zText, zRequiredText } from "@/lib/events/common";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
@@ -64,12 +64,14 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
       <Flash searchParams={searchParams} />
       <Help>
         Every win lands here automatically: tournament podium (1st/2nd/3rd), giveaway draws, races, leaderboard periods, Guess the Balance and challenges.
-        Confirm a prize <strong className="text-text-0">only once the winner has received it</strong> — only confirmed prizes count in “Prizes awarded” on the home page and on /prizes.
+        Winners claim their prize from their account (Kick-linked) and say where to send it — the destination shows on each prize. Pay, then mark it
+        <strong className="text-text-0"> Paid</strong>; the winner then confirms receipt (✓ received). Only paid prizes count in “Prizes awarded” on the home page and on /prizes.
+        Leaderboard and race prizes go to the casino account and aren&apos;t claimed.
         Void a prize that won&apos;t be paid (e.g. a rerolled giveaway winner). Set the $ amount when confirming if it wasn&apos;t detected.
       </Help>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="surface p-4"><p className="label">Waiting for confirmation</p><p className="mt-1 font-mono text-2xl font-bold text-gold">{pending.length}</p></div>
+        <div className="surface p-4"><p className="label">To pay · claimed / waiting</p><p className="mt-1 font-mono text-2xl font-bold text-gold">{pending.filter((a) => a.claimed_at).length} <span className="text-text-2">/ {pending.filter((a) => !a.claimed_at).length}</span></p></div>
         <div className="surface p-4"><p className="label">Prizes awarded (paid)</p><p className="mt-1 font-mono text-2xl font-bold text-volt">{formatMoney(paidSum)}</p></div>
         <div className="surface p-4"><p className="label">Paid prizes</p><p className="mt-1 font-mono text-2xl font-bold">{awards.filter((a) => a.status === "paid").length}</p></div>
       </div>
@@ -85,6 +87,16 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
                 {a.place && a.place <= 3 && a.source === "tournament" && <Badge tone="gold">{PLACE[a.place]}</Badge>}
               </div>
               <p className="text-xs text-text-2">{a.title}{a.prize_label ? ` · ${a.prize_label}` : ""} · won <Utc value={a.created_at} /></p>
+              {a.claimed_at ? (
+                <p className="mt-1.5 inline-flex flex-wrap items-center gap-2 rounded-lg border border-volt/40 bg-volt/10 px-2 py-1 text-xs">
+                  <span className="font-semibold text-volt">Claimed</span>
+                  <span>send to <strong className="text-text-0">{a.payout_method ? PAYOUT_LABEL[a.payout_method] : "—"}</strong></span>
+                  <code className="select-all font-mono text-text-0">{a.payout_username}</code>
+                  {a.claim_note && <span className="text-text-2">“{a.claim_note}”</span>}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-text-2">{a.source === "leaderboard" || a.source === "race" ? "Pay to the casino account." : "Not claimed yet — the winner claims it from their account."}</p>
+              )}
             </div>
             <form action={payAction} className="flex flex-wrap items-center gap-2">
               <Hidden fields={{ id: a.id }} />
@@ -118,6 +130,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
           {done.map((a) => (
             <div key={a.id} className={`surface flex flex-wrap items-center gap-3 p-3 text-sm ${a.status === "void" ? "opacity-60" : ""}`}>
               <Badge tone={a.status === "paid" ? "volt" : "neutral"}>{a.status}</Badge>
+              {a.received_at && <Badge tone="gold">✓ received</Badge>}
               <span className="font-semibold">{a.winner}</span>
               <span className="text-text-2">{SOURCE[a.source]} · {a.title}{a.place && a.source === "tournament" ? ` · ${PLACE[a.place] ?? ""}` : ""}</span>
               <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>

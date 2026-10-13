@@ -344,7 +344,7 @@ export async function drawWinners(giveawayId: number, count: number): Promise<Dr
     if (!g.server_seed || !String(g.server_seed).startsWith("v2")) throw new Error("round_finished");
     if (g.drawn_entrants && (g.status === "closed" || !String(g.server_seed).startsWith("v2"))) throw new Error("round_finished");
     const [current] = await conn.query<RowDataPacket[]>(
-      "SELECT kick_username, avatar, is_subscriber, message_count, excluded FROM giveaway_entries WHERE giveaway_id = ? ORDER BY created_at ASC, id ASC", [giveawayId]
+      "SELECT kick_username, kick_user_id, avatar, is_subscriber, message_count, excluded FROM giveaway_entries WHERE giveaway_id = ? ORDER BY created_at ASC, id ASC", [giveawayId]
     );
     let names = parseSnapshot(g.drawn_entrants);
     if (!names) {
@@ -360,14 +360,15 @@ export async function drawWinners(giveawayId: number, count: number): Promise<Dr
     for (let i = 0; i < count; i++, nonce++) {
       const index = winnerIndex(String(g.server_seed), hash, nonce, names.length);
       const username = names[index];
-      const avatar = current.find((e) => String(e.kick_username).toLowerCase() === username.toLowerCase())?.avatar ?? null;
+      const entry = current.find((e) => String(e.kick_username).toLowerCase() === username.toLowerCase());
+      const avatar = entry?.avatar ?? null;
       const [won] = await conn.query<ResultSetHeader>(
         `INSERT INTO giveaway_winners (giveaway_id, kick_username, avatar, prize, nonce, winner_index, entrant_count, entries_hash, server_seed, server_seed_hash)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [giveawayId, username, avatar, g.prize, nonce, index, names.length, hash, g.server_seed, g.server_seed_hash]
       );
       // pending until the admin confirms the winner received it (Admin → Prizes)
-      await recordAward(conn, { source: "giveaway", sourceRef: `gw:${won.insertId}`, title: String(g.title || "Giveaway"), winner: username, prizeLabel: String(g.prize ?? "") });
+      await recordAward(conn, { source: "giveaway", sourceRef: `gw:${won.insertId}`, title: String(g.title || "Giveaway"), winner: username, winnerKickId: entry?.kick_user_id ? String(entry.kick_user_id) : null, prizeLabel: String(g.prize ?? "") });
       results.push({ username, avatar, nonce, index });
     }
     await conn.query("UPDATE giveaways SET status = 'drawn', drawn_at = NOW() WHERE id = ?", [giveawayId]);

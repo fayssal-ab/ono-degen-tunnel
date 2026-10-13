@@ -112,3 +112,51 @@ dbt("sessions resolve until destroyed", async () => {
   await auth.destroyUserSession(token);
   assert.equal(await auth.accountForToken(token), null);
 });
+
+dbt("prize claim: only the Kick winner claims, admin pays, winner confirms receipt", async () => {
+  const prizes = await import("../lib/prizes");
+  const common = await import("../lib/events/common");
+  const rejects = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => e instanceof common.EventError && e.code === code, code);
+  const pool = db.getPool();
+  const add = async (ref: string, source: string, winner: string, kickId: string | null) => {
+    await common.withTx((c) => prizes.recordAward(c, { source: source as "giveaway", sourceRef: ref, title: "Test", winner, winnerKickId: kickId, amount: "50" }));
+    const [r] = await pool.query<mysql.RowDataPacket[]>("SELECT id FROM prize_awards WHERE source_ref = ?", [ref]);
+    return Number(r[0].id);
+  };
+  const winner = { id: "kw1", username: "WinnerGuy" };
+  const other = { id: "kw2", username: "OtherGuy" };
+  const acc = await auth.signInWith("kick", { id: winner.id, username: winner.username, avatar: "" }, null);
+  const byName = await add("t:name", "giveaway", "winnerguy", null);   // matched by username (case-insensitive)
+  const byId = await add("t:id", "tournament", "OldName", "kw1");      // matched by Kick id despite a rename
+  const casino = await add("t:lb", "leaderboard", "WinnerGuy", null);  // casino username: never claimable
+  const notMine = await add("t:other", "giveaway", "OtherGuy", "kw2");
+
+  const owned = (await prizes.listOwnedAwards(winner)).map((a) => Number(a.id)).sort();
+  assert.deepEqual(owned, [byName, byId].sort());
+  assert.equal(await prizes.countOwnedActions(winner), 2);
+
+  const payout = { method: "stake" as const, username: "stakeWinner", note: "" };
+  await rejects(prizes.claimAward(notMine, acc, winner, payout), "award_not_yours");
+  await rejects(prizes.claimAward(casino, acc, winner, payout), "award_not_yours");
+  await prizes.claimAward(byName, acc, winner, payout);
+  await prizes.claimAward(byName, acc, winner, { ...payout, username: "stakeWinner2" }); // edit while unpaid
+  let [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT * FROM prize_awards WHERE id = ?", [byName]))[0];
+  assert.equal(row.payout_username, "stakeWinner2");
+  assert.equal(row.winner_kick_id, "kw1", "claim pins the Kick id");
+  assert.ok(row.claimed_at);
+  assert.equal(await prizes.countOwnedActions(winner), 1, "claimed prize no longer needs an action");
+
+  await rejects(prizes.confirmReceived(byName, winner), "award_not_paid");
+  await prizes.confirmPaid(byName, "50", "tx1");
+  await rejects(prizes.claimAward(byName, acc, winner, payout), "award_not_pending");
+  assert.equal(await prizes.countOwnedActions(winner), 2, "paid prize waits for receipt");
+  await rejects(prizes.confirmReceived(byName, other), "award_not_yours");
+  await prizes.confirmReceived(byName, winner);
+  await rejects(prizes.confirmReceived(byName, winner), "award_already_received");
+  const pub = await prizes.getPublicAwards();
+  assert.equal(pub.awards.find((a) => a.id === byName)?.received, true);
+  await prizes.reopenAward(byName);
+  [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT status, received_at FROM prize_awards WHERE id = ?", [byName]))[0];
+  assert.equal(row.status, "pending");
+  assert.equal(row.received_at, null, "undo clears the receipt");
+});

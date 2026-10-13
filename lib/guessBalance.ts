@@ -313,7 +313,7 @@ async function resolveActual(conn: PoolConnection, round: GbRound, manual: strin
 
 async function findWinner(conn: PoolConnection, roundId: number, actual: string) {
   const [rows] = await conn.query<RowDataPacket[]>(
-    `SELECT id, kick_username, amount, guessed_at, ABS(amount - CAST(? AS DECIMAL(20,8))) AS off_by
+    `SELECT id, kick_user_id, kick_username, amount, guessed_at, ABS(amount - CAST(? AS DECIMAL(20,8))) AS off_by
      FROM gb_guesses WHERE round_id = ?
      ORDER BY off_by ASC, guessed_at ASC, id ASC LIMIT 1`,
     [actual, roundId]
@@ -349,7 +349,7 @@ export async function settleRound(id: number, manual: string | null): Promise<{ 
     await conn.query("UPDATE gb_guesses SET is_winner = 0 WHERE round_id = ?", [id]);
     if (w) {
       await conn.query("UPDATE gb_guesses SET is_winner = 1 WHERE id = ?", [w.id]);
-      await recordAward(conn, { source: "gb", sourceRef: `gb:${id}`, title: round.title || "Guess the Balance", place: 1, winner: String(w.kick_username), prizeLabel: round.prize });
+      await recordAward(conn, { source: "gb", sourceRef: `gb:${id}`, title: round.title || "Guess the Balance", place: 1, winner: String(w.kick_username), winnerKickId: w.kick_user_id ? String(w.kick_user_id) : null, prizeLabel: round.prize });
     }
     await conn.query("UPDATE gb_rounds SET status = 'settled', actual_balance = ?, settled_at = UTC_TIMESTAMP() WHERE id = ?", [actual, id]);
     return { actual, winnerId: w ? Number(w.id) : null };

@@ -9,13 +9,14 @@ import { BrandIcon } from "@/components/ui/BrandIcon";
 // Viewer account in the top bar. Read client-side from /api/me so public
 // pages stay cacheable; re-read on navigation (sign-in lands on /account).
 // Signed in → avatar button opening a menu (profile sections, log out).
-type Me = { name: string; avatar: string; providers: ("kick" | "discord")[] } | null;
+type Me = { name: string; avatar: string; providers: ("kick" | "discord")[]; actions: number } | null;
 
 const ITEMS = [
   { href: "/account", label: "My profile", icon: "User" },
   { href: "/account#linked", label: "Linked accounts", icon: "Link" },
   { href: "/account#tournaments", label: "My tournaments", icon: "Swords" },
   { href: "/account#prizes", label: "My prizes", icon: "Gift" },
+  { href: "/account#settings", label: "Payout settings", icon: "Settings" },
 ] as const;
 
 function Avatar({ me, size }: { me: NonNullable<Me>; size: string }) {
@@ -35,6 +36,7 @@ export function AccountButton() {
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
     fetch("/api/me", { cache: "no-store" })
@@ -42,7 +44,13 @@ export function AccountButton() {
       .then((d) => { if (alive) { setMe(d.user); setOpen(false); } })
       .catch(() => { if (alive) setMe(null); });
     return () => { alive = false; };
-  }, [pathname]);
+  }, [pathname, tick]);
+  // pages that change prize state ask for a re-read (badge count)
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    window.addEventListener("odt:me", bump);
+    return () => window.removeEventListener("odt:me", bump);
+  }, []);
 
   // close on outside click / Escape
   useEffect(() => {
@@ -83,7 +91,10 @@ export function AccountButton() {
         aria-label={`Account menu (${me.name})`}
         className={`press inline-flex h-10 items-center gap-2 rounded-xl border bg-bg-1 pl-1 pr-1 md:pr-2 ${open ? "border-gold" : "border-line hover:border-gold"}`}
       >
-        <Avatar me={me} size="h-8 w-8 text-sm" />
+        <span className="relative">
+          <Avatar me={me} size="h-8 w-8 text-sm" />
+          {me.actions > 0 && <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white" aria-label={`${me.actions} prize action${me.actions > 1 ? "s" : ""}`}>{me.actions}</span>}
+        </span>
         <span className="hidden max-w-[10ch] truncate text-sm font-semibold text-text-0 md:inline">{me.name}</span>
         <Icon name="ChevronDown" className={`hidden h-4 w-4 text-text-2 transition-transform md:block ${open ? "rotate-180" : ""}`} />
       </button>
@@ -108,6 +119,7 @@ export function AccountButton() {
               <Link key={it.href} href={it.href} role="menuitem" onClick={() => setOpen(false)}
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-1 hover:bg-bg-2 hover:text-text-0">
                 <Icon name={it.icon} className="h-4 w-4 text-text-2" /> {it.label}
+                {it.icon === "Gift" && me.actions > 0 && <span className="ml-auto rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">{me.actions}</span>}
               </Link>
             ))}
             {me.providers.length < 2 && (

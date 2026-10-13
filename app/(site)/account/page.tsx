@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatMoney } from "@/lib/money";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
-import { UtcTime } from "@/components/events/shared";
 import { LogoutButton, UnlinkButton } from "@/components/account/AccountActions";
+import { PayoutSettings, PrizeList, type PrizeRow } from "@/components/account/PrizeList";
+import { listOwnedAwards } from "@/lib/prizes";
 import {
-  AUTH_MESSAGES, PROVIDERS, PROVIDER_NAME, currentAccountId, getAccount, getActivity, providerConfig, type Provider, type AccountSummary, type AccountActivity,
+  AUTH_MESSAGES, PROVIDERS, PROVIDER_NAME, currentAccountId, getAccount, getActivity, kickOwner, providerConfig, type Provider, type AccountSummary, type AccountActivity,
 } from "@/lib/userAuth";
 
 export const metadata: Metadata = { title: "Your account", robots: { index: false } };
@@ -45,12 +45,19 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const linked = typeof sp.linked === "string" && sp.linked in PROVIDER_NAME ? PROVIDER_NAME[sp.linked as Provider] : null;
 
   let account: AccountSummary | null = null;
-  let activity: AccountActivity = { tournaments: [], prizes: [] };
+  let activity: AccountActivity = { tournaments: [] };
+  let prizes: PrizeRow[] = [];
   let down = false;
   try {
     const id = await currentAccountId();
     account = id != null ? await getAccount(id) : null;
-    if (account) activity = await getActivity(account.identities.find((i) => i.provider === "kick"));
+    if (account) {
+      const owner = kickOwner(account);
+      [activity, prizes] = await Promise.all([
+        getActivity(account.identities.find((i) => i.provider === "kick")),
+        owner ? listOwnedAwards(owner).then((rows) => rows as unknown as PrizeRow[]) : Promise.resolve([]),
+      ]);
+    }
   } catch { down = true; }
 
   const notice = (
@@ -76,11 +83,24 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   }
 
   const byProvider = new Map(account.identities.map((i) => [i.provider, i]));
+  const defaults = { method: account.payout_method, username: account.payout_username };
+  const toClaim = prizes.filter((p) => p.status === "pending" && !p.claimed_at).length;
+  const toConfirm = prizes.filter((p) => p.status === "paid" && !p.received_at).length;
   const kick = byProvider.get("kick");
   return (
     <div className="space-y-8">
       <PageHeader kicker="Account" title="Your profile" />
       {notice}
+      {(toClaim > 0 || toConfirm > 0) && (
+        <a href="#prizes" className="flex items-center gap-3 rounded-2xl border border-gold/50 bg-gold/10 p-4 text-sm hover:bg-gold/15">
+          <Icon name="Gift" className="h-5 w-5 shrink-0 text-gold" />
+          <span className="flex-1">
+            {toClaim > 0 && <><strong className="text-gold">{toClaim} prize{toClaim > 1 ? "s" : ""} to claim</strong> — tell us where to send {toClaim > 1 ? "them" : "it"}. </>}
+            {toConfirm > 0 && <><strong className="text-volt">{toConfirm} paid</strong> — confirm once you receive {toConfirm > 1 ? "them" : "it"}.</>}
+          </span>
+          <Icon name="ArrowRight" className="h-4 w-4 text-gold" />
+        </a>
+      )}
       <section className="surface flex flex-wrap items-center gap-4 p-6">
         <Avatar src={account.avatar} name={account.display_name} size={72} />
         <div className="min-w-0 flex-1">
@@ -111,6 +131,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </ul>
       </section>
 
+      <section id="prizes" className="surface scroll-mt-24 p-6">
+        <h2 className="label mb-4">My prizes</h2>
+        {!kick ? (
+          <p className="text-sm text-text-2">Link your Kick account to see and claim the prizes you won on stream.</p>
+        ) : prizes.length === 0 ? (
+          <p className="text-sm text-text-2">No prize yet — good luck! <Link href="/prizes" className="text-gold underline">All prizes</Link></p>
+        ) : (
+          <PrizeList prizes={prizes} defaults={defaults} />
+        )}
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section id="tournaments" className="surface scroll-mt-24 p-6">
           <h2 className="label mb-4">My tournaments</h2>
@@ -136,31 +167,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </ul>
           )}
         </section>
-        <section id="prizes" className="surface scroll-mt-24 p-6">
-          <h2 className="label mb-4">My prizes</h2>
-          {!kick ? (
-            <p className="text-sm text-text-2">Link your Kick account to see prizes won under your Kick username.</p>
-          ) : activity.prizes.length === 0 ? (
-            <p className="text-sm text-text-2">No prize yet — good luck! <Link href="/prizes" className="text-gold underline">All prizes</Link></p>
-          ) : (
-            <ul className="space-y-2">
-              {activity.prizes.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 rounded-xl border border-line bg-bg-1 p-3">
-                  <Icon name="Gift" className="h-5 w-5 shrink-0 text-gold" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{p.title || "Prize"}</span>
-                    <span className="block text-xs text-text-2"><UtcTime value={p.created_at} /></span>
-                  </span>
-                  <span className="text-right">
-                    <span className="block font-mono text-gold">{p.amount != null ? formatMoney(p.amount) : p.prize_label || "—"}</span>
-                    <span className={`block text-[11px] uppercase tracking-wider ${p.status === "paid" ? "text-volt" : "text-text-2"}`}>{p.status === "paid" ? "Paid" : "Pending"}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <section id="settings" className="surface scroll-mt-24 p-6">
+          <h2 className="label mb-1">Payout settings</h2>
+          <p className="mb-4 text-sm text-text-2">Where you want to receive prizes. Used to pre-fill every claim — you can still change it per prize.</p>
+          <PayoutSettings defaults={defaults} />
         </section>
       </div>
+
     </div>
   );
 }

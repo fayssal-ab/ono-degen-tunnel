@@ -589,13 +589,13 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
   );
   // podium prizes → pending awards (admin confirms payment in Admin → Prizes)
   const podium: [number, number | null, string | null][] = [[1, champ, tt[0].prize_1], [2, runnerUp, tt[0].prize_2], [3, third, tt[0].prize_3]];
-  const [names] = await conn.query<RowDataPacket[]>("SELECT id, username FROM ko_participants WHERE tournament_id = ?", [id]);
+  const [names] = await conn.query<RowDataPacket[]>("SELECT id, username, kick_user_id FROM ko_participants WHERE tournament_id = ?", [id]);
   for (const [place, pid, amount] of podium) {
     const winner = pid ? names.find((n) => Number(n.id) === pid) : null;
     if (!winner) continue;
     await recordAward(conn, {
       source: "tournament", sourceRef: `ko:${id}:${place}`, title: String(tt[0].title || "Knockout"), place,
-      winner: String(winner.username), amount: amount != null ? String(amount) : null,
+      winner: String(winner.username), winnerKickId: String(winner.kick_user_id), amount: amount != null ? String(amount) : null,
       prizeLabel: place === 1 ? String(tt[0].prize ?? "") : `${place === 2 ? "2nd" : "3rd"} place`,
     });
   }

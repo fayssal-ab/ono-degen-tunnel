@@ -51,7 +51,7 @@ export default async function PrizesPage({ searchParams }: { searchParams: Promi
                   <td className="px-4 py-2.5 font-mono text-text-0">{a.source === "tournament" && a.place ? `${PLACE[a.place] ?? ""} ` : ""}{a.winner}</td>
                   <td className="px-4 py-2.5"><Badge>{SOURCE[a.source]}</Badge> <span className="text-text-1">{a.title}</span></td>
                   <td className="px-4 py-2.5 text-right font-mono text-gold">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</td>
-                  <td className="px-4 py-2.5 text-right text-xs text-text-2"><UtcTime value={a.paid_at} /></td>
+                  <td className="px-4 py-2.5 text-right text-xs text-text-2"><UtcTime value={a.paid_at} />{a.received && <span className="mt-0.5 block text-volt">✓ confirmed by winner</span>}</td>
                 </tr>
               ))}
             </tbody>

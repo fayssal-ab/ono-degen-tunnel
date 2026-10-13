@@ -224,38 +224,47 @@ export async function currentAccountId(): Promise<number | null> {
 
 // ── read models ───────────────────────────────────────────────────────────
 export interface Identity { provider: Provider; provider_user_id: string; username: string; avatar: string; linked_at: string }
-export interface AccountSummary { id: number; display_name: string; avatar: string; identities: Identity[] }
+export interface AccountSummary {
+  id: number; display_name: string; avatar: string; identities: Identity[];
+  payout_method: "stake" | "rainbet" | "other" | null; payout_username: string;
+}
 
 export async function getAccount(accountId: number): Promise<AccountSummary | null> {
   const pool = getPool();
   const [[acc], [ids]] = await Promise.all([
-    pool.query<RowDataPacket[]>("SELECT id, display_name, avatar FROM user_accounts WHERE id = ?", [accountId]),
+    pool.query<RowDataPacket[]>("SELECT id, display_name, avatar, payout_method, payout_username FROM user_accounts WHERE id = ?", [accountId]),
     pool.query<RowDataPacket[]>("SELECT provider, provider_user_id, username, avatar, linked_at FROM user_identities WHERE account_id = ? ORDER BY linked_at", [accountId]),
   ]);
   if (!acc[0]) return null;
-  return { id: Number(acc[0].id), display_name: acc[0].display_name, avatar: acc[0].avatar, identities: ids as Identity[] };
+  return {
+    id: Number(acc[0].id), display_name: acc[0].display_name, avatar: acc[0].avatar, identities: ids as Identity[],
+    payout_method: acc[0].payout_method ?? null, payout_username: acc[0].payout_username ?? "",
+  };
+}
+
+/** The linked Kick identity as a prize owner, if any. */
+export function kickOwner(acc: AccountSummary): { id: string; username: string } | null {
+  const k = acc.identities.find((i) => i.provider === "kick");
+  return k ? { id: k.provider_user_id, username: k.username } : null;
+}
+
+export async function savePayoutDefaults(accountId: number, method: "stake" | "rainbet" | "other" | null, username: string): Promise<void> {
+  await getPool().query("UPDATE user_accounts SET payout_method = ?, payout_username = ? WHERE id = ?", [method, username.slice(0, 191), accountId]);
 }
 
 export interface AccountActivity {
   tournaments: { id: number; title: string; slot_name: string; slot_image: string; state: string; place: number | null; joined_at: string }[];
-  prizes: { id: number; title: string; place: number | null; amount: string | null; prize_label: string; status: string; created_at: string }[];
 }
 
-/** Tournament entries (by Kick id) and prizes (by Kick username) of a linked Kick identity. */
+/** Tournament entries (by Kick id) of a linked Kick identity. Prizes: lib/prizes listOwnedAwards. */
 export async function getActivity(kick: Identity | undefined): Promise<AccountActivity> {
-  if (!kick) return { tournaments: [], prizes: [] };
-  const pool = getPool();
-  const [[t], [pr]] = await Promise.all([
-    pool.query<RowDataPacket[]>(
+  if (!kick) return { tournaments: [] };
+  const [t] = await getPool().query<RowDataPacket[]>(
       `SELECT k.id, k.title, p.slot_name, p.slot_image, p.state, p.joined_at,
               CASE WHEN k.champion_id = p.id THEN 1 WHEN k.runner_up_id = p.id THEN 2 WHEN k.third_id = p.id THEN 3 ELSE NULL END AS place
          FROM ko_participants p JOIN ko_tournaments k ON k.id = p.tournament_id
-        WHERE p.kick_user_id = ? AND k.status <> 'cancelled' ORDER BY p.joined_at DESC LIMIT 20`, [kick.provider_user_id]),
-    pool.query<RowDataPacket[]>(
-      `SELECT id, title, place, amount, prize_label, status, created_at FROM prize_awards
-        WHERE LOWER(winner) = LOWER(?) AND status <> 'void' ORDER BY created_at DESC LIMIT 20`, [kick.username]),
-  ]);
-  return { tournaments: t as AccountActivity["tournaments"], prizes: pr as AccountActivity["prizes"] };
+        WHERE p.kick_user_id = ? AND k.status <> 'cancelled' ORDER BY p.joined_at DESC LIMIT 20`, [kick.provider_user_id]);
+  return { tournaments: t as AccountActivity["tournaments"] };
 }
 
 export const AUTH_MESSAGES: Record<string, string> = {
