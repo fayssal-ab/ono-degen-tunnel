@@ -82,6 +82,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   battle_already_live: "A battle is already live. Pick its winner first.",
   no_ready_battle: "No battle is ready yet — roll players or finish the previous round.",
   battle_not_live: "Start the battle before choosing a winner.",
+  award_not_found: "That prize no longer exists.",
+  award_not_pending: "This prize was already confirmed or voided.",
 };
 
 export function explainError(code: string): string {

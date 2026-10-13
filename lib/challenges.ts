@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import { maskUsername } from "./mask";
 import { d } from "./money";
 import { EventError, withTx } from "./events/common";
+import { recordAward } from "./prizes";
 
 // Challenges (prompt §5.5): "first to hit Nx on <slot> with at least $B bet
 // wins <prize>". There is no casino-history integration, so claims are
@@ -244,6 +245,7 @@ export async function acceptClaim(claimId: number, note: string): Promise<void> 
     if (problems.length) throw new EventError("claim_invalid", problems.join("; "));
     await conn.query("UPDATE challenge_claims SET status = 'accepted', review_note = ?, reviewed_at = UTC_TIMESTAMP() WHERE id = ?", [note, claimId]);
     await conn.query("UPDATE challenges SET status = 'claimed', claimed_by = ?, claimed_at = ? WHERE id = ?", [claim.claimant, claim.played_at, c.id]);
+    await recordAward(conn, { source: "challenge", sourceRef: `challenge:${c.id}`, title: `${c.slot_name} ${c.required_multiplier}× challenge`, place: 1, winner: String(claim.claimant), prizeLabel: String(c.prize) });
     await conn.query(
       "UPDATE challenge_claims SET status = 'rejected', review_note = 'another claim was accepted', reviewed_at = UTC_TIMESTAMP() WHERE challenge_id = ? AND status = 'pending'",
       [c.id]

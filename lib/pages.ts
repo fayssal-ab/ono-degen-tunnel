@@ -13,6 +13,7 @@ export const TOGGLEABLE_PAGES: { key: string; label: string }[] = [
   { key: "/vip", label: "VIP Club" },
   { key: "/giveaways", label: "Giveaways" },
   { key: "/hall-of-fame", label: "Hall of Fame" },
+  { key: "/prizes", label: "Prizes awarded" },
   { key: "/stream", label: "Stream" },
 ];
 

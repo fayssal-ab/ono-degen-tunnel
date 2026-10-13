@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import { PERIOD_RESET_TIME_UTC } from "./constants";
 import { prizeForPercentage } from "./money";
 import { withTx, lockApp } from "./events/common";
+import { recordAward } from "./prizes";
 
 export interface Period {
   id: number;
@@ -289,6 +290,11 @@ export async function closePeriod(period: Period): Promise<void> {
         "INSERT INTO final_results (period_id, casino_id, username, wagered, `rank`, prize) VALUES ?",
         [values]
       );
+      for (const v of values) {
+        if (Number(v[5]) > 0) {
+          await recordAward(conn, { source: "leaderboard", sourceRef: `period:${period.id}:${v[1]}`, title: period.title || "Leaderboard", place: Number(v[4]), winner: String(v[2]), amount: String(v[5]) });
+        }
+      }
     }
 
     await conn.query("UPDATE periods SET status = 'closed' WHERE id = ?", [period.id]);

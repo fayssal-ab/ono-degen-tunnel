@@ -16,8 +16,12 @@ import {
 export const dynamic = "force-dynamic";
 
 const Id = z.number().int().positive().max(2_147_483_647);
+const Amount = z.union([z.null(), z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/)]);
 const Body = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), title: z.string().trim().min(1).max(120), prize: z.string().trim().max(120).default("") }),
+  z.object({
+    action: z.literal("create"), title: z.string().trim().min(1).max(120), prize: z.string().trim().max(120).default(""),
+    prizes: z.tuple([Amount, Amount, Amount]).optional(),
+  }),
   z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next"]), id: Id }),
   z.object({ action: z.literal("winner"), id: Id, matchId: z.number().int().positive(), side: z.union([z.literal(1), z.literal(2)]) }),
 ]);
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
   try {
     let result: unknown = null;
     switch (body.action) {
-      case "create": result = { id: await createKo({ title: body.title, prize: body.prize }) }; break;
+      case "create": result = { id: await createKo({ title: body.title, prize: body.prize, prizes: body.prizes }) }; break;
       case "open": await openRegistration(body.id); break;
       case "close": await closeRegistration(body.id); break;
       case "reset": await resetKo(body.id); break;

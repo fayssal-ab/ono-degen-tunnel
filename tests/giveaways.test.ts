@@ -10,6 +10,7 @@ const initial = () => ({
   g: { id: 1, title: "Test", prize: "$10", status: "open", server_seed: "v2test-seed", server_seed_hash: sha256("v2test-seed"), drawn_entrants: null as string[] | null, subscribers_only: 0, min_messages: 1, ends_at: null, drawn_at: null },
   entries: [{ kick_username: "alice", avatar: null, is_subscriber: 0, message_count: 1, excluded: 0, created_at: "2026-10-11" }],
   winners: [] as Record<string, unknown>[],
+  awards: 0,
 });
 let state = initial();
 let tail = Promise.resolve();
@@ -31,8 +32,9 @@ function execute(sql: string, args: unknown[], current: ReturnType<typeof initia
     current.g.drawn_entrants = null; current.g.status = "open";
     current.g.server_seed = String(args[0]); current.g.server_seed_hash = String(args[1]);
   } else if (sql.startsWith("INSERT INTO giveaway_entries")) current.entries[0].message_count++;
+  else if (sql.includes("INTO prize_awards")) current.awards++; // pending prize per winner
   else throw new Error(`Unexpected query: ${sql}`);
-  return [{ affectedRows: 1 }, []];
+  return [{ affectedRows: 1, insertId: current.winners.length }, []];
 }
 const pool = {
   query: async (sql: string, args: unknown[]) => execute(sql, args, state),

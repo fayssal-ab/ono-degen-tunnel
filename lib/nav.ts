@@ -38,6 +38,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "VIP Club", href: "/vip", icon: "Crown", keywords: ["tier", "ladder"] },
       { label: "Giveaways", href: "/giveaways", icon: "Gift", keywords: ["raffle", "winner"] },
       { label: "Hall of Fame", href: "/hall-of-fame", icon: "Medal", keywords: ["champions", "history"] },
+      { label: "Prizes awarded", href: "/prizes", icon: "BadgeDollarSign", keywords: ["paid", "winners", "payouts"] },
     ],
   },
 ];

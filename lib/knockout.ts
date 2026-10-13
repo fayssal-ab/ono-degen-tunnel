@@ -4,6 +4,11 @@ import type { RowDataPacket, PoolConnection, ResultSetHeader } from "mysql2/prom
 import { getPool } from "./db";
 import { EventError, withTx, lockApp } from "./events/common";
 import { randomPoolSlot } from "./slotCatalog";
+import { recordAward } from "./prizes";
+
+/** Bracket play order: rounds in turn; in the finals the 3rd-place match comes before the Grand Final. */
+const PLAY_ORDER = "round, CASE WHEN round = 4 THEN 1 - match_index ELSE match_index END";
+const playKey = (m: { round: number; match_index: number }) => m.round * 10 + (m.round === 4 ? 1 - m.match_index : m.match_index);
 
 // 16-player single-elimination knockout fed by Kick chat (prompt: tournament
 // upgrade). All rules are enforced here, server-side, under row locks:
@@ -27,7 +32,8 @@ export const ROUNDS: Record<number, { name: string; matches: number }> = {
   1: { name: "Round of 16", matches: 8 },
   2: { name: "Quarter-final", matches: 4 },
   3: { name: "Semi-final", matches: 2 },
-  4: { name: "Grand Final", matches: 1 },
+  // round 4: match 0 = Grand Final, match 1 = 3rd-place match (semi-final losers)
+  4: { name: "Finals", matches: 2 },
 };
 
 export type ParticipantState = "registered" | "in_knockout" | "eliminated" | "champion";
@@ -39,7 +45,12 @@ export interface KoTournament {
   prize: string;
   status: "open" | "closed" | "finished" | "cancelled";
   max_players: number;
+  prize_1: string | null;
+  prize_2: string | null;
+  prize_3: string | null;
   champion_id: number | null;
+  runner_up_id: number | null;
+  third_id: number | null;
   roll_seq: number;
   focus_match_id: number | null;
   created_at: string;
@@ -89,7 +100,7 @@ export function pickTwo(n: number, rand: (max: number) => number = randomInt): [
 
 // ── reads ──
 
-const T_COLS = "id, title, prize, status, max_players, champion_id, roll_seq, focus_match_id, created_at, finished_at";
+const T_COLS = "id, title, prize, prize_1, prize_2, prize_3, status, max_players, champion_id, runner_up_id, third_id, roll_seq, focus_match_id, created_at, finished_at";
 const P_COLS = "id, username, slot_name, slot_provider, slot_image, state, bracket_pos, rerolls, joined_at";
 
 /** Running tournament (open/closed), else the most recent finished one. */
@@ -134,6 +145,8 @@ export interface KoState {
   pendingRoll: KoMatch | null;
   nextReady: KoMatch | null;
   champion: KoParticipant | null;
+  runnerUp: KoParticipant | null;
+  third: KoParticipant | null;
 }
 
 export async function getKoState(t: KoTournament): Promise<KoState> {
@@ -157,7 +170,7 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
   }
   const live = matches.find((m) => m.status === "live") ?? null;
   const pendingRoll = matches.find((m) => m.status === "rolled") ?? null;
-  const nextReady = matches.find((m) => m.status === "ready") ?? null;
+  const nextReady = [...matches].sort((a, b) => playKey(a) - playKey(b)).find((m) => m.status === "ready") ?? null;
   const focus = (t.focus_match_id && matches.find((m) => m.id === Number(t.focus_match_id))) || live || pendingRoll || null;
   return {
     tournament: t,
@@ -170,6 +183,8 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
     pendingRoll,
     nextReady,
     champion: t.champion_id ? byId.get(Number(t.champion_id)) ?? null : null,
+    runnerUp: t.runner_up_id ? byId.get(Number(t.runner_up_id)) ?? null : null,
+    third: t.third_id ? byId.get(Number(t.third_id)) ?? null : null,
   };
 }
 
@@ -188,12 +203,16 @@ async function lockRunning(conn: PoolConnection, id: number): Promise<KoTourname
   return t;
 }
 
-export async function createKo(input: { title: string; prize: string }): Promise<number> {
+export async function createKo(input: { title: string; prize: string; prizes?: [string | null, string | null, string | null] }): Promise<number> {
   return withTx(async (conn) => {
     await lockApp(conn, "ko");
     const active = await getActiveKo(conn);
     if (active) throw new EventError("ko_already_running", `#${active.id} is still running — finish or reset it first`);
-    const [res] = await conn.query<ResultSetHeader>("INSERT INTO ko_tournaments (title, prize, status) VALUES (?, ?, 'closed')", [input.title, input.prize]);
+    const [p1, p2, p3] = input.prizes ?? [null, null, null];
+    const [res] = await conn.query<ResultSetHeader>(
+      "INSERT INTO ko_tournaments (title, prize, prize_1, prize_2, prize_3, status) VALUES (?, ?, ?, ?, ?, 'closed')",
+      [input.title, input.prize, p1, p2, p3]
+    );
     const id = res.insertId;
     const values: unknown[][] = [];
     for (const [round, r] of Object.entries(ROUNDS)) for (let i = 0; i < r.matches; i++) values.push([id, Number(round), i]);
@@ -375,7 +394,7 @@ export async function cancelRoll(id: number): Promise<void> {
 export async function startBattle(id: number): Promise<number> {
   return withTx(async (conn) => {
     const t = await lockRunning(conn, id);
-    const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY round, match_index FOR UPDATE", [id]);
+    const [rows] = await conn.query<RowDataPacket[]>(`SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY ${PLAY_ORDER} FOR UPDATE`, [id]);
     if (rows.some((m) => m.status === "live")) throw new EventError("battle_already_live");
     if (rows.some((m) => m.status === "rolled")) throw new EventError("roll_pending");
     const focused = rows.find((m) => Number(m.id) === Number(t.focus_match_id) && m.status === "ready");
@@ -392,7 +411,7 @@ export async function focusNext(id: number): Promise<number | null> {
   return withTx(async (conn) => {
     await lockRunning(conn, id);
     const [rows] = await conn.query<RowDataPacket[]>(
-      "SELECT id, status FROM ko_matches WHERE tournament_id = ? AND status IN ('live','rolled','ready') ORDER BY FIELD(status,'live','rolled','ready'), round, match_index LIMIT 1",
+      `SELECT id, status FROM ko_matches WHERE tournament_id = ? AND status IN ('live','rolled','ready') ORDER BY FIELD(status,'live','rolled','ready'), ${PLAY_ORDER} LIMIT 1`,
       [id]
     );
     const next = rows[0] ? Number(rows[0].id) : null;
@@ -411,7 +430,8 @@ export async function declareWinner(id: number, matchId: number, side: 1 | 2): P
     const winner = Number(side === 1 ? m.p1_id : m.p2_id);
     const loser = Number(side === 1 ? m.p2_id : m.p1_id);
     await conn.query("UPDATE ko_matches SET status = 'done', winner_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?", [winner, matchId]);
-    await conn.query("UPDATE ko_participants SET state = 'eliminated' WHERE id = ?", [loser]);
+    // semi-final losers aren't out yet: they play the 3rd-place match
+    if (Number(m.round) !== 3) await conn.query("UPDATE ko_participants SET state = 'eliminated' WHERE id = ?", [loser]);
     await conn.query("UPDATE ko_tournaments SET focus_match_id = ? WHERE id = ?", [matchId, id]);
     const champion = await propagate(conn, id);
     return { winnerId: winner, champion: champion === winner };
@@ -421,6 +441,17 @@ export async function declareWinner(id: number, matchId: number, side: 1 | 2): P
 // ── bracket propagation ──
 
 type Side = { kind: "player"; id: number } | { kind: "void" } | { kind: "pending" };
+
+/** 3rd-place match feeder: the semi-final's loser (a semi won on a bye has none). */
+function loserSide(m: RowDataPacket | undefined): Side {
+  if (!m) return { kind: "pending" };
+  if (m.status === "done" && m.winner_id) {
+    const loser = Number(m.winner_id) === Number(m.p1_id) ? m.p2_id : m.p1_id;
+    return loser ? { kind: "player", id: Number(loser) } : { kind: "void" };
+  }
+  if (m.status === "bye" || m.status === "void") return { kind: "void" };
+  return { kind: "pending" };
+}
 
 function feederSide(m: RowDataPacket | undefined): Side {
   if (!m) return { kind: "pending" };
@@ -457,10 +488,12 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
   for (let round = 2; round <= 4; round++) {
     for (const m of rows.filter((x) => Number(x.round) === round)) {
       if (["live", "done", "bye", "void"].includes(m.status)) continue;
-      const f1 = rows.find((x) => Number(x.round) === round - 1 && Number(x.match_index) === Number(m.match_index) * 2);
-      const f2 = rows.find((x) => Number(x.round) === round - 1 && Number(x.match_index) === Number(m.match_index) * 2 + 1);
-      const a = feederSide(f1);
-      const b = feederSide(f2);
+      const bronze = round === 4 && Number(m.match_index) === 1;
+      const fi = bronze ? 0 : Number(m.match_index) * 2;
+      const f1 = rows.find((x) => Number(x.round) === round - 1 && Number(x.match_index) === fi);
+      const f2 = rows.find((x) => Number(x.round) === round - 1 && Number(x.match_index) === fi + 1);
+      const a = bronze ? loserSide(f1) : feederSide(f1);
+      const b = bronze ? loserSide(f2) : feederSide(f2);
       const p1 = a.kind === "player" ? a.id : null;
       const p2 = b.kind === "player" ? b.id : null;
       let status: MatchStatus = "empty";
@@ -478,12 +511,33 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
     }
   }
 
-  const final = rows.find((x) => Number(x.round) === 4);
-  if (final && (final.status === "done" || final.status === "bye") && final.winner_id) {
-    const champ = Number(final.winner_id);
-    await conn.query("UPDATE ko_participants SET state = 'champion' WHERE id = ?", [champ]);
-    await conn.query("UPDATE ko_tournaments SET status = 'finished', champion_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?", [champ, id]);
-    return champ;
+  // Finished once the Grand Final has a winner and the 3rd-place match is decided.
+  const final = rows.find((x) => Number(x.round) === 4 && Number(x.match_index) === 0);
+  const bronze = rows.find((x) => Number(x.round) === 4 && Number(x.match_index) === 1);
+  const finalDone = final && (final.status === "done" || final.status === "bye") && final.winner_id;
+  const bronzeDone = !bronze || ["done", "bye", "void"].includes(bronze.status);
+  if (!finalDone || !bronzeDone) return null;
+  const champ = Number(final.winner_id);
+  const runnerUp = final.status === "done" ? Number(Number(final.p1_id) === champ ? final.p2_id : final.p1_id) : null;
+  const third = bronze && (bronze.status === "done" || bronze.status === "bye") && bronze.winner_id ? Number(bronze.winner_id) : null;
+  await conn.query("UPDATE ko_participants SET state = 'champion' WHERE id = ?", [champ]);
+  await conn.query("UPDATE ko_participants SET state = 'eliminated' WHERE tournament_id = ? AND state = 'in_knockout'", [id]);
+  const [tt] = await conn.query<RowDataPacket[]>("SELECT title, prize, prize_1, prize_2, prize_3 FROM ko_tournaments WHERE id = ?", [id]);
+  await conn.query(
+    "UPDATE ko_tournaments SET status = 'finished', champion_id = ?, runner_up_id = ?, third_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?",
+    [champ, runnerUp, third, id]
+  );
+  // podium prizes → pending awards (admin confirms payment in Admin → Prizes)
+  const podium: [number, number | null, string | null][] = [[1, champ, tt[0].prize_1], [2, runnerUp, tt[0].prize_2], [3, third, tt[0].prize_3]];
+  const [names] = await conn.query<RowDataPacket[]>("SELECT id, username FROM ko_participants WHERE tournament_id = ?", [id]);
+  for (const [place, pid, amount] of podium) {
+    const winner = pid ? names.find((n) => Number(n.id) === pid) : null;
+    if (!winner) continue;
+    await recordAward(conn, {
+      source: "tournament", sourceRef: `ko:${id}:${place}`, title: String(tt[0].title || "Knockout"), place,
+      winner: String(winner.username), amount: amount != null ? String(amount) : null,
+      prizeLabel: place === 1 ? String(tt[0].prize ?? "") : `${place === 2 ? "2nd" : "3rd"} place`,
+    });
   }
-  return null;
+  return champ;
 }

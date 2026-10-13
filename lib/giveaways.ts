@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import { generateServerSeed, sha256, entriesHash, winnerIndex } from "./fair";
 import { resolveKickAvatar } from "./kickChat";
 import { entryEligible, collectionOpen } from "./giveawayRules";
+import { recordAward } from "./prizes";
 
 // Giveaways (prompt §5.10) — sharkz-style, but entries come from Kick chat
 // (no user accounts) and the draw is provably fair (see lib/fair.ts). Entrant
@@ -360,11 +361,13 @@ export async function drawWinners(giveawayId: number, count: number): Promise<Dr
       const index = winnerIndex(String(g.server_seed), hash, nonce, names.length);
       const username = names[index];
       const avatar = current.find((e) => String(e.kick_username).toLowerCase() === username.toLowerCase())?.avatar ?? null;
-      await conn.query(
+      const [won] = await conn.query<ResultSetHeader>(
         `INSERT INTO giveaway_winners (giveaway_id, kick_username, avatar, prize, nonce, winner_index, entrant_count, entries_hash, server_seed, server_seed_hash)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [giveawayId, username, avatar, g.prize, nonce, index, names.length, hash, g.server_seed, g.server_seed_hash]
       );
+      // pending until the admin confirms the winner received it (Admin → Prizes)
+      await recordAward(conn, { source: "giveaway", sourceRef: `gw:${won.insertId}`, title: String(g.title || "Giveaway"), winner: username, prizeLabel: String(g.prize ?? "") });
       results.push({ username, avatar, nonce, index });
     }
     await conn.query("UPDATE giveaways SET status = 'drawn', drawn_at = NOW() WHERE id = ?", [giveawayId]);

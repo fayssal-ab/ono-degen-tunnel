@@ -26,7 +26,8 @@ export const dynamic = "force-dynamic";
 async function getHomeStats() {
   try {
     const pool = getPool();
-    const [[paid]] = await pool.query<RowDataPacket[]>("SELECT COALESCE(SUM(prize),0) AS n FROM final_results");
+    // confirmed payouts only (Admin → Prizes); leaderboard history was backfilled as paid
+    const [[paid]] = await pool.query<RowDataPacket[]>("SELECT COALESCE(SUM(amount),0) AS n FROM prize_awards WHERE status = 'paid'");
     const [[players]] = await pool.query<RowDataPacket[]>("SELECT COUNT(DISTINCT casino_id) AS n FROM live_entries");
     const [[gw]] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM giveaway_winners");
     return { paidOut: Number(paid.n), players: Number(players.n), giveaways: Number(gw.n) };

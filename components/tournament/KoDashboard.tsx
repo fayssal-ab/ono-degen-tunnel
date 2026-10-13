@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { KoState, KoMatch } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
 import { useJoinReader, type ReaderStatus } from "./useJoinReader";
-import { Bracket16, ChampionCard, Counter, ParticipantRow, RollReveal, VsScreen, ROUND_NAMES } from "./parts";
+import { Bracket16, Counter, ParticipantRow, Podium, RollReveal, VsScreen, ROUND_NAMES } from "./parts";
 
 // Live control room for the 16-player knockout. All state comes from the
 // server (polled); every button is a server action with backend rule checks.
@@ -40,7 +40,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [revealed, setRevealed] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("bracket");
-  const [form, setForm] = useState({ title: "", prize: "" });
+  const [form, setForm] = useState({ title: "", prize: "", p1: "", p2: "", p3: "" });
 
   const act = useCallback(async (action: string, extra: Record<string, unknown> = {}, confirmText?: string) => {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -72,9 +72,12 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
       <div className="space-y-6">
         {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm">Live state unavailable — check the database connection.</p>}
         {state?.champion && (
-          <div className="surface p-6"><p className="label mb-3">Last tournament · {state.tournament.title}</p><ChampionCard p={state.champion} /></div>
+          <div className="surface p-6"><p className="label mb-3">Last tournament · {state.tournament.title}</p><Podium state={state} /></div>
         )}
-        <form className="surface grid gap-3 p-6 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={(e) => { e.preventDefault(); act("create", form); }}>
+        <form className="surface grid gap-3 p-6 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={(e) => {
+          e.preventDefault();
+          act("create", { title: form.title, prize: form.prize, prizes: [form.p1 || null, form.p2 || null, form.p3 || null] });
+        }}>
           <label className="block"><span className="label">New tournament title</span>
             <input required maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Friday Knockout" className="mt-1 h-11 w-full rounded-xl border border-line bg-bg-1 px-3 text-sm focus:border-gold focus:outline-none" />
           </label>
@@ -82,6 +85,15 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             <input maxLength={120} value={form.prize} onChange={(e) => setForm({ ...form, prize: e.target.value })} placeholder="$500" className="mt-1 h-11 w-full rounded-xl border border-line bg-bg-1 px-3 text-sm focus:border-gold focus:outline-none" />
           </label>
           <button disabled={busy !== null} className={gold}>Create tournament</button>
+          <div className="grid gap-3 sm:col-span-3 sm:grid-cols-3">
+            {(["p1", "p2", "p3"] as const).map((k, i) => (
+              <label key={k} className="block"><span className="label">{["🥇 1st", "🥈 2nd", "🥉 3rd"][i]} place prize ($)</span>
+                <input inputMode="decimal" pattern="\d{1,9}(\.\d{1,2})?" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={["300", "150", "50"][i]}
+                  className="mt-1 h-11 w-full rounded-xl border border-line bg-bg-1 px-3 text-sm focus:border-gold focus:outline-none" />
+              </label>
+            ))}
+            <p className="text-xs text-text-2 sm:col-span-3">The 3 podium prizes are added automatically to Admin → Prizes when the tournament ends; confirm each one once it&apos;s paid.</p>
+          </div>
         </form>
         {msg && <p role="alert" className="text-sm text-danger">{msg.text}</p>}
       </div>
@@ -91,7 +103,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const showRoll = focus && focus.status === "rolled" && revealed !== focus.roll_seq;
   const tabs: { key: Tab; label: string }[] = [
     { key: "bracket", label: "Full bracket" }, { key: "round", label: "Current round" }, { key: "qualified", label: "Qualified" },
-    { key: "eliminated", label: "Eliminated" }, { key: "final", label: "Grand final" },
+    { key: "eliminated", label: "Eliminated" }, { key: "final", label: "Finals" },
   ];
   const currentRound = Math.min(...state.matches.filter((m) => ["empty", "rolled", "ready", "live"].includes(m.status)).map((m) => m.round), 4);
 
@@ -127,7 +139,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(245,196,81,0.10),transparent_60%)]" />
           <div className="relative">
             {state.champion ? (
-              <ChampionCard p={state.champion} celebrate />
+              <Podium state={state} />
             ) : focus && focus.status !== "empty" ? (
               showRoll ? (
                 <RollReveal key={`roll-${focus.roll_seq}`} match={focus} pool={pool} onDone={() => setRevealed(focus.roll_seq)} />
@@ -172,7 +184,12 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             <p className="text-sm text-text-2">{t.status === "open" ? "Waiting for the first !join…" : "Open registration to start collecting !join."}</p>
           ) : (
             <ol className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-              {state.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} />)}
+              {state.participants.map((p, i) => (
+                <div key={p.id}>
+                  <ParticipantRow p={p} index={i} />
+                  {!p.slot_image && <AddArt name={p.slot_name} onDone={refresh} />}
+                </div>
+              ))}
             </ol>
           )}
           {reader.events.length > 0 && (
@@ -211,8 +228,9 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           </ol>
         )}
         {tab === "final" && (() => {
-          const f = state.matches.find((m) => m.round === 4);
-          return f ? <VsScreen match={f} /> : null;
+          const f = state.matches.find((m) => m.round === 4 && m.match_index === 0);
+          const b = state.matches.find((m) => m.round === 4 && m.match_index === 1);
+          return <div className="space-y-6">{b && <VsScreen match={b} />}{f && <VsScreen match={f} />}</div>;
         })()}
       </section>
 
@@ -220,5 +238,45 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
         OBS: add a Browser Source (1920×1080) with <code className="text-gold">{overlayUrl}</code> — it updates by itself and shows no controls.
       </p>
     </div>
+  );
+}
+
+/**
+ * Stake-only slots aren't in any public catalogue: paste the game's image link
+ * from Stake once; it's checked, saved as a Stake-only slot and shown for every
+ * player/bonus/challenge using that slot (and future !join).
+ */
+function AddArt({ name, onDone }: { name: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [provider, setProvider] = useState("");
+  const [url, setUrl] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!open) {
+    return <button onClick={() => setOpen(true)} className="ml-9 mt-1 text-[11px] text-gold hover:underline">+ Add image for “{name}”</button>;
+  }
+  return (
+    <form
+      className="ml-9 mt-1 space-y-1 rounded-lg border border-line bg-bg-1 p-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true); setMsg(null);
+        try {
+          const res = await fetch("/api/admin/slots/stake", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add", name, provider, imageUrl: url }) });
+          const d = (await res.json()) as { ok: boolean; detail?: string | null; error?: string };
+          if (!d.ok) setMsg(d.detail ?? d.error ?? "Refused");
+          else { setOpen(false); onDone(); }
+        } catch { setMsg("Network error"); } finally { setBusy(false); }
+      }}
+    >
+      <input required value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="Provider (e.g. Twist Gaming)" maxLength={120} className="h-8 w-full rounded-md border border-line bg-bg-2 px-2 text-xs" />
+      <input required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Image link from Stake (https://mediumrare.imgix.net/…)" maxLength={512} className="h-8 w-full rounded-md border border-line bg-bg-2 px-2 text-xs" />
+      <p className="text-[10px] text-text-2">On Stake: right-click the game tile → Copy image address.</p>
+      <div className="flex gap-2">
+        <button disabled={busy} className="rounded-md bg-gold px-2 py-1 text-xs font-semibold text-bg-0">{busy ? "Checking…" : "Save image"}</button>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-text-2">Cancel</button>
+      </div>
+      {msg && <p className="text-[11px] text-danger">{msg}</p>}
+    </form>
   );
 }

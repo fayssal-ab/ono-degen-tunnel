@@ -391,7 +391,36 @@ export async function addStakeOnlySlot(input: { name: string; provider: string; 
     [id, slug, input.name, normalizeName(input.name), input.provider, provSlug, url.toString()]
   );
   cache = null;
+  await backfillSlotArt(input.name, input.provider, url.toString());
   return id;
+}
+
+/**
+ * After art is added for a slot, fill it in wherever that slot (same name,
+ * normalised) is already used without an image: tournament players, hunt
+ * bonuses, challenges. Returns how many rows got the image.
+ */
+export async function backfillSlotArt(name: string, provider: string, imageUrl: string): Promise<number> {
+  const target = normalizeName(name);
+  const pool = getPool();
+  let updated = 0;
+  const tables: [string, string, string, string][] = [
+    ["ko_participants", "slot_name", "slot_image", "(slot_image = '' OR slot_image IS NULL)"],
+    ["bonus_hunt_entries", "slot_name", "image_url", "(image_url IS NULL OR image_url = '')"],
+    ["challenges", "slot_name", "image_url", "(image_url IS NULL OR image_url = '')"],
+  ];
+  for (const [table, nameCol, imgCol, missing] of tables) {
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, ${nameCol} AS n FROM ${table} WHERE ${missing}`);
+    const ids = rows.filter((r) => normalizeName(String(r.n)) === target).map((r) => r.id);
+    if (!ids.length) continue;
+    const provCol = table === "ko_participants" ? "slot_provider" : "provider";
+    const [res] = await pool.query<import("mysql2").ResultSetHeader>(
+      `UPDATE ${table} SET ${imgCol} = ?, ${provCol} = IF(${provCol} = '' OR ${provCol} IS NULL, ?, ${provCol}) WHERE id IN (?)`,
+      [imageUrl, provider, ids]
+    );
+    updated += res.affectedRows;
+  }
+  return updated;
 }
 
 export async function getStakeSlots(limit = 500): Promise<{ id: string; name: string; provider: string; imageUrl: string | null; source: string }[]> {

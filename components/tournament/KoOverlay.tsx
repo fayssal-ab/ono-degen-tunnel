@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { KoState } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
-import { ChampionCard, RollReveal, VsScreen, ROUND_NAMES, SlotArt } from "./parts";
+import { Podium, RollReveal, VsScreen, matchLabel, SlotArt } from "./parts";
 
 // Stream overlay: current battle with VS / roll reveal / winner, grand final
 // and champion celebration; during registration a !join call-to-action with
@@ -21,11 +21,11 @@ export function KoOverlay({ initial }: { initial: KoState | null }) {
 
   let body: React.ReactNode = null;
   if (state.champion) {
-    body = <div className={card} style={bg}><ChampionCard p={state.champion} celebrate /></div>;
+    body = <div className={`${card} w-[1400px]`} style={bg}><Podium state={state} /></div>;
   } else if (focus && focus.status !== "empty" && focus.status !== "void") {
     body = (
       <div className={`${card} w-[1500px]`} style={bg}>
-        {focus.round === 4 && <p className="mb-2 text-center font-bang text-5xl tracking-widest text-gold">GRAND FINAL</p>}
+        {focus.round === 4 && <p className="mb-2 text-center font-bang text-5xl tracking-widest text-gold">{focus.match_index === 0 ? "GRAND FINAL" : "3RD PLACE MATCH"}</p>}
         {focus.status === "rolled" && revealed !== focus.roll_seq ? (
           <RollReveal key={`roll-${focus.roll_seq}`} match={focus} pool={pool} big onDone={() => setRevealed(focus.roll_seq)} />
         ) : (
@@ -51,7 +51,7 @@ export function KoOverlay({ initial }: { initial: KoState | null }) {
       </div>
     );
   } else if (state.nextReady) {
-    body = <div className={`${card} w-[1500px]`} style={bg}><p className="label mb-2 text-center">Up next · {ROUND_NAMES[state.nextReady.round]}</p><VsScreen match={state.nextReady} big /></div>;
+    body = <div className={`${card} w-[1500px]`} style={bg}><p className="label mb-2 text-center">Up next · {matchLabel(state.nextReady)}</p><VsScreen match={state.nextReady} big /></div>;
   }
 
   return <div className="flex min-h-dvh items-center justify-center p-10">{body}</div>;

@@ -13,6 +13,7 @@ import { SlotThumb } from "@/components/ui/SlotThumb";
 import { Flash, Field, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton, SlotNameInput } from "@/components/admin/client";
 import { SlotPicker } from "@/components/admin/SlotPicker";
+import { findSlotByName } from "@/lib/slotCatalog";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/bonus-hunt";
@@ -46,8 +47,10 @@ async function addEntryAction(formData: FormData) {
     const f = parseForm(PickForm, formData);
     if (f.slot_id) return await addHuntEntryFromCatalog(f.hunt_id, f.slot_id, f.bet);
     if (!f.custom_name) throw new EventError("invalid_input", "pick a slot from the list");
-    await addHuntEntry(f.hunt_id, { slot_name: f.custom_name, provider: "", bet: f.bet, image_url: "" });
-    return { name: f.custom_name, custom: true };
+    // typed name: enriched with catalogue art/provider when it matches (incl. Stake-only slots)
+    const slot = await findSlotByName(f.custom_name);
+    await addHuntEntry(f.hunt_id, { slot_name: slot?.name ?? f.custom_name, provider: slot?.provider ?? "", bet: f.bet, image_url: slot?.imageUrl ?? "" });
+    return { name: slot?.name ?? f.custom_name, custom: !slot?.matched };
   });
 }
 

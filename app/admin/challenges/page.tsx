@@ -11,16 +11,17 @@ import { DISCORD_URL } from "@/lib/constants";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { Flash, Field, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
-import { SubmitButton, SlotNameInput } from "@/components/admin/client";
+import { SubmitButton } from "@/components/admin/client";
+import { SlotField } from "@/components/admin/SlotField";
+import { getSlot, findSlotByName } from "@/lib/slotCatalog";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/challenges";
 const REVALIDATE = ["/challenges", "/hall-of-fame"];
 
 const ChallengeForm = z.object({
+  slot_id: zText(191),
   slot_name: zRequiredText(191),
-  provider: zText(120),
-  image_url: zUrl,
   required_multiplier: zMultiplier,
   min_bet: zMoney,
   prize: zRequiredText(120),
@@ -28,6 +29,13 @@ const ChallengeForm = z.object({
   position: z.coerce.number().int().min(-1000).max(1000).default(0),
 });
 const IdForm = z.object({ id: zId });
+
+/** Name, provider and art from the picked catalogue slot (or the typed name, enriched when it matches). */
+async function withSlot(f: z.infer<typeof ChallengeForm>) {
+  const { slot_id, ...rest } = f;
+  const slot = (slot_id ? await getSlot(slot_id) : null) ?? (await findSlotByName(f.slot_name));
+  return { ...rest, slot_name: slot?.name ?? f.slot_name, provider: slot?.provider ?? "", image_url: slot?.imageUrl ?? "" };
+}
 const ClaimForm = z.object({
   claimant: zRequiredText(191),
   proof_url: zUrl,
@@ -40,13 +48,13 @@ const Review = z.object({ claim_id: zId, note: zText(255) });
 
 async function createAction(formData: FormData) {
   "use server";
-  await adminAction({ path: PATH, audit: "challenge.create", revalidate: REVALIDATE }, async () => ({ id: await createChallenge(parseForm(ChallengeForm, formData)) }));
+  await adminAction({ path: PATH, audit: "challenge.create", revalidate: REVALIDATE }, async () => ({ id: await createChallenge(await withSlot(parseForm(ChallengeForm, formData))) }));
 }
 
 async function updateAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "challenge.update", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
-    await updateChallenge(parseForm(IdForm, { id: formData.get("id") }).id, parseForm(ChallengeForm, formData));
+    await updateChallenge(parseForm(IdForm, { id: formData.get("id") }).id, await withSlot(parseForm(ChallengeForm, formData)));
   });
 }
 
@@ -93,9 +101,7 @@ const TONE = { open: "volt", claimed: "gold", expired: "neutral" } as const;
 function ChallengeFields({ c }: { c?: AdminChallenge }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Field label="Slot" className="sm:col-span-2"><SlotNameInput defaultValue={c?.slot_name} className={inputCls} /></Field>
-      <Field label="Provider"><input name="provider" maxLength={120} defaultValue={c?.provider} className={inputCls} /></Field>
-      <Field label="Image URL"><input name="image_url" maxLength={512} defaultValue={c?.image_url ?? ""} className={inputCls} /></Field>
+      <Field label="Slot (image + provider come from the catalogue)" className="sm:col-span-2 lg:col-span-4"><SlotField defaultName={c?.slot_name} defaultImage={c?.image_url} defaultProvider={c?.provider} /></Field>
       <Field label="Target multiplier (×)"><input name="required_multiplier" required inputMode="decimal" defaultValue={c?.required_multiplier} placeholder="1000" className={inputCls} /></Field>
       <Field label="Min bet ($)"><input name="min_bet" required inputMode="decimal" defaultValue={c?.min_bet ?? "0"} className={inputCls} /></Field>
       <Field label="Prize"><input name="prize" required maxLength={120} defaultValue={c?.prize} placeholder="$200" className={inputCls} /></Field>

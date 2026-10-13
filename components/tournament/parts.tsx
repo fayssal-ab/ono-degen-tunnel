@@ -6,7 +6,13 @@ import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 // Presentation pieces shared by the admin dashboard, the public page and the
 // OBS overlay. Usernames are public Kick chat handles (as on giveaways).
 
-export const ROUND_NAMES: Record<number, string> = { 1: "Round of 16", 2: "Quarter-finals", 3: "Semi-finals", 4: "Grand Final" };
+export const ROUND_NAMES: Record<number, string> = { 1: "Round of 16", 2: "Quarter-finals", 3: "Semi-finals", 4: "Finals" };
+
+/** "Round of 16 · Battle 3", "3rd-place match", "Grand Final". */
+export function matchLabel(m: Pick<KoMatch, "round" | "match_index">): string {
+  if (m.round === 4) return m.match_index === 1 ? "3rd-place match" : "Grand Final";
+  return `${ROUND_NAMES[m.round]} · Battle ${m.match_index + 1}`;
+}
 const STATE_LABEL: Record<KoParticipant["state"], string> = { registered: "Registered", in_knockout: "In knockout", eliminated: "Eliminated", champion: "Champion" };
 const STATE_TONE: Record<KoParticipant["state"], string> = {
   registered: "border-cyan/40 text-cyan", in_knockout: "border-volt/40 text-volt", eliminated: "border-danger/40 text-danger", champion: "border-gold/60 text-gold",
@@ -87,7 +93,7 @@ export function VsScreen({ match, big = false }: { match: KoMatch; big?: boolean
   return (
     <div className="relative">
       <p className="label mb-4 text-center">
-        {ROUND_NAMES[match.round]}{match.round < 4 ? ` · Battle ${match.match_index + 1}` : ""}
+        {matchLabel(match)}
         {match.status === "live" && <span className="ml-2 rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">LIVE</span>}
         {match.status === "rolled" && <span className="ml-2 text-gold">· awaiting confirmation</span>}
         {match.status === "bye" && <span className="ml-2 text-volt">· bye</span>}
@@ -195,24 +201,31 @@ export function Bracket16({ state }: { state: KoState }) {
             <div key={r} className="flex flex-col">
               <p className="label mb-3 text-center">{ROUND_NAMES[r]}</p>
               <div className="flex flex-1 flex-col justify-around gap-3">
-                {byRound(r).map((m) => <BracketCell key={m.id} m={m} champion={champ} />)}
+                {byRound(r).map((m) => (
+                  <div key={m.id}>
+                    {r === 4 && <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-text-2">{matchLabel(m)}</p>}
+                    <BracketCell m={m} champion={champ} />
+                  </div>
+                ))}
               </div>
             </div>
           ))}
           <div className="flex flex-col">
-            <p className="label mb-3 text-center">Champion</p>
+            <p className="label mb-3 text-center">Podium</p>
             <div className="flex flex-1 items-center">
-              <ChampionCard p={state.champion} compact />
+              <Podium state={state} compact />
             </div>
           </div>
         </div>
       </div>
       <div className="space-y-6 lg:hidden">
-        {state.champion && <ChampionCard p={state.champion} compact />}
+        {state.champion && <Podium state={state} compact />}
         {[4, 3, 2, 1].map((r) => (
           <section key={r}>
             <p className="label mb-2">{ROUND_NAMES[r]}</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{byRound(r).map((m) => <BracketCell key={m.id} m={m} champion={champ} />)}</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{byRound(r).map((m) => (
+              <div key={m.id}>{r === 4 && <p className="mb-1 text-[10px] uppercase tracking-wider text-text-2">{matchLabel(m)}</p>}<BracketCell m={m} champion={champ} /></div>
+            ))}</div>
           </section>
         ))}
       </div>
@@ -239,6 +252,48 @@ export function ChampionCard({ p, compact = false, celebrate = false }: { p: KoP
       <p className={`mt-2 truncate font-display font-extrabold text-gold ${compact ? "text-base" : "text-5xl"}`}>{p.username}</p>
       <p className={`truncate text-cyan ${compact ? "text-[11px]" : "text-xl"}`}>{p.slot_name}</p>
       {!compact && <p className="mt-2 label text-gold">Tournament champion</p>}
+    </div>
+  );
+}
+
+const MEDAL = ["🥇", "🥈", "🥉"];
+
+/** 1st / 2nd / 3rd with prize amounts. Champion card in the middle, celebrated. */
+export function Podium({ state, compact = false }: { state: KoState; compact?: boolean }) {
+  const t = state.tournament;
+  const places: [KoParticipant | null, string | null][] = [[state.champion, t.prize_1], [state.runnerUp, t.prize_2], [state.third, t.prize_3]];
+  if (compact) {
+    return (
+      <ol className="w-full space-y-2">
+        {places.map(([p, amount], i) => (
+          <li key={i} className={`flex items-center gap-2 rounded-lg border p-2 ${i === 0 ? "border-gold/50 bg-gold/10" : "border-line bg-bg-2"}`}>
+            <span className="text-lg">{MEDAL[i]}</span>
+            {p ? <SlotArt p={p} size={28} className="rounded-md" /> : null}
+            <span className={`min-w-0 flex-1 truncate text-xs ${i === 0 ? "font-semibold text-gold" : "text-text-1"}`}>{p?.username ?? "—"}</span>
+            {amount != null && <span className="font-mono text-[11px] text-text-2">${Number(amount).toLocaleString("en-US")}</span>}
+          </li>
+        ))}
+      </ol>
+    );
+  }
+  const [first, second, third] = places;
+  const side = ([p, amount]: [KoParticipant | null, string | null], place: 2 | 3) => (
+    <div className={`flex flex-col items-center gap-2 rounded-2xl border border-line bg-bg-2/80 p-4 text-center ${place === 2 ? "ko-slide-l" : "ko-slide-r"}`}>
+      <span className="text-4xl">{MEDAL[place - 1]}</span>
+      {p ? <SlotArt p={p} size={96} /> : <span className="grid h-24 w-24 place-items-center rounded-xl border border-dashed border-line text-text-2">—</span>}
+      <p className="max-w-[14ch] truncate font-display text-xl font-extrabold text-text-0">{p?.username ?? "—"}</p>
+      {p && <p className="max-w-[18ch] truncate text-sm text-cyan">{p.slot_name}</p>}
+      <p className="label">{place === 2 ? "2nd place" : "3rd place"}{amount != null ? ` · $${Number(amount).toLocaleString("en-US")}` : ""}</p>
+    </div>
+  );
+  return (
+    <div className="grid items-end gap-4 md:grid-cols-[1fr_1.3fr_1fr]">
+      <div className="order-2 md:order-1">{side(second, 2)}</div>
+      <div className="order-1 md:order-2">
+        <ChampionCard p={first[0]} celebrate />
+        {first[1] != null && <p className="mt-2 text-center font-mono text-lg text-gold">${Number(first[1]).toLocaleString("en-US")}</p>}
+      </div>
+      <div className="order-3">{side(third, 3)}</div>
     </div>
   );
 }

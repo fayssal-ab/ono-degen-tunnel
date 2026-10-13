@@ -2,7 +2,7 @@
 
 import type { KoState } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
-import { Bracket16, ChampionCard, Counter, ParticipantRow, VsScreen } from "./parts";
+import { Bracket16, Counter, ParticipantRow, Podium, VsScreen } from "./parts";
 
 // Public live view: refreshes every few seconds while a tournament runs.
 export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
@@ -24,7 +24,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
       </div>
 
       {s.champion ? (
-        <ChampionCard p={s.champion} celebrate />
+        <Podium state={s} />
       ) : current && current.status !== "empty" && current.status !== "void" ? (
         <section className="surface p-6"><VsScreen key={`${current.id}-${current.status}-${current.winner_id}`} match={current} /></section>
       ) : null}

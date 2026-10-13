@@ -6,6 +6,14 @@ import { percentageForRank, type PrizeDistEntry } from "./periods";
 import { PERIOD_RESET_TIME_UTC } from "./constants";
 import { getWagerProvider } from "./providers";
 import { EventError, withTx, lockApp, type DistEntry } from "./events/common";
+import { recordAward } from "./prizes";
+
+async function awardRace(conn: PoolConnection, race: Race): Promise<void> {
+  const [rows] = await conn.query<RowDataPacket[]>("SELECT casino_id, username, `rank`, prize FROM race_entries WHERE race_id = ? AND prize > 0", [race.id]);
+  for (const r of rows) {
+    await recordAward(conn, { source: "race", sourceRef: `race:${race.id}:${r.casino_id}`, title: race.name, place: Number(r.rank), winner: String(r.username), amount: String(r.prize) });
+  }
+}
 
 // Races (prompt §5.3). A race's score is the growth of a player's cumulative
 // period wager between two sync samples ("batches" in rank_snapshots — every
@@ -354,7 +362,7 @@ export async function recomputeRaces(): Promise<RecomputeResult> {
          WHERE id = ?`,
         [status, batches.baselineAt, batches.sampleAt, pending, note, status, race.id]
       );
-      if (status === "closed") out.closed++;
+      if (status === "closed") { out.closed++; await awardRace(conn, race); }
       if (status === "finalizing") out.finalizing++;
     });
   }
@@ -375,5 +383,6 @@ export async function forceFinalizeRace(id: number): Promise<void> {
          pending_baseline = ?, finalized_at = UTC_TIMESTAMP(), finalize_note = ? WHERE id = ?`,
       [batches.baselineAt, batches.sampleAt, pending, `forced: last sample ${batches.sampleAt ?? "none"}`, id]
     );
+    await awardRace(conn, race);
   });
 }

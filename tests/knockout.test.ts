@@ -61,3 +61,13 @@ test("typed slot request: emotes stripped, length bounded, empty → null", () =
   assert.equal(cleanSlotRequest("!"), null);
   assert.equal(cleanSlotRequest("x".repeat(200))?.length, 80);
 });
+
+test("prize amounts are read from prize text", async () => {
+  const { parsePrizeAmount } = await import("../lib/prizes");
+  assert.equal(parsePrizeAmount("$50"), "50.00");
+  assert.equal(parsePrizeAmount("50$ cash"), "50.00");
+  assert.equal(parsePrizeAmount("$1,250.5 tip"), "1250.50");
+  assert.equal(parsePrizeAmount("20 USD"), "20.00");
+  assert.equal(parsePrizeAmount("VIP role"), null);
+  assert.equal(parsePrizeAmount(""), null);
+});

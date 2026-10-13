@@ -57,7 +57,7 @@ after(async () => { if (NAME) await db.getPool().end(); });
 let tid = 0;
 
 t("registration: 16 unique players max under concurrent !join, repeats only reroll, duplicates ignored", async () => {
-  tid = await ko.createKo({ title: "Friday KO", prize: "$500" });
+  tid = await ko.createKo({ title: "Friday KO", prize: "$500", prizes: ["300", "150", "50"] });
   await rejects(ko.createKo({ title: "second", prize: "" }), "ko_already_running");
   assert.equal((await join_("1")).outcome, "registration_closed"); // not open yet
   await ko.openRegistration(tid);
@@ -122,6 +122,7 @@ t("roller: distinct eligible players, confirm locks, cancel releases, rolled pla
 t("battles: one live at a time, winner advances on the fixed path, loser eliminated for good, champion crowned", async () => {
   await rejects(ko.declareWinner(tid, 1, 1), "battle_not_live");
   const winners = new Map<string, number>();
+  const losers = new Map<string, number>();
   let played = 0;
   while ((await ko.getKoById(tid))!.status !== "finished") {
     const matchId = await ko.startBattle(tid);
@@ -129,28 +130,40 @@ t("battles: one live at a time, winner advances on the fixed path, loser elimina
     const [m] = await q("SELECT * FROM ko_matches WHERE id=?", [matchId]);
     const round = Number(m.round);
     const i = Number(m.match_index);
-    if (round > 1) {
+    const bronze = round === 4 && i === 1;
+    if (bronze) {
+      // 3rd-place match = the two semi-final losers, played before the Grand Final
+      assert.equal(Number(m.p1_id), losers.get("3-0"));
+      assert.equal(Number(m.p2_id), losers.get("3-1"));
+      assert.ok(!winners.has("4-0"), "3rd-place match comes before the final");
+    } else if (round > 1) {
       // participants come from the correct feeder matches, never another path
       assert.equal(Number(m.p1_id), winners.get(`${round - 1}-${i * 2}`));
       assert.equal(Number(m.p2_id), winners.get(`${round - 1}-${i * 2 + 1}`));
     }
-    // a later round never starts before its feeders are decided
-    for (let r = 1; r < round; r++) assert.ok(winners.has(`${r}-${Math.floor(i * 2 ** (round - r))}`));
     const side = (i % 2 === 0 ? 1 : 2) as 1 | 2;
     const res = await ko.declareWinner(tid, matchId, side);
     played++;
     winners.set(`${round}-${i}`, res.winnerId);
     const loser = Number(side === 1 ? m.p2_id : m.p1_id);
-    assert.equal((await q("SELECT state FROM ko_participants WHERE id=?", [loser]))[0].state, "eliminated");
-    assert.equal(res.champion, round === 4);
+    losers.set(`${round}-${i}`, loser);
+    // semi-final losers stay in for the 3rd-place match; everyone else is out
+    assert.equal((await q("SELECT state FROM ko_participants WHERE id=?", [loser]))[0].state, round === 3 ? "in_knockout" : "eliminated");
+    assert.equal(res.champion, round === 4 && i === 0);
     const luid = (await q("SELECT kick_user_id FROM ko_participants WHERE id=?", [loser]))[0].kick_user_id;
-    assert.equal((await join_(String(luid))).outcome, round === 4 ? "no_tournament" : "eliminated"); // can't rejoin or reroll
-    await rejects(ko.declareWinner(tid, matchId, 1), round === 4 ? "ko_finished" : "battle_not_live"); // no double result
+    const finished = (await ko.getKoById(tid))!.status === "finished";
+    assert.equal((await join_(String(luid))).outcome, finished ? "no_tournament" : round === 3 ? "locked_in_bracket" : "eliminated"); // can't rejoin or reroll
+    await rejects(ko.declareWinner(tid, matchId, 1), finished ? "ko_finished" : "battle_not_live"); // no double result
   }
-  assert.equal(played, 15);
-  const [tt] = await q("SELECT status, champion_id FROM ko_tournaments WHERE id=?", [tid]);
+  assert.equal(played, 16); // 8 + 4 + 2 + 3rd-place + final
+  const [tt] = await q("SELECT status, champion_id, runner_up_id, third_id FROM ko_tournaments WHERE id=?", [tid]);
   assert.equal(tt.status, "finished");
   assert.equal(Number(tt.champion_id), winners.get("4-0"));
+  assert.equal(Number(tt.runner_up_id), losers.get("4-0"));
+  assert.equal(Number(tt.third_id), winners.get("4-1"));
+  // podium prizes recorded as pending awards with their amounts
+  const awards = await q("SELECT place, amount, status FROM prize_awards WHERE source='tournament' AND source_ref LIKE ? ORDER BY place", [`ko:${tid}:%`]);
+  assert.deepEqual(awards.map((a) => [Number(a.place), String(a.amount), a.status]), [[1, "300.00", "pending"], [2, "150.00", "pending"], [3, "50.00", "pending"]]);
   assert.equal((await q("SELECT COUNT(*) n FROM ko_participants WHERE tournament_id=? AND state='eliminated'", [tid]))[0].n, 15);
   await rejects(ko.rollPlayers(tid), "ko_finished");
   const st = await ko.getKoState((await ko.getKoById(tid))!);
@@ -258,5 +271,40 @@ t("!join <slot name>: viewer picks the slot; unknown names kept as typed without
   const [row2] = await q("SELECT slot_image FROM ko_participants WHERE tournament_id=? AND kick_user_id='pick2'", [id]);
   assert.ok(String(row2.slot_image).startsWith("https://"));
   assert.equal((await q("SELECT COUNT(*) n FROM ko_participants WHERE tournament_id=?", [id]))[0].n, 2);
+  await ko.resetKo(id);
+});
+
+t("prize ledger: pending until confirmed; only paid awards count; idempotent; void/undo", async () => {
+  const prizes = await import("../lib/prizes");
+  const before = await prizes.getPaidTotal();
+  await common.withTx((c) => prizes.recordAward(c, { source: "giveaway", sourceRef: "gw:test-1", title: "Stream GW", winner: "lucky", prizeLabel: "$20 tip" }));
+  await common.withTx((c) => prizes.recordAward(c, { source: "giveaway", sourceRef: "gw:test-1", title: "dup", winner: "x" })); // same ref → ignored
+  const [a] = await q("SELECT id, amount, status FROM prize_awards WHERE source_ref='gw:test-1'");
+  assert.deepEqual([String(a.amount), a.status], ["20.00", "pending"]);
+  assert.equal((await q("SELECT COUNT(*) n FROM prize_awards WHERE source_ref='gw:test-1'"))[0].n, 1);
+  assert.equal(await prizes.getPaidTotal(), before); // pending doesn't count
+  await prizes.confirmPaid(Number(a.id), "20", "tx 123");
+  assert.equal(await prizes.getPaidTotal(), before + 20);
+  await rejects(prizes.confirmPaid(Number(a.id), "20", ""), "award_not_pending");
+  assert.ok((await prizes.getPublicAwards()).awards.some((x) => x.winner === "lucky"));
+  await prizes.reopenAward(Number(a.id));
+  await prizes.voidAward(Number(a.id), "rerolled");
+  assert.equal(await prizes.getPaidTotal(), before);
+});
+
+t("adding art for a typed slot fills it in for players, hunt bonuses and challenges", async () => {
+  await q("UPDATE ko_tournaments SET status='cancelled' WHERE status IN ('open','closed')");
+  const id = await ko.createKo({ title: "Art", prize: "" });
+  await ko.openRegistration(id);
+  const typed = await cat.findSlotByName("Clash of Titans");
+  await common.withTx((c) => ko.recordJoin(c, { kickUserId: "art1", username: "art1", messageId: `a${++msg}`, slot: typed }));
+  const hid = Number((await q("SELECT id FROM bonus_hunt ORDER BY id DESC LIMIT 1"))[0].id);
+  await q("INSERT INTO bonus_hunt_entries (hunt_id, slot_name, bet) VALUES (?, 'clash of titans', 1)", [hid]);
+  const n = await cat.backfillSlotArt("Clash of Titans", "Twist Gaming", "https://mediumrare.imgix.net/abc");
+  assert.ok(n >= 2);
+  const [p] = await q("SELECT slot_image, slot_provider FROM ko_participants WHERE tournament_id=? AND kick_user_id='art1'", [id]);
+  assert.deepEqual([p.slot_image, p.slot_provider], ["https://mediumrare.imgix.net/abc", "Twist Gaming"]);
+  const [e] = await q("SELECT image_url FROM bonus_hunt_entries WHERE hunt_id=? AND slot_name='clash of titans'", [hid]);
+  assert.equal(e.image_url, "https://mediumrare.imgix.net/abc");
   await ko.resetKo(id);
 });

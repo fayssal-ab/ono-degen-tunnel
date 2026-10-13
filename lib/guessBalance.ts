@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import { maskUsername } from "./mask";
 import { EventError, withTx, lockApp, DECIMAL_20_8 } from "./events/common";
 import { getHuntFinalBalance } from "./bonusHunt";
+import { recordAward } from "./prizes";
 
 // Guess the Balance (prompt §5.7). Viewers type `!gb <amount>` in Kick chat;
 // the signed Kick webhook records it. Rules (shown on the public page):
@@ -346,7 +347,10 @@ export async function settleRound(id: number, manual: string | null): Promise<{ 
     const { actual } = await resolveActual(conn, round, manual);
     const w = await findWinner(conn, id, actual);
     await conn.query("UPDATE gb_guesses SET is_winner = 0 WHERE round_id = ?", [id]);
-    if (w) await conn.query("UPDATE gb_guesses SET is_winner = 1 WHERE id = ?", [w.id]);
+    if (w) {
+      await conn.query("UPDATE gb_guesses SET is_winner = 1 WHERE id = ?", [w.id]);
+      await recordAward(conn, { source: "gb", sourceRef: `gb:${id}`, title: round.title || "Guess the Balance", place: 1, winner: String(w.kick_username), prizeLabel: round.prize });
+    }
     await conn.query("UPDATE gb_rounds SET status = 'settled', actual_balance = ?, settled_at = UTC_TIMESTAMP() WHERE id = ?", [actual, id]);
     return { actual, winnerId: w ? Number(w.id) : null };
   });

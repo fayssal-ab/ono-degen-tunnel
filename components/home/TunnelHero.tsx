@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Universe } from "./Universe";
 import { ButtonLink } from "@/components/ui/Button";
 import { CopyChip } from "@/components/ui/CopyChip";
@@ -90,7 +91,9 @@ export function TunnelHero({
 
         {hasStats && (
           <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-line pt-6">
-            <HeroStat label="Prizes awarded" value={formatMoneyCompact(stats!.paidOut)} />
+            <Link href="/prizes" className="rounded-lg transition-opacity hover:opacity-80" aria-label="See all prizes awarded">
+              <HeroStat label="Prizes awarded →" value={formatMoneyCompact(stats!.paidOut)} />
+            </Link>
             <HeroStat label="Players on the board" value={stats!.players.toLocaleString()} />
             <HeroStat label="Giveaways run" value={stats!.giveaways.toLocaleString()} />
           </div>
