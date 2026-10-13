@@ -7,6 +7,7 @@ import { PAYOUT_LABEL, type PayoutMethod } from "@/lib/prizes";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { BrandIcon } from "@/components/ui/BrandIcon";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Pager, pageParam } from "@/components/events/shared";
 import { Flash, AdminHeader, Hidden, Help, Utc, first, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
@@ -53,12 +54,7 @@ async function deleteAction(formData: FormData) {
 }
 
 function Avatar({ u }: { u: UserRow }) {
-  return (
-    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-bg-3 font-bold text-gold">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {u.avatar ? <img src={u.avatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : u.display_name[0]?.toUpperCase()}
-    </span>
-  );
+  return <UserAvatar src={u.avatar} name={u.display_name} className="h-10 w-10 rounded-xl border border-line" />;
 }
 
 function Stat({ label, value, tone = "text-text-0" }: { label: string; value: number; tone?: string }) {

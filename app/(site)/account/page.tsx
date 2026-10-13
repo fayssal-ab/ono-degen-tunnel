@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BrandIcon } from "@/components/ui/BrandIcon";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { LogoutButton, UnlinkButton } from "@/components/account/AccountActions";
 import { PayoutSettings, PrizeList, type PrizeRow } from "@/components/account/PrizeList";
@@ -18,12 +19,7 @@ const PLACE = ["", "🥇 Champion", "🥈 Runner-up", "🥉 3rd place"];
 const STATE: Record<string, string> = { registered: "Registered", in_knockout: "In the bracket", eliminated: "Eliminated", champion: "Champion" };
 
 function Avatar({ src, name, size = 48 }: { src: string; name: string; size?: number }) {
-  return (
-    <span className="grid shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-bg-3 font-display font-bold text-gold" style={{ width: size, height: size, fontSize: size * 0.4 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {src ? <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : (name[0]?.toUpperCase() ?? "?")}
-    </span>
-  );
+  return <UserAvatar src={src} name={name} className="rounded-full border border-line font-display" style={{ width: size, height: size, fontSize: size * 0.4 }} />;
 }
 
 function ContinueButton({ p, verb }: { p: Provider; verb: string }) {

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { BrandIcon } from "@/components/ui/BrandIcon";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 // Viewer account in the top bar. Read client-side from /api/me so public
 // pages stay cacheable; re-read on navigation (sign-in lands on /account).
@@ -20,12 +21,7 @@ const ITEMS = [
 ] as const;
 
 function Avatar({ me, size }: { me: NonNullable<Me>; size: string }) {
-  return (
-    <span className={`grid shrink-0 place-items-center overflow-hidden rounded-lg bg-bg-3 font-bold text-gold ${size}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {me.avatar ? <img src={me.avatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : me.name[0]?.toUpperCase()}
-    </span>
-  );
+  return <UserAvatar src={me.avatar} name={me.name} className={`rounded-lg ${size}`} />;
 }
 
 export function AccountButton() {
