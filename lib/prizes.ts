@@ -1,8 +1,10 @@
 import "server-only";
+import { after } from "next/server";
 import type { PoolConnection, RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import { getPool } from "./db";
 import { maskUsername } from "./mask";
 import { EventError, withTx } from "./events/common";
+import { openPrizeTickets } from "./discordTickets";
 
 // Prize ledger. Results create 'pending' awards automatically. The winner
 // claims it from their account (where to send it), the admin pays and marks
@@ -62,6 +64,8 @@ export interface AwardInput {
 
 /** Idempotent: the same (source, ref) is only recorded once. Call inside the result's transaction. */
 export async function recordAward(conn: PoolConnection, a: AwardInput): Promise<void> {
+  // Discord ticket once the response is sent (the transaction has committed by then)
+  try { after(openPrizeTickets); } catch { /* outside a request (scripts): the cron sync sweep opens it */ }
   await conn.query(
     `INSERT IGNORE INTO prize_awards (source, source_ref, title, place, winner, winner_kick_id, amount, prize_label)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
