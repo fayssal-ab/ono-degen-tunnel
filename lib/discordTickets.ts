@@ -6,7 +6,7 @@ import { SITE_URL } from "./constants";
 import { describeDestination } from "./payout";
 
 // Discord prize tickets. Every new prize_awards row gets a private channel
-// "🏆｜prize-<winner>" under 🎫 TICKETS, visible to the staff roles and to the
+// "🏆｜prize-<winner>", visible to the staff roles and to the
 // winner when we can find them on the server (verified Discord winner, the
 // Discord linked to their site account, else an exact username match).
 //
@@ -14,13 +14,15 @@ import { describeDestination } from "./payout";
 // green "Claim prize" button (then "I received it" once paid); clicks arrive at
 // /api/discord/interactions (lib/discordInteractions.ts). Every prize change
 // (claim, paid, void, received) edits the message, renames the channel with
-// the status emoji and posts a line, so the ticket is the full history.
+// the status emoji, moves it to the category of its status (🆕 NEW → 📨 CLAIMED
+// → 💸 PAID, or ❌ REJECTED; created on demand, staff-only) and posts a line,
+// so the ticket is the full history. Staff buttons: Close (winner loses
+// access), Reject (voids the prize) and Delete (removes the channel).
 //
 // recordAward() schedules a sweep after the response; the cron sync sweeps
 // again so a Discord outage only delays a ticket.
 
 const API = "https://discord.com/api/v10";
-const TICKET_CATEGORY = "🎫 TICKETS";
 const STAFF_ROLES = ["👑 Owner", "🛡️ Moderator"];
 const BATCH = 10;
 const SITE = SITE_URL.replace(/\/$/, "");
@@ -113,6 +115,11 @@ function stageOf(a: TicketAward): Stage {
   if (a.status === "paid") return "paid";
   return a.claimed_at ? "claimed" : "waiting";
 }
+/** Category per status. A Discord category holds at most 50 channels: delete old tickets now and then. */
+const CATEGORY: Record<Stage, string> = {
+  waiting: "🆕 NEW PRIZES", claimed: "📨 CLAIMED PRIZES", paid: "💸 PAID PRIZES", received: "💸 PAID PRIZES", void: "❌ REJECTED PRIZES",
+};
+
 const STAGE: Record<Stage, { emoji: string; label: string; color: number }> = {
   waiting: { emoji: "🏆", label: "⏳ Waiting for the winner's claim", color: 0xf5c451 },
   claimed: { emoji: "📨", label: "📨 Claimed — the team is sending it", color: 0x22d3ee },
@@ -168,6 +175,10 @@ function ticketMessage(a: TicketAward, member: GuildMember | null) {
   }
   if (stage === "paid") buttons.push({ type: 2, style: 3, custom_id: `prize:recv:${a.id}`, label: "I received it", emoji: { name: "✅" } });
   buttons.push({ type: 2, style: 5, url: `${SITE}/account/prizes`, label: "Prize page", emoji: { name: "🌐" } });
+  // staff row (the interaction handler refuses non-staff)
+  const staffRow: unknown[] = [{ type: 2, style: 2, custom_id: `prize:close:${a.id}`, label: "Close", emoji: { name: "🔒" } }];
+  if (a.status === "pending") staffRow.push({ type: 2, style: 4, custom_id: `prize:reject:${a.id}`, label: "Reject", emoji: { name: "❌" } });
+  staffRow.push({ type: 2, style: 4, custom_id: `prize:delete:${a.id}`, label: "Delete", emoji: { name: "🗑️" } });
 
   return {
     embeds: [{
@@ -180,7 +191,7 @@ function ticketMessage(a: TicketAward, member: GuildMember | null) {
       footer: { text: "ONO DEGEN TUNNEL · Prize desk" },
       timestamp: new Date().toISOString(),
     }],
-    components: [{ type: 1, components: buttons }],
+    components: [{ type: 1, components: buttons }, { type: 1, components: staffRow }],
   };
 }
 
@@ -189,14 +200,39 @@ async function loadTicketAward(id: number): Promise<TicketAward | null> {
   return rows[0] ?? null;
 }
 
+// ── categories ────────────────────────────────────────────────────────────
+interface Role { id: string; name: string }
+const staffRoles = async (token: string, guildId: string) =>
+  (await discord<Role[]>(token, `/guilds/${guildId}/roles`)).filter((r) => STAFF_ROLES.includes(r.name));
+
+const categoryIds = new Map<string, string>();
+/** The status category's id, created (private: staff only) when the server doesn't have it yet. */
+async function categoryFor(token: string, guildId: string, stage: Stage, staff: Role[]): Promise<string> {
+  const name = CATEGORY[stage];
+  const cached = categoryIds.get(name);
+  if (cached) return cached;
+  const channels = await discord<{ id: string; name: string; type: number }[]>(token, `/guilds/${guildId}/channels`);
+  for (const c of channels) if (c.type === 4) categoryIds.set(c.name, c.id);
+  const found = categoryIds.get(name);
+  if (found) return found;
+  const created = await discord<{ id: string }>(token, `/guilds/${guildId}/channels`, {
+    method: "POST",
+    body: {
+      name, type: 4,
+      permission_overwrites: [
+        { id: guildId, type: 0, allow: "0", deny: String(VIEW) },
+        ...staff.map((r) => ({ id: r.id, type: 0, allow: String(VIEW | SEND | HISTORY), deny: "0" })),
+      ],
+    },
+  });
+  categoryIds.set(name, created.id);
+  return created.id;
+}
+
 // ── open ──────────────────────────────────────────────────────────────────
 async function openTicket(token: string, guildId: string, a: TicketAward): Promise<{ channelId: string; messageId: string; userId: string | null }> {
-  const [channels, roles] = await Promise.all([
-    discord<{ id: string; name: string; type: number }[]>(token, `/guilds/${guildId}/channels`),
-    discord<{ id: string; name: string }[]>(token, `/guilds/${guildId}/roles`),
-  ]);
-  const category = channels.find((c) => c.type === 4 && c.name === TICKET_CATEGORY);
-  const staff = roles.filter((r) => STAFF_ROLES.includes(r.name));
+  const staff = await staffRoles(token, guildId);
+  const parent = await categoryFor(token, guildId, stageOf(a), staff);
   const member = a.candidate_discord_id
     ? await getMember(token, guildId, a.candidate_discord_id)
     : await searchMember(token, guildId, a.winner);
@@ -210,7 +246,7 @@ async function openTicket(token: string, guildId: string, a: TicketAward): Promi
   const channel = await discord<{ id: string }>(token, `/guilds/${guildId}/channels`, {
     method: "POST",
     body: {
-      name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji), type: 0, parent_id: category?.id, permission_overwrites: overwrites,
+      name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji), type: 0, parent_id: parent, permission_overwrites: overwrites,
       topic: `Prize #${a.id} · ${a.winner} · ${SOURCE_LABEL[a.source] ?? a.source}: ${a.title}`.slice(0, 1024),
     },
   });
@@ -278,13 +314,59 @@ export async function refreshTicket(id: number, note?: string): Promise<void> {
   if (!a?.discord_channel_id) return;
   const { token, guildId } = cfg;
   const member = a.discord_user_id ? await getMember(token, guildId, a.discord_user_id).catch(() => null) : null;
+  const stage = stageOf(a);
+  const parent = await staffRoles(token, guildId).then((staff) => categoryFor(token, guildId, stage, staff)).catch((e) => {
+    console.error(`discord ticket #${id} category failed`, e);
+    return undefined;
+  });
   const jobs: Promise<unknown>[] = [
-    discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji) } }),
+    // moving category keeps the channel's own permissions (lock_permissions false)
+    discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a.winner, STAGE[stage].emoji), ...(parent ? { parent_id: parent, lock_permissions: false } : {}) } })
+      .catch((e) => {
+        // a category deleted by hand: forget it, the next update recreates it
+        if (e instanceof DiscordError && e.status === 400) categoryIds.clear();
+        throw e;
+      }),
   ];
   if (a.discord_message_id) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages/${a.discord_message_id}`, { method: "PATCH", body: ticketMessage(a, member) }));
   if (note) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages`, { method: "POST", body: { content: note, allowed_mentions: { parse: [] } } }));
   const results = await Promise.allSettled(jobs);
   for (const r of results) if (r.status === "rejected") console.error(`discord ticket #${id} update failed`, r.reason);
+}
+
+/** Staff closed the ticket: the winner loses access, the channel stays in its status category for the record. */
+export async function closeTicket(id: number, byUserId: string): Promise<void> {
+  const cfg = discordConfig();
+  if (!cfg) return;
+  const a = await loadTicketAward(id);
+  if (!a?.discord_channel_id) return;
+  if (a.discord_user_id) {
+    await discord(cfg.token, `/channels/${a.discord_channel_id}/permissions/${a.discord_user_id}`, { method: "DELETE" })
+      .catch((e) => { if (!(e instanceof DiscordError && e.status === 404)) throw e; });
+  }
+  await refreshTicket(id, `🔒 **Ticket closed** by <@${byUserId}>${a.discord_user_id ? " — the winner no longer sees it." : "."}`);
+}
+
+/** Delete the ticket channel. The prize keeps no ticket ('' — the sweep won't open a new one). */
+export async function deleteTicket(id: number): Promise<void> {
+  const cfg = discordConfig();
+  const [rows] = await getPool().query<RowDataPacket[]>("SELECT discord_channel_id FROM prize_awards WHERE id = ?", [id]);
+  const channel = rows[0]?.discord_channel_id as string | null | undefined;
+  await getPool().query("UPDATE prize_awards SET discord_channel_id = '', discord_message_id = NULL WHERE id = ?", [id]);
+  if (cfg && channel) {
+    await discord(cfg.token, `/channels/${channel}`, { method: "DELETE" })
+      .catch((e) => { if (!(e instanceof DiscordError && e.status === 404)) throw e; });
+  }
+}
+
+/** Delete a ticket channel by id after the response (the prize row itself is being removed). */
+export function deleteTicketChannel(channelId: string | null): void {
+  const cfg = discordConfig();
+  if (!cfg || !channelId) return;
+  const run = () => discord(cfg.token, `/channels/${channelId}`, { method: "DELETE" }).catch((e) => {
+    if (!(e instanceof DiscordError && e.status === 404)) console.error(`discord ticket channel ${channelId} delete failed`, e);
+  });
+  try { after(run); } catch { void run(); }
 }
 
 /** After the response: refresh the award's ticket. Safe anywhere (no-op outside a request or without Discord config). */

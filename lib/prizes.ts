@@ -4,7 +4,7 @@ import type { PoolConnection, RowDataPacket, ResultSetHeader } from "mysql2/prom
 import { getPool } from "./db";
 import { maskUsername } from "./mask";
 import { EventError, withTx } from "./events/common";
-import { openPrizeTickets, ticketChanged } from "./discordTickets";
+import { deleteTicketChannel, openPrizeTickets, ticketChanged } from "./discordTickets";
 import type { Destination, PayoutMethod } from "./payout";
 
 export { PAYOUT_LABEL, PAYOUT_METHODS, type PayoutMethod } from "./payout";
@@ -127,6 +127,19 @@ export async function voidAward(id: number, note: string): Promise<void> {
   const [res] = await getPool().query<ResultSetHeader>("UPDATE prize_awards SET status = 'void', note = ? WHERE id = ? AND status = 'pending'", [note, id]);
   if (!res.affectedRows) throw new EventError("award_not_pending");
   ticketChanged(id, `❌ **Prize voided**${note ? ` — ${note}` : ""}.`);
+}
+
+/** Remove rejected (voided) prizes for good, with their Discord ticket. `id` null = all of them. Returns how many. */
+export async function deleteVoidedAwards(id: number | null): Promise<number> {
+  const where = id == null ? "status = 'void'" : "status = 'void' AND id = ?";
+  const args = id == null ? [] : [id];
+  return withTx(async (conn) => {
+    const [rows] = await conn.query<RowDataPacket[]>(`SELECT id, discord_channel_id FROM prize_awards WHERE ${where} FOR UPDATE`, args);
+    if (id != null && !rows.length) throw new EventError("award_not_void");
+    await conn.query(`DELETE FROM prize_awards WHERE ${where}`, args);
+    for (const r of rows) deleteTicketChannel(r.discord_channel_id || null);
+    return rows.length;
+  });
 }
 
 /** Undo a mistaken confirmation (back to pending). */

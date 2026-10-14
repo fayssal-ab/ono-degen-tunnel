@@ -5,7 +5,8 @@ import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { EventError } from "./events/common";
 import { explainError } from "./events/messages";
-import { claimFromDiscord, confirmReceivedFromDiscord } from "./prizes";
+import { claimFromDiscord, confirmReceivedFromDiscord, voidAward } from "./prizes";
+import { closeTicket, deleteTicket } from "./discordTickets";
 import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, type PayoutMethod } from "./payout";
 
 // Buttons on the Discord prize ticket (lib/discordTickets.ts). Discord POSTs
@@ -16,6 +17,8 @@ import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, typ
 //     Stake|Rainbet  → form: username
 //     USDC wallet    → network menu → form: address
 //   ✅ I received it → marks it received
+//   staff: 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
+//          REJECTED category) · 🗑️ Delete (asks, then removes the channel)
 //
 // Only the ticket's winner may claim / confirm (staff may claim for them).
 // Anything touching the database is deferred: Discord needs an answer within
@@ -142,6 +145,28 @@ export async function handleInteraction(i: Interaction): Promise<object> {
   if (parts[0] !== "prize") return reply("❌ Unknown action.");
   const id = Number(parts[parts.length - 1]);
   if (!Number.isInteger(id) || id <= 0) return reply("❌ Unknown prize.");
+
+  // staff tools
+  if (i.type === 3 && ["close", "reject", "delete", "delete-yes"].includes(parts[1])) {
+    if (!staff) return reply("❌ Staff only.");
+    if (parts[1] === "delete") {
+      return {
+        type: 4,
+        data: msg("🗑️ **Delete this ticket channel?** The prize stays on the site (Admin → Prizes); only the channel goes.", [
+          { type: 1, components: [{ type: 2, style: 4, custom_id: `prize:delete-yes:${id}`, label: "Yes, delete it" }] },
+        ]),
+      };
+    }
+    return deferred(i, async () => {
+      if (parts[1] === "close") { await closeTicket(id, userId); return msg("🔒 Closed. It stays in its category for the record."); }
+      if (parts[1] === "reject") {
+        await voidAward(id, `Rejected on Discord`);
+        return msg("❌ Prize rejected — moved to **REJECTED PRIZES**. Undo it in Admin → Prizes if needed.");
+      }
+      await deleteTicket(id);
+      return msg("🗑️ Ticket deleted.");
+    });
+  }
 
   // 💸 Claim prize → choose where
   if (i.type === 3 && parts[1] === "claim") {

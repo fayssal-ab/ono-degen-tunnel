@@ -84,6 +84,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   award_not_found: "That prize no longer exists.",
   winner_not_found: "No real account with that name — check the spelling and the platform (Kick or Discord).",
   award_not_pending: "This prize was already confirmed or voided.",
+  award_not_void: "Only rejected (voided) prizes can be deleted — void it first.",
   award_not_yours: "This prize isn't linked to your Kick or Discord account.",
   award_not_paid: "This prize hasn't been paid yet — confirm it once you receive it.",
   award_already_received: "You already confirmed this prize.",

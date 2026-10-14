@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
 import { adminAction, requireAdmin } from "@/lib/adminAction";
-import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, type Award } from "@/lib/prizes";
+import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, deleteVoidedAwards, type Award } from "@/lib/prizes";
 import { describeDestination } from "@/lib/payout";
 import { verifyWinner } from "@/lib/winnerLookup";
 import { EventError } from "@/lib/events/common";
@@ -10,7 +10,7 @@ import { ManualPrizeForm } from "@/components/admin/ManualPrizeForm";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
-import { Flash, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
+import { Flash, AdminHeader, Hidden, Help, Utc, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,15 @@ async function reopenAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "prize.reopen", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
     await reopenAward(parseForm(z.object({ id: zId }), { id: formData.get("id") }).id);
+  });
+}
+
+async function deleteAction(formData: FormData) {
+  "use server";
+  await adminAction({ path: PATH, audit: "prize.delete", target: String(formData.get("id") ?? "all-rejected"), revalidate: REVALIDATE }, async () => {
+    const raw = formData.get("id");
+    const deleted = await deleteVoidedAwards(raw ? parseForm(z.object({ id: zId }), { id: raw }).id : null);
+    return { deleted };
   });
 }
 
@@ -75,7 +84,8 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
   await requireAdmin();
   const awards = await listAwards("all", 300);
   const pending = awards.filter((a) => a.status === "pending");
-  const done = awards.filter((a) => a.status !== "pending");
+  const paid = awards.filter((a) => a.status === "paid");
+  const rejected = awards.filter((a) => a.status === "void");
   const paidSum = awards.filter((a) => a.status === "paid").reduce((s, a) => s + Number(a.amount ?? 0), 0);
 
   return (
@@ -89,7 +99,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
         Each new prize opens a private Discord ticket; winners claim from the ticket (green button) or from their account and pick Stake, Rainbet or a USDC wallet — the destination shows on each prize. Pay, then mark it
         <strong className="text-text-0"> Paid</strong>; the winner then confirms receipt (✓ received). Only paid prizes count in “Prizes awarded” on the home page and on /prizes.
         Leaderboard and race prizes go to the casino account and aren&apos;t claimed.
-        Void a prize that won&apos;t be paid (e.g. a rerolled giveaway winner). Set the $ amount when confirming if it wasn&apos;t detected.
+        Void a prize that won&apos;t be paid (e.g. a rerolled giveaway winner); rejected prizes can then be deleted for good, with their Discord ticket. Set the $ amount when confirming if it wasn&apos;t detected.
       </Help>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -141,19 +151,46 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
 
       <ManualPrizeForm action={manualAction} />
 
-      {done.length > 0 && (
+      {paid.length > 0 && (
         <section className="space-y-2">
-          <p className="label">History</p>
-          {done.map((a) => (
-            <div key={a.id} className={`surface flex flex-wrap items-center gap-3 p-3 text-sm ${a.status === "void" ? "opacity-60" : ""}`}>
-              <Badge tone={a.status === "paid" ? "volt" : "neutral"}>{a.status}</Badge>
+          <p className="label">History · paid</p>
+          {paid.map((a) => (
+            <div key={a.id} className="surface flex flex-wrap items-center gap-3 p-3 text-sm">
+              <Badge tone="volt">paid</Badge>
               {a.received_at && <Badge tone="gold">✓ received</Badge>}
               <span className="font-semibold">{a.winner}</span>
               <TicketLink a={a} />
               <span className="text-text-2">{SOURCE[a.source]} · {a.title}{a.place && a.source === "tournament" ? ` · ${PLACE[a.place] ?? ""}` : ""}</span>
               <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>
-              <span className="text-xs text-text-2">{a.status === "paid" ? <>paid <Utc value={a.paid_at} /></> : a.note}</span>
+              <span className="text-xs text-text-2">paid <Utc value={a.paid_at} /></span>
               <form action={reopenAction}><Hidden fields={{ id: a.id }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {rejected.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="label">Rejected · {rejected.length}</p>
+            <form action={deleteAction} className="ml-auto">
+              <SubmitButton className={btnDanger} confirm={`Delete all ${rejected.length} rejected prizes for good? Their Discord tickets are deleted too. This can't be undone.`}>
+                <Icon name="Trash2" className="h-4 w-4" /> Delete all rejected
+              </SubmitButton>
+            </form>
+          </div>
+          {rejected.map((a) => (
+            <div key={a.id} className="surface flex flex-wrap items-center gap-3 p-3 text-sm opacity-70 hover:opacity-100">
+              <Badge tone="danger">rejected</Badge>
+              <span className="font-semibold">{a.winner}</span>
+              <TicketLink a={a} />
+              <span className="text-text-2">{SOURCE[a.source]} · {a.title}</span>
+              <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>
+              {a.note && <span className="text-xs text-text-2">{a.note}</span>}
+              <form action={reopenAction}><Hidden fields={{ id: a.id }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
+              <form action={deleteAction}><Hidden fields={{ id: a.id }} />
+                <SubmitButton className={btnDanger} confirm={`Delete ${a.winner}'s rejected prize for good? Its Discord ticket is deleted too.`}><Icon name="Trash2" className="h-4 w-4" /><span className="sr-only">Delete</span></SubmitButton>
+              </form>
             </div>
           ))}
         </section>

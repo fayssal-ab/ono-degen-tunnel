@@ -256,6 +256,25 @@ dbt("giveaway winner: 15 s chat window decides the prize", async () => {
   assert.equal(pub.filter((w) => w.giveaway_id === gid).length, 3, "public list only shows confirmed winners");
 });
 
+dbt("rejected prizes can be deleted for good, others can't", async () => {
+  const prizes = await import("../lib/prizes");
+  const common = await import("../lib/events/common");
+  const pool = db.getPool();
+  const add = async (ref: string) => {
+    await common.withTx((c) => prizes.recordAward(c, { source: "manual", sourceRef: ref, title: "Del", winner: "someone", amount: "5" }));
+    return Number((await pool.query<mysql.RowDataPacket[]>("SELECT id FROM prize_awards WHERE source_ref = ?", [ref]))[0][0].id);
+  };
+  const keep = await add("t:del:keep");
+  const [r1, r2, r3] = [await add("t:del:1"), await add("t:del:2"), await add("t:del:3")];
+  for (const id of [r1, r2, r3]) await prizes.voidAward(id, "rejected");
+  await assert.rejects(prizes.deleteVoidedAwards(keep), (e: unknown) => e instanceof common.EventError && e.code === "award_not_void");
+  assert.equal(await prizes.deleteVoidedAwards(r1), 1);
+  const voidedLeft = Number((await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) n FROM prize_awards WHERE status = 'void'"))[0][0].n);
+  assert.equal(await prizes.deleteVoidedAwards(null), voidedLeft, "delete all rejected");
+  const left = (await pool.query<mysql.RowDataPacket[]>("SELECT id FROM prize_awards WHERE id IN (?)", [[keep, r1, r2, r3]]))[0].map((r) => Number(r.id));
+  assert.deepEqual(left, [keep], "only the pending prize remains");
+});
+
 dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {
   const ua = await import("../lib/userAdmin");
   const a = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);
