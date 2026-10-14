@@ -43,6 +43,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce, response: w.response })),
   });
 }

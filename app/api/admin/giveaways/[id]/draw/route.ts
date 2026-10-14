@@ -34,6 +34,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   return json({
     winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, platform: "kick", nonce: w.nonce })),
-    winner: { username: winners[0].username, avatar: winners[0].avatar, platform: "kick" },
+    winner: { username: winners[0].username, avatar: winners[0].avatar, platform: "kick", nonce: winners[0].nonce },
   });
 }

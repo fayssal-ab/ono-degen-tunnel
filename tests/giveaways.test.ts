@@ -20,6 +20,8 @@ function execute(sql: string, args: unknown[], current: ReturnType<typeof initia
   if (sql.startsWith("SELECT MAX(nonce)")) return [[{ last_nonce: current.winners.at(-1)?.nonce ?? null }], []];
   if (sql.startsWith("SELECT kick_username") && sql.includes("FROM giveaway_entries")) return [structuredClone(current.entries), []];
   if (sql.startsWith("SELECT kick_username") && sql.includes("FROM giveaway_winners")) return [structuredClone(current.winners), []];
+  // closing a round confirms winners still in their 15 s chat window (covered against a real DB in userAuth.test.ts)
+  if (sql.startsWith("SELECT nonce FROM giveaway_winners") && sql.includes("response = 'waiting'")) return [[], []];
   if (sql.startsWith("INSERT INTO giveaway_winners")) {
     if (failInsert) throw new Error("simulated DB failure");
     current.winners.push({ kick_username: args[1], nonce: args[4], winner_index: args[5], entries_hash: args[7] });
@@ -32,7 +34,7 @@ function execute(sql: string, args: unknown[], current: ReturnType<typeof initia
     current.g.drawn_entrants = null; current.g.status = "open";
     current.g.server_seed = String(args[0]); current.g.server_seed_hash = String(args[1]);
   } else if (sql.startsWith("INSERT INTO giveaway_entries")) current.entries[0].message_count++;
-  else if (sql.includes("INTO prize_awards")) current.awards++; // pending prize per winner
+  else if (sql.includes("INTO prize_awards")) current.awards++; // recorded once the winner answers in chat
   else throw new Error(`Unexpected query: ${sql}`);
   return [{ affectedRows: 1, insertId: current.winners.length }, []];
 }

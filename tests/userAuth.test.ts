@@ -222,6 +222,40 @@ dbt("payout wallets: Stake, Rainbet and USDC are saved / removed independently",
   assert.equal(acc.usdc_network, "");
 });
 
+dbt("giveaway winner: 15 s chat window decides the prize", async () => {
+  const gw = await import("../lib/giveaways");
+  const pool = db.getPool();
+  const awards = async (gid: number) => (await pool.query<mysql.RowDataPacket[]>(
+    "SELECT pa.winner FROM prize_awards pa JOIN giveaway_winners w ON pa.source_ref = CONCAT('gw:', w.id) WHERE pa.source = 'giveaway' AND w.giveaway_id = ? ORDER BY w.nonce", [gid]))[0].map((r) => r.winner);
+  const gid = await gw.createGiveaway({ title: "Chat test", type: "manual", keyword: null, entry_condition: "", prize: "$25", subscribers_only: false, min_messages: 1, ends_at: null });
+  for (const n of ["alpha", "bravo", "charlie"]) await gw.addManualEntry(gid, n);
+
+  const [first] = await gw.drawWinners(gid, 1);
+  assert.equal((await gw.getWinners(gid))[0].response, "waiting");
+  assert.deepEqual(await awards(gid), [], "no prize until the winner answers");
+  await gw.markNoShow(gid, first.nonce);
+  await assert.rejects(gw.markNoShow(gid, first.nonce), /winner_already_decided/);
+  assert.deepEqual(await awards(gid), [], "a no-show gets nothing");
+
+  const [second] = await gw.drawWinners(gid, 1);
+  await gw.confirmWinner(gid, second.nonce, "here!!");
+  await assert.rejects(gw.confirmWinner(gid, second.nonce, "again"), /winner_already_decided/);
+  assert.deepEqual(await awards(gid), [second.username], "answering in chat records the prize");
+  const info = await gw.getWinnerInfo(gid, second.nonce);
+  assert.equal(info?.response, "confirmed");
+  assert.equal(info?.responseText, "here!!");
+  assert.ok(info?.award);
+
+  const [third] = await gw.drawWinners(gid, 1);   // left waiting: finishing the round confirms it
+  await gw.setGiveawayStatus(gid, "closed");
+  assert.deepEqual(await awards(gid), [second.username, third.username]);
+
+  await gw.confirmWinner(gid, first.nonce, "(accepted by the admin)"); // admin override of a no-show
+  assert.equal((await awards(gid)).length, 3);
+  const pub = await gw.getPastWinners(50);
+  assert.equal(pub.filter((w) => w.giveaway_id === gid).length, 3, "public list only shows confirmed winners");
+});
+
 dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {
   const ua = await import("../lib/userAdmin");
   const a = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);

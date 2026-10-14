@@ -3,6 +3,7 @@
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { WinnerCheck, type ChatLine, type DrawnWinner } from "./WinnerCheck";
 
 // Kick giveaway control panel — same layout/workflow as the reference tool
 // (keyword bar + listen, platform buttons, filter pills, avatar reel with a
@@ -25,13 +26,14 @@ interface Winner {
   username: string;
   avatar: string | null;
   platform: string;
+  nonce: number;
 }
 interface Data {
   giveaway: { id: number; title: string; prize: string; status: string; keyword: string | null; subscribersOnly: boolean; minMessages: number; acceptingEntries: boolean; poolLocked: boolean };
   kickConfigured: boolean;
   entries: Entry[];
   eligibleCount: number;
-  winners: { username: string; avatar: string | null; nonce: number }[];
+  winners: { username: string; avatar: string | null; nonce: number; response?: "waiting" | "confirmed" | "no_show" }[];
 }
 
 // ── WebAudio SFX (no asset files) ──
@@ -92,7 +94,7 @@ const FILTERS = [
   { key: "gifted", label: "Gifted", available: false },
 ];
 
-export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number; initial: Data; defaultChannel: string }) {
+export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null }: { id: number; initial: Data; defaultChannel: string; guildId?: string | null }) {
   const [data, setData] = useState<Data>(initial);
   const [channel, setChannel] = useState(defaultChannel);
   const [channelDraft, setChannelDraft] = useState(defaultChannel);
@@ -122,7 +124,10 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
   }
   const [spinning, setSpinning] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [modalWinner, setModalWinner] = useState<Winner | null>(null);
+  const [modalWinner, setModalWinner] = useState<DrawnWinner | null>(null);
+  // the drawn winner's chat lines (the 15 s response window reads these)
+  const [winnerChat, setWinnerChat] = useState<ChatLine[]>([]);
+  const watchRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -135,6 +140,10 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
 
   const g = data.giveaway;
   const listening = g.acceptingEntries;
+  const listeningRef = useRef(listening);
+  useEffect(() => { listeningRef.current = listening; }, [listening]);
+  // keep reading chat while collecting entries AND while a drawn winner has to answer
+  const socketOn = listening || spinning || modalWinner != null;
   const finished = g.status === "closed" && g.poolLocked;
   const eligible = data.entries.filter((e) => e.eligible);
 
@@ -156,10 +165,12 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
 
   // Live Kick chat reader. While the giveaway is open, connect to Kick's public
   // chat socket in the browser, match the keyword, and record real entries.
+  // It stays connected through a draw so the winner's messages reach the
+  // 15 s response window (WinnerCheck).
   // Unofficial (Kick publishes no chat API) but works locally and in prod with
   // no OAuth/webhook. See lib/kickChat.ts.
   useEffect(() => {
-    if (!listening) {
+    if (!socketOn) {
       setLiveStatus("off");
       return;
     }
@@ -232,6 +243,10 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         const content = String(payload.content ?? "");
         const username = payload.sender?.username;
         if (!username) return;
+        if (watchRef.current && username.toLowerCase() === watchRef.current) {
+          setWinnerChat((lines) => [...lines, { text: content.slice(0, 300), at: Date.now() }]);
+        }
+        if (!listeningRef.current) return;
         if (kw && !content.trim().toLowerCase().startsWith(kw)) return;
         const badges = payload.sender?.identity?.badges ?? [];
         const isSubscriber = Array.isArray(badges) && badges.some((b) => b?.type === "subscriber");
@@ -264,7 +279,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         /* ignore */
       }
     };
-  }, [listening, id, refresh, channel]);
+  }, [socketOn, id, refresh, channel]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -399,6 +414,8 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
   async function draw() {
     if (spinning || busy) return;
     if (eligible.length === 0) return flash("No eligible entrants yet");
+    watchRef.current = null;
+    setWinnerChat([]);
     setSpinning(true);
     spinningRef.current = true;
     try {
@@ -411,7 +428,8 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
       }
       const { winner } = (await res.json()) as { winner: Winner };
       runReel(winner, () => {
-        setModalWinner(winner);
+        watchRef.current = winner.username.toLowerCase();
+        setModalWinner({ username: winner.username, avatar: winner.avatar, nonce: winner.nonce });
         chime(muted);
         setSpinning(false);
         spinningRef.current = false;
@@ -591,8 +609,9 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         {/* winners + test tools */}
         <div className="flex flex-wrap items-center gap-2">
           {data.winners.map((w) => (
-            <span key={w.nonce} className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs text-gold">
-              <Icon name="Trophy" className="h-3 w-3" /> {w.username}
+            <span key={w.nonce} title={w.response === "no_show" ? "No response in chat — no prize" : w.response === "waiting" ? "Waiting for an answer in chat" : "Confirmed"}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${w.response === "no_show" ? "border-danger/40 bg-danger/10 text-danger line-through" : w.response === "waiting" ? "border-line-strong text-text-1" : "border-gold/40 bg-gold/10 text-gold"}`}>
+              <Icon name={w.response === "no_show" ? "UserX" : w.response === "waiting" ? "Clock" : "Trophy"} className="h-3 w-3" /> {w.username}
             </span>
           ))}
           <div className="ml-auto flex items-center gap-2">
@@ -654,44 +673,19 @@ export function GiveawayDashboard({ id, initial, defaultChannel }: { id: number;
         )}
       </div>
 
-      {/* winner modal */}
+      {/* winner modal: 15 s to answer in chat */}
       {modalWinner && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <button className="absolute inset-0 bg-bg-0/80 backdrop-blur-md" aria-label="Close" onClick={() => setModalWinner(null)} />
-          <div className="pop-in surface gold-border relative w-full max-w-md overflow-hidden p-8 text-center">
-            <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-              {Array.from({ length: 14 }).map((_, i) => (
-                <span key={i} className="confetti-piece absolute top-0 h-2 w-2 rounded-sm" style={{ left: `${(i * 7 + 5) % 100}%`, background: i % 2 ? "var(--color-gold)" : "var(--color-volt)", animationDelay: `${(i % 5) * 0.08}s` }} />
-              ))}
-            </div>
-            <p className="label text-gold">Winner selected</p>
-            <div className="mx-auto mt-4 h-24 w-24 overflow-hidden rounded-full ring-4 ring-gold"><Avatar src={modalWinner.avatar} name={modalWinner.username} size={96} /></div>
-            <p className="mt-4 font-display text-2xl font-extrabold">{modalWinner.username}</p>
-            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-volt/40 bg-volt/10 px-3 py-1 text-xs text-volt"><Icon name="Radio" className="h-3 w-3" /> Kick Chat</span>
-
-            <div className="mt-6 space-y-2 rounded-xl border border-line bg-bg-1 p-4 text-left text-sm">
-              <p className="label">Verification</p>
-              <div className="flex items-center gap-2">
-                <Icon name={winnerEntry?.isSubscriber ? "CircleCheck" : "CircleMinus"} className={`h-4 w-4 ${winnerEntry?.isSubscriber ? "text-volt" : "text-text-2"}`} />
-                <span className="text-text-1">{winnerEntry?.isSubscriber ? "Verified Kick subscriber" : "Not a subscriber"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Icon name="CircleHelp" className="h-4 w-4 text-text-2" />
-                <span className="text-text-2">Role / gifter / Yapper — unavailable from Kick</span>
-              </div>
-              <a href={`/verify/${id}`} target="_blank" className="inline-flex items-center gap-1 text-xs text-plasma hover:underline"><Icon name="ShieldCheck" className="h-3.5 w-3.5" /> Provably-fair proof</a>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button onClick={() => { setModalWinner(null); draw(); }} className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong text-sm hover:border-gold hover:text-gold">
-                <Icon name="Shuffle" className="h-4 w-4" /> Draw another
-              </button>
-              <button onClick={() => setModalWinner(null)} className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gold text-sm font-semibold text-bg-0 hover:bg-gold-hi">
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
+        <WinnerCheck
+          key={modalWinner.nonce}
+          giveawayId={id}
+          winner={modalWinner}
+          messages={winnerChat}
+          isSubscriber={Boolean(winnerEntry?.isSubscriber)}
+          muted={muted}
+          guildId={guildId}
+          onReroll={() => { watchRef.current = null; setModalWinner(null); refresh(); draw(); }}
+          onClose={() => { watchRef.current = null; setModalWinner(null); refresh(); }}
+        />
       )}
     </div>
   );

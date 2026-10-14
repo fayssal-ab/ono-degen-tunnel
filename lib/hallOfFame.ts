@@ -74,6 +74,7 @@ export async function getGiveawayWins(limit = 12): Promise<GiveawayWin[]> {
     const [rows] = await getPool().query<RowDataPacket[]>(
       `SELECT w.kick_username, w.prize, w.drawn_at, g.title AS giveaway_title
        FROM giveaway_winners w JOIN giveaways g ON g.id = w.giveaway_id
+       WHERE w.response = 'confirmed'
        ORDER BY w.drawn_at DESC LIMIT ?`,
       [limit]
     );

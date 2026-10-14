@@ -63,14 +63,14 @@ export default async function AdminGiveaways({ searchParams }: { searchParams: P
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce, response: w.response })),
   };
 
   return (
     <div className="space-y-5">
       <GiveawayAdminBar giveaways={opts} selectedId={selected.id} />
       {/* key forces a fresh dashboard (and poll) when switching giveaways */}
-      <GiveawayDashboard key={selected.id} id={selected.id} initial={initial} defaultChannel={KICK_CHANNEL} />
+      <GiveawayDashboard key={selected.id} id={selected.id} initial={initial} defaultChannel={KICK_CHANNEL} guildId={process.env.DISCORD_GUILD_ID ?? null} />
     </div>
   );
 }

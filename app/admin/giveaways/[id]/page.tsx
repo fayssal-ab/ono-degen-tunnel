@@ -45,7 +45,7 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce, response: w.response })),
   };
 
   return (
@@ -53,7 +53,7 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
       <Link href="/admin/giveaways" className="inline-flex items-center gap-1 text-sm text-text-1 hover:text-text-0">
         <Icon name="ChevronLeft" className="h-4 w-4" /> All giveaways
       </Link>
-      <GiveawayDashboard id={giveawayId} initial={initial} defaultChannel={KICK_CHANNEL} />
+      <GiveawayDashboard id={giveawayId} initial={initial} defaultChannel={KICK_CHANNEL} guildId={process.env.DISCORD_GUILD_ID ?? null} />
     </div>
   );
 }
