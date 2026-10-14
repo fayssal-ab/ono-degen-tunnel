@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
@@ -172,7 +172,7 @@ function Tracker({ p }: { p: PrizeRow }) {
   );
 }
 
-function PrizeCard({ p, wallets, guildId }: { p: PrizeRow; wallets: Wallets; guildId: string | null }) {
+function PrizeCard({ p, wallets, guildId, focused }: { p: PrizeRow; wallets: Wallets; guildId: string | null; focused: boolean }) {
   const refresh = useRefresh();
   const stage = stageOf(p);
   const [editing, setEditing] = useState(false);
@@ -190,7 +190,7 @@ function PrizeCard({ p, wallets, guildId }: { p: PrizeRow; wallets: Wallets; gui
   }
 
   return (
-    <li className={`surface relative overflow-hidden p-5 sm:p-6 ${stage === "claim" ? "border-gold/50" : ""}`}>
+    <li id={`prize-${p.id}`} className={`surface relative scroll-mt-28 overflow-hidden p-5 transition-shadow duration-700 sm:p-6 ${stage === "claim" ? "border-gold/50" : ""} ${focused ? "prize-focus" : ""}`}>
       <span aria-hidden className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${accent} to-transparent`} />
       {stage === "claim" && <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gold/15 blur-3xl" />}
       <div className="relative flex flex-wrap items-start gap-4">
@@ -327,6 +327,26 @@ export function PrizeDesk({ prizes, wallets, guildId }: { prizes: PrizeRow[]; wa
   }, [prizes]);
   const todo = prizes.filter((p) => stageOf(p) === "claim" || stageOf(p) === "paid");
   const [tab, setTab] = useState<Tab>(todo.length ? "todo" : "all");
+  // a notification links to #prize-<id>: show that card (switching to "All" if
+  // the current tab hides it), scroll to it and light it up for a moment
+  const [focus, setFocus] = useState<number | null>(null);
+  useEffect(() => {
+    const go = () => {
+      const id = Number(/^#prize-(\d+)$/.exec(window.location.hash)?.[1]);
+      if (!id || !prizes.some((p) => p.id === id)) return;
+      const p = prizes.find((x) => x.id === id)!;
+      const needsAction = stageOf(p) === "claim" || stageOf(p) === "paid";
+      setTab((t) => (t === "all" || (t === "todo" && needsAction) ? t : "all"));
+      setFocus(id);
+      requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`prize-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })));
+      window.setTimeout(() => setFocus(null), 2600);
+      // handled: drop the hash so a refresh after claiming doesn't jump back
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+  }, [prizes]);
   const shown = tab === "todo" ? todo : tab === "done" ? prizes.filter((p) => stageOf(p) === "received") : prizes;
 
   return (
@@ -368,7 +388,7 @@ export function PrizeDesk({ prizes, wallets, guildId }: { prizes: PrizeRow[]; wa
             <p className="text-sm text-text-1">{tab === "todo" ? "Nothing to do — you're all caught up." : "No prize here yet. Good luck on stream!"}</p>
           </div>
         ) : (
-          <ul className="space-y-4">{shown.map((p) => <PrizeCard key={p.id} p={p} wallets={wallets} guildId={guildId} />)}</ul>
+          <ul className="space-y-4">{shown.map((p) => <PrizeCard key={p.id} p={p} wallets={wallets} guildId={guildId} focused={focus === p.id} />)}</ul>
         )}
       </section>
 

@@ -68,6 +68,8 @@ export function AccountButton() {
   if (!me) {
     // one way in: Discord (straight to Discord's consent screen; Kick can be linked after)
     return (
+      <>
+      <PrizeBell feed={null} />
       <a href="/api/auth/discord/start?next=/account/prizes" aria-label="Sign up with Discord"
         className="press group relative inline-flex h-10 shrink-0 items-center gap-2 overflow-hidden rounded-xl bg-[#5865F2] pl-2 pr-4 text-sm font-bold text-white shadow-[0_6px_24px_-8px_#5865F2] transition-[transform,box-shadow,filter] hover:-translate-y-px hover:shadow-[0_10px_30px_-8px_#5865F2] hover:brightness-110">
         <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/25 blur-sm transition-transform duration-700 group-hover:translate-x-[420%]" />
@@ -76,6 +78,7 @@ export function AccountButton() {
         </span>
         Sign up
       </a>
+      </>
     );
   }
 

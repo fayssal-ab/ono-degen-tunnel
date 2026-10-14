@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
+import { BrandIcon } from "@/components/ui/BrandIcon";
 
 // Prize notifications in the top bar: a bell with the "you won" / "you got
 // paid" feed, and a celebration card for a fresh unclaimed win. Both read the
@@ -33,7 +34,11 @@ async function markSeen() {
   try { await fetch("/api/account/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seen: true }) }); } catch { /* next open retries */ }
 }
 
-export function PrizeBell({ feed, onSeen }: { feed: NotificationFeed; onSeen: () => void }) {
+/** Where a notification leads: its own card on the prize page. */
+export const prizeHref = (awardId: number) => `/account/prizes#prize-${awardId}`;
+
+/** `feed` null = signed out: the bell invites to sign up instead. */
+export function PrizeBell({ feed, onSeen }: { feed: NotificationFeed | null; onSeen?: () => void }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -49,16 +54,16 @@ export function PrizeBell({ feed, onSeen }: { feed: NotificationFeed; onSeen: ()
   function toggle() {
     const next = !open;
     setOpen(next);
-    if (next && feed.unread > 0) { markSeen(); onSeen(); }
+    if (next && feed && feed.unread > 0) { markSeen(); onSeen?.(); }
   }
 
   return (
     <div ref={box} className="relative shrink-0">
       <button onClick={toggle} aria-haspopup="menu" aria-expanded={open}
-        aria-label={feed.unread ? `Notifications, ${feed.unread} new` : "Notifications"}
+        aria-label={feed?.unread ? `Notifications, ${feed.unread} new` : "Notifications"}
         className={`press relative grid h-10 w-10 place-items-center rounded-xl border bg-bg-1 ${open ? "border-gold text-gold" : "border-line text-text-1 hover:border-gold hover:text-gold"}`}>
-        <Icon name="Bell" className={`h-[18px] w-[18px] ${feed.unread ? "origin-top animate-[bell-ring_1.2s_ease-in-out_2]" : ""}`} />
-        {feed.unread > 0 && (
+        <Icon name="Bell" className={`h-[18px] w-[18px] ${feed?.unread ? "origin-top animate-[bell-ring_1.2s_ease-in-out_2]" : ""}`} />
+        {feed && feed.unread > 0 && (
           <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-gold px-1 text-[11px] font-bold text-bg-0 shadow-[0_0_12px_var(--color-gold)]">{feed.unread}</span>
         )}
       </button>
@@ -69,13 +74,23 @@ export function PrizeBell({ feed, onSeen }: { feed: NotificationFeed; onSeen: ()
             <p className="font-display text-sm font-bold uppercase tracking-wider text-text-0">Notifications</p>
             <Link href="/account/prizes" onClick={() => setOpen(false)} className="text-xs font-semibold text-gold hover:underline">My prizes</Link>
           </div>
-          {feed.items.length === 0 ? (
+          {!feed ? (
+            <div className="flex flex-col items-center gap-3 px-5 py-7 text-center">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gold/15 text-gold"><Icon name="Trophy" className="h-6 w-6" /></span>
+              <p className="text-sm text-text-1">Sign up to get a notification the moment you win a prize on stream.</p>
+              <a href="/api/auth/discord/start?next=/account/prizes"
+                className="press inline-flex h-10 items-center gap-2 rounded-xl bg-[#5865F2] px-4 text-sm font-bold text-white hover:brightness-110">
+                <BrandIcon brand="discord" className="h-4 w-4" />
+                Sign up
+              </a>
+            </div>
+          ) : feed.items.length === 0 ? (
             <p className="flex flex-col items-center gap-2 px-4 py-8 text-center text-sm text-text-2"><Icon name="BellOff" className="h-6 w-6" /> Nothing yet. Win something on stream!</p>
           ) : (
             <ul className="max-h-[60vh] overflow-y-auto p-1.5">
               {feed.items.map((n) => (
                 <li key={n.key}>
-                  <Link href="/account/prizes" role="menuitem" onClick={() => setOpen(false)}
+                  <Link href={prizeHref(n.award_id)} role="menuitem" onClick={() => setOpen(false)}
                     className={`flex items-start gap-3 rounded-xl px-3 py-2.5 hover:bg-bg-2 ${n.unread ? "bg-gold/5" : ""}`}>
                     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base ${n.kind === "paid" ? "bg-volt/15 text-volt" : "bg-gold/15 text-gold"}`}>
                       {n.kind === "paid" ? <Icon name="Banknote" className="h-4 w-4" /> : n.place && n.place <= 3 ? MEDAL[n.place] : <Icon name="Trophy" className="h-4 w-4" />}
@@ -145,7 +160,7 @@ export function WinToast({ feed, onSeen }: { feed: NotificationFeed; onSeen: () 
             <p className="truncate text-sm text-text-1">{fresh.title}</p>
           </div>
         </div>
-        <Link href="/account/prizes" onClick={() => close(true)}
+        <Link href={prizeHref(fresh.award_id)} onClick={() => close(true)}
           className="press relative mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-gold text-sm font-bold text-bg-0 hover:bg-gold-hi">
           <Icon name="HandCoins" className="h-4 w-4" /> Claim my prize
         </Link>

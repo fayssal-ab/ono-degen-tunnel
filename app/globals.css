@@ -621,3 +621,12 @@ img, svg, video, canvas, picture {
   .prize-pop { animation: none; }
   .prize-spark { display: none; }
 }
+/* a prize opened from a notification lights up for a moment */
+@keyframes prize-focus {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  25%, 60% { box-shadow: 0 0 0 2px var(--color-gold), 0 0 40px -6px var(--color-gold); }
+}
+.prize-focus { animation: prize-focus 2.4s var(--ease-tunnel); }
+@media (prefers-reduced-motion: reduce) {
+  .prize-focus { animation: none; box-shadow: 0 0 0 2px var(--color-gold); }
+}
