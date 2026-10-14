@@ -25,7 +25,8 @@ const TTL = 10 * 60 * 1000;
 interface KickChannel {
   chatroom?: { id?: number };
   livestream?: { viewer_count?: number; is_live?: boolean } | null;
-  user?: { profile_pic?: string | null; username?: string };
+  user_id?: number;
+  user?: { id?: number; profile_pic?: string | null; username?: string };
 }
 
 async function fetchChannelJson(slug: string, timeout = 8): Promise<KickChannel | null> {
@@ -66,6 +67,18 @@ export async function resolveKickAvatar(username: string): Promise<string | null
   const url = typeof data?.user?.profile_pic === "string" ? data.user.profile_pic : null;
   avatarCache.set(slug, { url, at: Date.now() });
   return url;
+}
+
+/** A Kick account by username from the public channel endpoint (unofficial), or null when it doesn't exist / Kick is unreachable. */
+export async function lookupKickProfile(username: string): Promise<{ id: string; username: string; avatar: string | null } | null> {
+  const base = username.trim().toLowerCase().replace(/^@/, "");
+  if (!/^[a-z0-9_-]{2,40}$/.test(base)) return null;
+  for (const slug of new Set([base.replace(/_/g, "-"), base])) {
+    const data = await fetchChannelJson(slug, 5);
+    const id = data?.user?.id ?? data?.user_id;
+    if (id && data?.user?.username) return { id: String(id), username: data.user.username, avatar: data.user.profile_pic ?? null };
+  }
+  return null;
 }
 
 export async function resolveChatroomId(slug: string): Promise<number | null> {

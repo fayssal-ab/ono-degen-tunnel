@@ -6,18 +6,20 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { PrizeBell, WinToast, type NotificationFeed } from "./PrizeNotifications";
 
 // Viewer account in the top bar. Read client-side from /api/me so public
 // pages stay cacheable; re-read on navigation (sign-in lands on /account).
-// Signed in → avatar button opening a menu (profile sections, log out).
-type Me = { name: string; avatar: string; providers: ("kick" | "discord")[]; actions: number } | null;
+// Signed in → prize bell + avatar button opening a menu (profile sections,
+// log out). Polled every minute so a new prize shows up without a reload.
+type Me = { name: string; avatar: string; providers: ("kick" | "discord")[]; actions: number; notifications: NotificationFeed } | null;
 
 const ITEMS = [
   { href: "/account", label: "My profile", icon: "User" },
   { href: "/account#linked", label: "Linked accounts", icon: "Link" },
   { href: "/account#tournaments", label: "My tournaments", icon: "Swords" },
-  { href: "/account#prizes", label: "My prizes", icon: "Gift" },
-  { href: "/account#settings", label: "Payout settings", icon: "Settings" },
+  { href: "/account/prizes", label: "My prizes", icon: "Gift" },
+  { href: "/account/prizes#wallets", label: "Payout wallets", icon: "Wallet" },
 ] as const;
 
 function Avatar({ me, size }: { me: NonNullable<Me>; size: string }) {
@@ -37,16 +39,20 @@ export function AccountButton() {
     let alive = true;
     fetch("/api/me", { cache: "no-store" })
       .then((r) => r.json() as Promise<{ user: Me }>)
-      .then((d) => { if (alive) { setMe(d.user); setOpen(false); } })
+      .then((d) => { if (alive) setMe(d.user); })
       .catch(() => { if (alive) setMe(null); });
     return () => { alive = false; };
   }, [pathname, tick]);
+  // close the menu on navigation (not on the background poll)
+  useEffect(() => { setOpen(false); }, [pathname]);
   // pages that change prize state ask for a re-read (badge count)
   useEffect(() => {
     const bump = () => setTick((t) => t + 1);
     window.addEventListener("odt:me", bump);
-    return () => window.removeEventListener("odt:me", bump);
+    const poll = setInterval(() => { if (document.visibilityState === "visible") bump(); }, 60_000);
+    return () => { window.removeEventListener("odt:me", bump); clearInterval(poll); };
   }, []);
+  const markRead = () => setMe((m) => m && { ...m, notifications: { items: m.notifications.items.map((n) => ({ ...n, unread: false })), unread: 0 } });
 
   // close on outside click / Escape
   useEffect(() => {
@@ -60,11 +66,16 @@ export function AccountButton() {
 
   if (me === undefined) return <span className="h-10 w-10 shrink-0 rounded-xl border border-line bg-bg-1" aria-hidden />;
   if (!me) {
+    // one way in: Discord (straight to Discord's consent screen; Kick can be linked after)
     return (
-      <Link href="/account" className="press inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-line-strong bg-bg-1 px-3 text-sm font-semibold text-text-0 hover:border-gold hover:text-gold" aria-label="Log in">
-        <Icon name="LogIn" className="h-4 w-4" />
-        <span className="hidden md:inline">Log in</span>
-      </Link>
+      <a href="/api/auth/discord/start?next=/account/prizes" aria-label="Sign up with Discord"
+        className="press group relative inline-flex h-10 shrink-0 items-center gap-2 overflow-hidden rounded-xl bg-[#5865F2] pl-2 pr-4 text-sm font-bold text-white shadow-[0_6px_24px_-8px_#5865F2] transition-[transform,box-shadow,filter] hover:-translate-y-px hover:shadow-[0_10px_30px_-8px_#5865F2] hover:brightness-110">
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/25 blur-sm transition-transform duration-700 group-hover:translate-x-[420%]" />
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/15 transition-transform group-hover:-rotate-6 group-hover:scale-110">
+          <BrandIcon brand="discord" className="h-[18px] w-[18px]" />
+        </span>
+        Sign up
+      </a>
     );
   }
 
@@ -78,7 +89,11 @@ export function AccountButton() {
     router.refresh();
   }
 
+  const feed = me.notifications ?? { items: [], unread: 0 };
   return (
+    <>
+    <PrizeBell feed={feed} onSeen={markRead} />
+    <WinToast feed={feed} onSeen={markRead} />
     <div ref={box} className="relative shrink-0">
       <button
         onClick={() => setOpen((o) => !o)}
@@ -135,5 +150,6 @@ export function AccountButton() {
         </div>
       )}
     </div>
+    </>
   );
 }

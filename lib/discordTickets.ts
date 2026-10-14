@@ -1,133 +1,239 @@
 import "server-only";
+import { after } from "next/server";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { SITE_URL } from "./constants";
+import { describeDestination } from "./payout";
 
 // Discord prize tickets. Every new prize_awards row gets a private channel
 // "🏆｜prize-<winner>" under 🎫 TICKETS, visible to the staff roles and to the
-// winner when we can find them on the server (Discord linked on their site
-// account, else an exact username match). Uses YUKI BOT's token over the REST
-// API only — no gateway, so it works from serverless and doesn't need the bot
-// process running. recordAward() schedules a sweep after the response; the
-// cron sync sweeps again so a Discord outage only delays a ticket.
+// winner when we can find them on the server (verified Discord winner, the
+// Discord linked to their site account, else an exact username match).
+//
+// REST only (no gateway): works from serverless. The ticket message carries a
+// green "Claim prize" button (then "I received it" once paid); clicks arrive at
+// /api/discord/interactions (lib/discordInteractions.ts). Every prize change
+// (claim, paid, void, received) edits the message, renames the channel with
+// the status emoji and posts a line, so the ticket is the full history.
+//
+// recordAward() schedules a sweep after the response; the cron sync sweeps
+// again so a Discord outage only delays a ticket.
 
 const API = "https://discord.com/api/v10";
 const TICKET_CATEGORY = "🎫 TICKETS";
 const STAFF_ROLES = ["👑 Owner", "🛡️ Moderator"];
 const BATCH = 10;
+const SITE = SITE_URL.replace(/\/$/, "");
 
 // permission bits
 const VIEW = 1n << 10n, SEND = 1n << 11n, EMBED = 1n << 14n, ATTACH = 1n << 15n, HISTORY = 1n << 16n;
 
 const SOURCE_LABEL: Record<string, string> = {
   tournament: "🏆 Tournament", giveaway: "🎉 Giveaway", race: "🏁 Race", leaderboard: "📊 Leaderboard",
-  gb: "💰 Guess the Balance", challenge: "🎯 Challenge", manual: "🎁 Prize",
+  gb: "💰 Guess the Balance", challenge: "🎯 Challenge", manual: "🎁 Stream prize",
 };
-/** Casino usernames, not Kick: not claimable from a site account. */
+const PLACE = ["", "🥇 1st", "🥈 2nd", "🥉 3rd"];
+/** Casino usernames, not Kick: paid to the casino account, nothing to claim. */
 const CASINO_NAMED = ["leaderboard", "race"];
 
-class DiscordError extends Error {
+export class DiscordError extends Error {
   constructor(public status: number, path: string, body: string) {
     super(`discord ${status} ${path}: ${body.slice(0, 200)}`);
   }
 }
 
-function config(): { token: string; guildId: string } | null {
+export function discordConfig(): { token: string; guildId: string } | null {
   const token = process.env.DISCORD_BOT_TOKEN, guildId = process.env.DISCORD_GUILD_ID;
   return token && guildId ? { token, guildId } : null;
 }
 
-async function discord<T>(token: string, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function discord<T>(token: string, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method: init?.method ?? "GET",
     headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json", "X-Audit-Log-Reason": "Prize ticket" },
     body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+    cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new DiscordError(res.status, path, await res.text());
-  return (await res.json()) as T;
+  return (res.status === 204 ? null : await res.json()) as T;
 }
 
-export function ticketChannelName(winner: string): string {
+export interface DiscordUser { id: string; username: string; global_name: string | null; avatar: string | null }
+export interface GuildMember { user: DiscordUser; nick: string | null; avatar?: string | null }
+
+export const avatarUrl = (u: DiscordUser) =>
+  u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) >> 22n) % 6}.png`;
+
+/** Exact (case-insensitive) username / display name / nickname match among server members. */
+export async function searchMember(token: string, guildId: string, name: string): Promise<GuildMember | null> {
+  const q = name.trim().replace(/^@/, "");
+  if (!q) return null;
+  const found = await discord<GuildMember[]>(token, `/guilds/${guildId}/members/search?limit=25&query=${encodeURIComponent(q)}`);
+  const lower = q.toLowerCase();
+  return found.find((m) => [m.user.username, m.user.global_name, m.nick].some((n) => n?.toLowerCase() === lower)) ?? null;
+}
+
+async function getMember(token: string, guildId: string, userId: string): Promise<GuildMember | null> {
+  try { return await discord<GuildMember>(token, `/guilds/${guildId}/members/${userId}`); }
+  catch (e) { if (e instanceof DiscordError && e.status === 404) return null; throw e; }
+}
+
+export function ticketChannelName(winner: string, emoji = "🏆"): string {
   const slug = winner.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "winner";
-  return `🏆｜prize-${slug}`;
+  return `${emoji}｜prize-${slug}`;
 }
 
+// ── ticket message ────────────────────────────────────────────────────────
 interface TicketAward extends RowDataPacket {
-  id: number; source: string; title: string; place: number | null; winner: string;
-  amount: string | null; prize_label: string; linked_discord_id: string | null;
+  id: number; source: string; source_ref: string; title: string; place: number | null; winner: string;
+  winner_kick_id: string | null; amount: string | null; prize_label: string; status: "pending" | "paid" | "void"; note: string;
+  created_at: string; paid_at: string | null; claimed_at: string | null; received_at: string | null;
+  payout_method: string | null; payout_username: string; payout_network: string; claim_note: string;
+  discord_channel_id: string | null; discord_user_id: string | null; discord_message_id: string | null;
+  candidate_discord_id: string | null;
 }
 
-interface GuildMember { user: { id: string; username: string; global_name: string | null }; nick: string | null }
+const AWARD_SQL = `
+  SELECT pa.id, pa.source, pa.source_ref, pa.title, pa.place, pa.winner, pa.winner_kick_id, pa.amount, pa.prize_label, pa.status, pa.note,
+         pa.created_at, pa.paid_at, pa.claimed_at, pa.received_at, pa.payout_method, pa.payout_username, pa.payout_network, pa.claim_note,
+         pa.discord_channel_id, pa.discord_user_id, pa.discord_message_id,
+         COALESCE(pa.winner_discord_id, IF(pa.source IN ('leaderboard','race'), NULL,
+           (SELECT d.provider_user_id FROM user_identities k
+              JOIN user_identities d ON d.account_id = k.account_id AND d.provider = 'discord'
+             WHERE k.provider = 'kick'
+               AND (k.provider_user_id = pa.winner_kick_id OR (pa.winner_kick_id IS NULL AND LOWER(k.username) = LOWER(pa.winner)))
+             LIMIT 1))) AS candidate_discord_id
+    FROM prize_awards pa`;
 
-/** The winner's Discord user id: the Discord linked to their site account, else an exact name match on the server. */
-async function findWinner(token: string, guildId: string, a: TicketAward): Promise<string | null> {
-  if (a.linked_discord_id) return a.linked_discord_id;
-  const name = a.winner.toLowerCase();
-  const found = await discord<GuildMember[]>(token, `/guilds/${guildId}/members/search?limit=10&query=${encodeURIComponent(a.winner)}`);
-  const m = found.find((x) => [x.user.username, x.user.global_name, x.nick].some((n) => n?.toLowerCase() === name));
-  return m?.user.id ?? null;
+type Stage = "waiting" | "claimed" | "paid" | "received" | "void";
+function stageOf(a: TicketAward): Stage {
+  if (a.status === "void") return "void";
+  if (a.received_at) return "received";
+  if (a.status === "paid") return "paid";
+  return a.claimed_at ? "claimed" : "waiting";
+}
+const STAGE: Record<Stage, { emoji: string; label: string; color: number }> = {
+  waiting: { emoji: "🏆", label: "⏳ Waiting for the winner's claim", color: 0xf5c451 },
+  claimed: { emoji: "📨", label: "📨 Claimed — the team is sending it", color: 0x22d3ee },
+  paid: { emoji: "💸", label: "💸 Paid — waiting for the winner to confirm", color: 0x8b5cf6 },
+  received: { emoji: "✅", label: "✅ Received — done", color: 0x34d399 },
+  void: { emoji: "❌", label: "❌ Voided", color: 0xff4d5e },
+};
+
+const unix = (dbTime: string) => Math.floor(new Date(`${dbTime.replace(" ", "T")}Z`).getTime() / 1000);
+const prizeText = (a: TicketAward) =>
+  a.amount != null ? `**$${Number(a.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}**${a.prize_label ? `\n${a.prize_label}` : ""}` : a.prize_label || "—";
+
+function progress(stage: Stage): string {
+  if (stage === "void") return "`❌ VOIDED`";
+  const order: Stage[] = ["waiting", "claimed", "paid", "received"];
+  const at = order.indexOf(stage);
+  return ["WON", "CLAIMED", "PAID", "RECEIVED"].map((s, i) => (i <= at ? `🟢 **${s}**` : `⚪ ${s}`)).join(" ─ ");
 }
 
-async function openTicket(token: string, guildId: string, a: TicketAward): Promise<string> {
+function ticketMessage(a: TicketAward, member: GuildMember | null) {
+  const stage = stageOf(a);
+  const casino = CASINO_NAMED.includes(a.source);
+  const who = a.discord_user_id ? `<@${a.discord_user_id}>` : `**${a.winner}**`;
+  const intro: Record<Stage, string> = {
+    waiting: casino
+      ? `GG ${who}! You placed in the **${a.title}**. Send your casino username here and the team pays you.`
+      : `GG ${who}! You won ${prizeText(a).split("\n")[0]} in **${a.title || "the stream"}**.\nPress **Claim prize** and pick where to send it: **Stake**, **Rainbet** or a **USDC wallet**.`,
+    claimed: `${who}, your claim is in. The team pays you shortly; this ticket updates when it's sent.`,
+    paid: `${who}, your prize was sent! Press **I received it** once it's in your account.`,
+    received: `All done — ${who} confirmed the prize. Thanks for watching ONO! 💛`,
+    void: `This prize was voided${a.note ? `: ${a.note}` : "."}`,
+  };
+  const fields = [
+    { name: "👤 Winner", value: `${a.winner}${a.winner_kick_id ? " · Kick" : ""}\n${member ? `<@${member.user.id}>` : "⚠️ not found on the server — add them by hand"}`, inline: true },
+    { name: "🎮 Event", value: `${SOURCE_LABEL[a.source] ?? a.source}\n${a.title || "—"}`, inline: true },
+    { name: "💰 Prize", value: prizeText(a), inline: true },
+    ...(a.place ? [{ name: "🏅 Place", value: PLACE[a.place] ?? `#${a.place}`, inline: true }] : []),
+    { name: "📅 Won", value: `<t:${unix(a.created_at)}:f>\n<t:${unix(a.created_at)}:R>`, inline: true },
+    { name: "📌 Status", value: STAGE[stage].label, inline: true },
+    {
+      name: "💳 Payout",
+      value: a.claimed_at && a.payout_method
+        ? `\`${describeDestination(a.payout_method, a.payout_username, a.payout_network)}\`${a.claim_note ? `\n> ${a.claim_note}` : ""}`
+        : casino ? "Casino account (leaderboard / race)" : "Not claimed yet",
+    },
+    ...(a.paid_at ? [{ name: "💸 Paid", value: `<t:${unix(a.paid_at)}:f>${a.note ? `\n${a.note}` : ""}`, inline: true }] : []),
+    ...(a.received_at ? [{ name: "✅ Received", value: `<t:${unix(a.received_at)}:f>`, inline: true }] : []),
+  ];
+
+  const buttons: unknown[] = [];
+  if (stage === "waiting" || stage === "claimed") {
+    buttons.push({ type: 2, style: 3, custom_id: `prize:claim:${a.id}`, label: stage === "waiting" ? "Claim prize" : "Change payout", emoji: { name: "💸" } });
+  }
+  if (stage === "paid") buttons.push({ type: 2, style: 3, custom_id: `prize:recv:${a.id}`, label: "I received it", emoji: { name: "✅" } });
+  buttons.push({ type: 2, style: 5, url: `${SITE}/account/prizes`, label: "Prize page", emoji: { name: "🌐" } });
+
+  return {
+    embeds: [{
+      author: { name: `PRIZE TICKET · #${a.id}` },
+      title: `🏆 ${a.winner}`,
+      description: `${intro[stage]}\n\n${progress(stage)}`,
+      color: STAGE[stage].color,
+      fields,
+      ...(member ? { thumbnail: { url: avatarUrl(member.user) } } : {}),
+      footer: { text: "ONO DEGEN TUNNEL · Prize desk" },
+      timestamp: new Date().toISOString(),
+    }],
+    components: [{ type: 1, components: buttons }],
+  };
+}
+
+async function loadTicketAward(id: number): Promise<TicketAward | null> {
+  const [rows] = await getPool().query<TicketAward[]>(`${AWARD_SQL} WHERE pa.id = ?`, [id]);
+  return rows[0] ?? null;
+}
+
+// ── open ──────────────────────────────────────────────────────────────────
+async function openTicket(token: string, guildId: string, a: TicketAward): Promise<{ channelId: string; messageId: string; userId: string | null }> {
   const [channels, roles] = await Promise.all([
     discord<{ id: string; name: string; type: number }[]>(token, `/guilds/${guildId}/channels`),
     discord<{ id: string; name: string }[]>(token, `/guilds/${guildId}/roles`),
   ]);
   const category = channels.find((c) => c.type === 4 && c.name === TICKET_CATEGORY);
   const staff = roles.filter((r) => STAFF_ROLES.includes(r.name));
-  const winnerId = await findWinner(token, guildId, a);
+  const member = a.candidate_discord_id
+    ? await getMember(token, guildId, a.candidate_discord_id)
+    : await searchMember(token, guildId, a.winner);
+  const userId = member?.user.id ?? null;
 
   const overwrites = [
     { id: guildId, type: 0, allow: "0", deny: String(VIEW) }, // @everyone
     ...staff.map((r) => ({ id: r.id, type: 0, allow: String(VIEW | SEND | HISTORY | EMBED | ATTACH), deny: "0" })),
-    ...(winnerId ? [{ id: winnerId, type: 1, allow: String(VIEW | SEND | HISTORY | ATTACH), deny: "0" }] : []),
+    ...(userId ? [{ id: userId, type: 1, allow: String(VIEW | SEND | HISTORY | ATTACH), deny: "0" }] : []),
   ];
   const channel = await discord<{ id: string }>(token, `/guilds/${guildId}/channels`, {
     method: "POST",
-    body: { name: ticketChannelName(a.winner), type: 0, parent_id: category?.id, permission_overwrites: overwrites, topic: `Prize #${a.id} · ${a.winner}` },
-  });
-
-  const prize = a.prize_label || (a.amount != null ? `$${a.amount}` : "—");
-  const claimable = !CASINO_NAMED.includes(a.source);
-  const fields = [
-    { name: "Event", value: `${SOURCE_LABEL[a.source] ?? a.source}\n${a.title || "—"}`, inline: true },
-    ...(a.place ? [{ name: "Place", value: `#${a.place}`, inline: true }] : []),
-    { name: "Prize", value: prize, inline: true },
-    {
-      name: "Next step",
-      value: claimable
-        ? `Claim it on **[your account](${SITE_URL.replace(/\/$/, "")}/account)** (where to send it), then wait here for the payout.`
-        : "Send your casino username here so the team can pay you.",
+    body: {
+      name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji), type: 0, parent_id: category?.id, permission_overwrites: overwrites,
+      topic: `Prize #${a.id} · ${a.winner} · ${SOURCE_LABEL[a.source] ?? a.source}: ${a.title}`.slice(0, 1024),
     },
-    { name: "Winner on Discord", value: winnerId ? `<@${winnerId}>` : "⚠️ Not found — add them to this channel by hand." },
-  ];
-  await discord(token, `/channels/${channel.id}/messages`, {
+  });
+  const msg = await discord<{ id: string }>(token, `/channels/${channel.id}/messages`, {
     method: "POST",
     body: {
-      content: [winnerId ? `<@${winnerId}>` : "", ...staff.map((r) => `<@&${r.id}>`)].join(" ").trim() || undefined,
-      embeds: [{ title: `🏆 PRIZE • ${a.winner}`, color: 0xf5c451, fields, footer: { text: `ONO DEGEN TUNNEL · award #${a.id}` } }],
-      allowed_mentions: { users: winnerId ? [winnerId] : [], roles: staff.map((r) => r.id) },
+      content: [userId ? `<@${userId}>` : "", ...staff.map((r) => `<@&${r.id}>`)].join(" ").trim() || undefined,
+      ...ticketMessage({ ...a, discord_user_id: userId } as TicketAward, member),
+      allowed_mentions: { users: userId ? [userId] : [], roles: staff.map((r) => r.id) },
     },
   });
-  return channel.id;
+  // pinned so the details stay one click away however long the chat gets
+  await discord(token, `/channels/${channel.id}/pins/${msg.id}`, { method: "PUT" }).catch(() => {});
+  return { channelId: channel.id, messageId: msg.id, userId };
 }
 
-const PENDING_SQL = `
-  SELECT pa.id, pa.source, pa.title, pa.place, pa.winner, pa.amount, pa.prize_label,
-         IF(pa.source IN ('leaderboard','race'), NULL,
-           (SELECT d.provider_user_id FROM user_identities k
-              JOIN user_identities d ON d.account_id = k.account_id AND d.provider = 'discord'
-             WHERE k.provider = 'kick'
-               AND (k.provider_user_id = pa.winner_kick_id OR (pa.winner_kick_id IS NULL AND LOWER(k.username) = LOWER(pa.winner)))
-             LIMIT 1)) AS linked_discord_id
-    FROM prize_awards pa
+const PENDING_SQL = `${AWARD_SQL}
    WHERE pa.discord_channel_id IS NULL
      AND (pa.discord_ticket_lock IS NULL OR pa.discord_ticket_lock < UTC_TIMESTAMP() - INTERVAL 2 MINUTE)
    ORDER BY pa.id LIMIT ${BATCH}`;
 
 async function sweep(): Promise<number> {
-  const cfg = config();
+  const cfg = discordConfig();
   if (!cfg) return 0;
   const pool = getPool();
   const [rows] = await pool.query<TicketAward[]>(PENDING_SQL);
@@ -139,8 +245,10 @@ async function sweep(): Promise<number> {
          AND (discord_ticket_lock IS NULL OR discord_ticket_lock < UTC_TIMESTAMP() - INTERVAL 2 MINUTE)`, [a.id]);
     if (!lock.affectedRows) continue;
     try {
-      const channelId = await openTicket(cfg.token, cfg.guildId, a);
-      await pool.query("UPDATE prize_awards SET discord_channel_id = ?, discord_ticket_lock = NULL WHERE id = ?", [channelId, a.id]);
+      const t = await openTicket(cfg.token, cfg.guildId, a);
+      await pool.query(
+        "UPDATE prize_awards SET discord_channel_id = ?, discord_message_id = ?, discord_user_id = ?, discord_ticket_lock = NULL WHERE id = ?",
+        [t.channelId, t.messageId, t.userId, a.id]);
       opened++;
     } catch (err) {
       await pool.query("UPDATE prize_awards SET discord_ticket_lock = NULL WHERE id = ?", [a.id]);
@@ -159,4 +267,28 @@ export function openPrizeTickets(): Promise<number> {
     .catch((err) => { console.error("discord prize tickets failed", err); return 0; })
     .finally(() => { running = null; });
   return running;
+}
+
+// ── update ────────────────────────────────────────────────────────────────
+/** Re-render the ticket message + channel name for the award's current state, and post `note` as a history line. */
+export async function refreshTicket(id: number, note?: string): Promise<void> {
+  const cfg = discordConfig();
+  if (!cfg) return;
+  const a = await loadTicketAward(id);
+  if (!a?.discord_channel_id) return;
+  const { token, guildId } = cfg;
+  const member = a.discord_user_id ? await getMember(token, guildId, a.discord_user_id).catch(() => null) : null;
+  const jobs: Promise<unknown>[] = [
+    discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji) } }),
+  ];
+  if (a.discord_message_id) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages/${a.discord_message_id}`, { method: "PATCH", body: ticketMessage(a, member) }));
+  if (note) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages`, { method: "POST", body: { content: note, allowed_mentions: { parse: [] } } }));
+  const results = await Promise.allSettled(jobs);
+  for (const r of results) if (r.status === "rejected") console.error(`discord ticket #${id} update failed`, r.reason);
+}
+
+/** After the response: refresh the award's ticket. Safe anywhere (no-op outside a request or without Discord config). */
+export function ticketChanged(id: number, note?: string): void {
+  if (!discordConfig()) return;
+  try { after(() => refreshTicket(id, note).catch((e) => console.error(`discord ticket #${id} refresh failed`, e))); } catch { /* outside a request */ }
 }

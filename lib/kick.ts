@@ -45,6 +45,7 @@ async function getAppAccessToken(): Promise<string> {
 
 interface KickChannelData {
   broadcaster_user_id: number;
+  slug?: string;
   stream?: { is_live?: boolean; viewer_count?: number } | null;
 }
 
@@ -57,6 +58,12 @@ async function getChannel(slug: string): Promise<KickChannelData | null> {
   if (!res.ok) throw new Error(`Kick channel lookup failed: ${res.status}`);
   const data = (await res.json()) as { data: KickChannelData[] };
   return data.data?.[0] ?? null;
+}
+
+/** Official API: the Kick user id behind a channel slug, or null when there is no such channel. */
+export async function lookupKickChannel(slug: string): Promise<{ userId: string; slug: string } | null> {
+  const channel = await getChannel(slug);
+  return channel?.broadcaster_user_id ? { userId: String(channel.broadcaster_user_id), slug: channel.slug ?? slug } : null;
 }
 
 export async function getBroadcasterUserId(slug: string = KICK_CHANNEL): Promise<number> {

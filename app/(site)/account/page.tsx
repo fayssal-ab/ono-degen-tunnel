@@ -5,10 +5,10 @@ import { BrandIcon } from "@/components/ui/BrandIcon";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { LogoutButton, UnlinkButton } from "@/components/account/AccountActions";
-import { PayoutSettings, PrizeList, type PrizeRow } from "@/components/account/PrizeList";
-import { listOwnedAwards } from "@/lib/prizes";
+import { listOwnedAwards, type Award } from "@/lib/prizes";
+import { formatMoney } from "@/lib/money";
 import {
-  AUTH_MESSAGES, PROVIDERS, PROVIDER_NAME, currentAccountId, getAccount, getActivity, kickOwner, providerConfig, type Provider, type AccountSummary, type AccountActivity,
+  AUTH_MESSAGES, PROVIDERS, PROVIDER_NAME, currentAccountId, getAccount, getActivity, prizeOwner, providerConfig, type Provider, type AccountSummary, type AccountActivity,
 } from "@/lib/userAuth";
 
 export const metadata: Metadata = { title: "Your account", robots: { index: false } };
@@ -42,16 +42,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
   let account: AccountSummary | null = null;
   let activity: AccountActivity = { tournaments: [] };
-  let prizes: PrizeRow[] = [];
+  let prizes: Award[] = [];
   let down = false;
   try {
     const id = await currentAccountId();
     account = id != null ? await getAccount(id) : null;
     if (account) {
-      const owner = kickOwner(account);
+      const owner = prizeOwner(account);
       [activity, prizes] = await Promise.all([
         getActivity(account.identities.find((i) => i.provider === "kick")),
-        owner ? listOwnedAwards(owner).then((rows) => rows as unknown as PrizeRow[]) : Promise.resolve([]),
+        owner ? listOwnedAwards(owner) : Promise.resolve([]),
       ]);
     }
   } catch { down = true; }
@@ -79,7 +79,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   }
 
   const byProvider = new Map(account.identities.map((i) => [i.provider, i]));
-  const defaults = { method: account.payout_method, username: account.payout_username };
+  const won = prizes.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
   const toClaim = prizes.filter((p) => p.status === "pending" && !p.claimed_at).length;
   const toConfirm = prizes.filter((p) => p.status === "paid" && !p.received_at).length;
   const kick = byProvider.get("kick");
@@ -88,14 +88,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       <PageHeader kicker="Account" title="Your profile" />
       {notice}
       {(toClaim > 0 || toConfirm > 0) && (
-        <a href="#prizes" className="flex items-center gap-3 rounded-2xl border border-gold/50 bg-gold/10 p-4 text-sm hover:bg-gold/15">
+        <Link href="/account/prizes" className="flex items-center gap-3 rounded-2xl border border-gold/50 bg-gold/10 p-4 text-sm hover:bg-gold/15">
           <Icon name="Gift" className="h-5 w-5 shrink-0 text-gold" />
           <span className="flex-1">
             {toClaim > 0 && <><strong className="text-gold">{toClaim} prize{toClaim > 1 ? "s" : ""} to claim</strong> — tell us where to send {toClaim > 1 ? "them" : "it"}. </>}
             {toConfirm > 0 && <><strong className="text-volt">{toConfirm} paid</strong> — confirm once you receive {toConfirm > 1 ? "them" : "it"}.</>}
           </span>
           <Icon name="ArrowRight" className="h-4 w-4 text-gold" />
-        </a>
+        </Link>
       )}
       <section className="surface flex flex-wrap items-center gap-4 p-6">
         <Avatar src={account.avatar} name={account.display_name} size={72} />
@@ -127,16 +127,21 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </ul>
       </section>
 
-      <section id="prizes" className="surface scroll-mt-24 p-6">
-        <h2 className="label mb-4">My prizes</h2>
-        {!kick ? (
-          <p className="text-sm text-text-2">Link your Kick account to see and claim the prizes you won on stream.</p>
-        ) : prizes.length === 0 ? (
-          <p className="text-sm text-text-2">No prize yet — good luck! <Link href="/prizes" className="text-gold underline">All prizes</Link></p>
-        ) : (
-          <PrizeList prizes={prizes} defaults={defaults} />
-        )}
-      </section>
+      <Link href="/account/prizes" id="prizes"
+        className="group relative flex scroll-mt-24 flex-wrap items-center gap-5 overflow-hidden rounded-[24px] border border-gold/30 bg-gradient-to-br from-gold/15 via-bg-1 to-plasma/10 p-6 hover:border-gold/60">
+        <span aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-gold/20 blur-3xl transition-opacity group-hover:opacity-100 sm:opacity-70" />
+        <span className="relative grid h-14 w-14 place-items-center rounded-2xl border border-gold/40 bg-gold/15"><Icon name="Trophy" className="h-7 w-7 text-gold" /></span>
+        <span className="relative min-w-0 flex-1">
+          <span className="label text-gold/80">My prizes</span>
+          <span className="mt-1 block font-display text-2xl font-extrabold text-text-0">
+            {prizes.length ? <>{prizes.length} prize{prizes.length > 1 ? "s" : ""} · <span className="font-mono text-gold">{formatMoney(won)}</span></> : "No prize yet"}
+          </span>
+          <span className="block text-sm text-text-1">{prizes.length ? "Claim, follow the payout and manage your Stake / Rainbet / USDC wallets." : "Win on stream — your prizes and payout wallets live here."}</span>
+        </span>
+        <span className="relative inline-flex h-11 items-center gap-2 rounded-xl bg-gold px-5 text-sm font-bold text-bg-0 group-hover:bg-gold-hi">
+          {toClaim > 0 ? `Claim ${toClaim}` : "Open"} <Icon name="ArrowRight" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section id="tournaments" className="surface scroll-mt-24 p-6">
@@ -164,9 +169,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           )}
         </section>
         <section id="settings" className="surface scroll-mt-24 p-6">
-          <h2 className="label mb-1">Payout settings</h2>
-          <p className="mb-4 text-sm text-text-2">Where you want to receive prizes. Used to pre-fill every claim — you can still change it per prize.</p>
-          <PayoutSettings defaults={defaults} />
+          <h2 className="label mb-1">Payout wallets</h2>
+          <p className="mb-4 text-sm text-text-2">Stake, Rainbet and USDC wallets, each saved on its own. They pre-fill every claim, here and in your Discord ticket.</p>
+          <Link href="/account/prizes#wallets" className="press inline-flex h-10 items-center gap-2 rounded-xl border border-line-strong px-4 text-sm text-text-0 hover:border-gold hover:text-gold">
+            <Icon name="Wallet" className="h-4 w-4" /> Manage wallets
+          </Link>
         </section>
       </div>
 

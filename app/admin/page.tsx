@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { RelativeTime } from "@/components/ui/RelativeTime";
 import { getJobRuns, type JobRun } from "@/lib/events/common";
+import { getUserStats, type UserStats } from "@/lib/userAdmin";
+import { discordConfig } from "@/lib/discordTickets";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +71,126 @@ async function getStats(activePeriodId: number | null): Promise<Stats> {
   };
 }
 
+interface Desk {
+  toClaim: number; toPay: number; paidMonth: number; paidTotal: number; openTickets: number; stuckTickets: number;
+  recent: { id: number; winner: string; title: string; amount: string | null; prize_label: string; status: string; claimed_at: string | null; received_at: string | null; created_at: string }[];
+  users: UserStats;
+  newest: { id: number; display_name: string; avatar: string; created_at: string; providers: string }[];
+}
+
+/** Prizes + community panel. Separate from getStats so a missing migration only hides this part. */
+async function getDesk(): Promise<Desk> {
+  const pool = getPool();
+  const [[agg], [recent], users, [newest]] = await Promise.all([
+    pool.query<RowDataPacket[]>(
+      `SELECT SUM(status='pending' AND claimed_at IS NULL AND source NOT IN ('leaderboard','race')) to_claim,
+              SUM(status='pending' AND (claimed_at IS NOT NULL OR source IN ('leaderboard','race'))) to_pay,
+              COALESCE(SUM(IF(status='paid' AND paid_at >= DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01'), amount, 0)), 0) paid_month,
+              COALESCE(SUM(IF(status='paid', amount, 0)), 0) paid_total,
+              SUM(discord_channel_id <> '' AND status <> 'void' AND received_at IS NULL) open_tickets,
+              SUM(discord_channel_id IS NULL AND created_at < UTC_TIMESTAMP() - INTERVAL 15 MINUTE) stuck
+         FROM prize_awards`),
+    pool.query<RowDataPacket[]>("SELECT id, winner, title, amount, prize_label, status, claimed_at, received_at, created_at FROM prize_awards ORDER BY id DESC LIMIT 6"),
+    getUserStats(),
+    pool.query<RowDataPacket[]>(
+      `SELECT a.id, a.display_name, a.avatar, a.created_at, GROUP_CONCAT(i.provider ORDER BY i.provider) providers
+         FROM user_accounts a LEFT JOIN user_identities i ON i.account_id = a.id
+        GROUP BY a.id ORDER BY a.created_at DESC, a.id DESC LIMIT 5`),
+  ]);
+  const a = agg[0] ?? {};
+  const n = (v: unknown) => Number(v ?? 0);
+  return {
+    toClaim: n(a.to_claim), toPay: n(a.to_pay), paidMonth: n(a.paid_month), paidTotal: n(a.paid_total),
+    openTickets: n(a.open_tickets), stuckTickets: n(a.stuck),
+    recent: recent as Desk["recent"], users, newest: newest as Desk["newest"],
+  };
+}
+
+function prizeState(p: Desk["recent"][number]): { label: string; tone: "gold" | "volt" | "plasma" | "neutral" | "danger" } {
+  if (p.status === "void") return { label: "void", tone: "danger" };
+  if (p.received_at) return { label: "received", tone: "volt" };
+  if (p.status === "paid") return { label: "paid", tone: "plasma" };
+  return p.claimed_at ? { label: "to pay", tone: "neutral" } : { label: "to claim", tone: "gold" };
+}
+
+function PrizeDeskPanel({ desk }: { desk: Desk }) {
+  const discord = discordConfig() != null;
+  const buttons = Boolean(process.env.DISCORD_PUBLIC_KEY);
+  return (
+    <div className="grid gap-4 xl:grid-cols-3">
+      <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-gold/30 bg-gradient-to-br from-gold/10 via-bg-1 to-bg-1 p-5 xl:col-span-2">
+        <span aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-gold/15 blur-3xl" />
+        <div className="relative flex items-center justify-between">
+          <p className="label flex items-center gap-1.5"><Icon name="Trophy" className="h-3.5 w-3.5 text-gold" /> Prize desk</p>
+          <Link href="/admin/prizes" className="text-sm text-gold hover:underline">Open →</Link>
+        </div>
+        <div className="relative mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "To pay", value: String(desk.toPay), tone: desk.toPay ? "text-gold" : "text-text-0", hint: "claimed / casino" },
+            { label: "Waiting claim", value: String(desk.toClaim), tone: "text-text-0", hint: "winner hasn't said where" },
+            { label: "Paid this month", value: formatMoney(desk.paidMonth), tone: "text-volt", hint: "" },
+            { label: "Paid all time", value: formatMoney(desk.paidTotal), tone: "text-text-0", hint: "" },
+          ].map((t) => (
+            <div key={t.label} className="rounded-xl border border-line bg-bg-0/40 p-3">
+              <p className="label">{t.label}</p>
+              <p className={`mt-1 font-mono text-xl font-bold ${t.tone}`}>{t.value}</p>
+              {t.hint && <p className="text-[11px] text-text-2">{t.hint}</p>}
+            </div>
+          ))}
+        </div>
+        <ul className="relative mt-4 divide-y divide-line/60">
+          {desk.recent.length === 0 ? <li className="py-3 text-sm text-text-2">No prize yet.</li> : desk.recent.map((p) => {
+            const st = prizeState(p);
+            return (
+              <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                <Badge tone={st.tone}>{st.label}</Badge>
+                <span className="font-semibold text-text-0">{p.winner}</span>
+                <span className="min-w-0 flex-1 truncate text-text-2">{p.title}</span>
+                <span className="font-mono text-gold">{p.amount != null ? formatMoney(p.amount) : p.prize_label || "—"}</span>
+                <span className="text-xs text-text-2"><RelativeTime iso={`${p.created_at.replace(" ", "T")}Z`} /></span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <div className="space-y-4">
+        <section className="surface p-5">
+          <div className="flex items-center justify-between">
+            <p className="label flex items-center gap-1.5"><Icon name="Users" className="h-3.5 w-3.5" /> Community</p>
+            <Link href="/admin/users" className="text-sm text-gold hover:underline">Users →</Link>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            {[["Users", desk.users.total, "text-gold"], ["New 7d", desk.users.new7, "text-volt"], ["Active 24h", desk.users.active24, "text-cyan"]].map(([l, v, t]) => (
+              <div key={l as string} className="rounded-xl border border-line bg-bg-1 p-2"><p className={`font-mono text-lg font-bold ${t}`}>{(v as number).toLocaleString("en-US")}</p><p className="text-[11px] text-text-2">{l}</p></div>
+            ))}
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            {desk.newest.map((u) => (
+              <li key={u.id}>
+                <Link href={`/admin/users/${u.id}`} className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-sm hover:bg-bg-2">
+                  <UserAvatar src={u.avatar} name={u.display_name} className="h-7 w-7 rounded-lg text-xs" />
+                  <span className="min-w-0 flex-1 truncate text-text-0">{u.display_name}</span>
+                  <span className="text-[11px] text-text-2">{u.providers ?? ""}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="surface p-5">
+          <p className="label mb-2 flex items-center gap-1.5"><Icon name="Ticket" className="h-3.5 w-3.5" /> Discord tickets</p>
+          <ul className="space-y-1.5 text-sm">
+            <li className="flex items-center gap-2"><Icon name={discord ? "CircleCheck" : "AlertTriangle"} className={`h-4 w-4 ${discord ? "text-volt" : "text-danger"}`} />{discord ? "Bot connected" : "DISCORD_BOT_TOKEN / DISCORD_GUILD_ID missing"}</li>
+            <li className="flex items-center gap-2"><Icon name={buttons ? "CircleCheck" : "AlertTriangle"} className={`h-4 w-4 ${buttons ? "text-volt" : "text-gold"}`} />{buttons ? "Claim buttons on" : "Claim buttons off (DISCORD_PUBLIC_KEY)"}</li>
+            <li className="flex items-center gap-2"><Icon name="MessagesSquare" className="h-4 w-4 text-text-2" />{desk.openTickets} open ticket{desk.openTickets === 1 ? "" : "s"}</li>
+            {desk.stuckTickets > 0 && <li className="flex items-center gap-2 text-danger"><Icon name="AlertTriangle" className="h-4 w-4" />{desk.stuckTickets} prize{desk.stuckTickets > 1 ? "s" : ""} without a ticket (retried by the cron)</li>}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export default async function AdminDashboard() {
   const active = await getActivePeriod();
   let stats: Stats;
@@ -85,6 +208,10 @@ export default async function AdminDashboard() {
     );
   }
   const lbEnabled = await isLeaderboardEnabled();
+  const desk = await getDesk().catch((err) => {
+    console.error("admin prize desk stats failed", err instanceof Error ? err.message : "unknown");
+    return null;
+  });
 
   const tiles = [
     { label: "Periods", value: String(stats.periods), sub: `${stats.closed} closed` },
@@ -135,6 +262,10 @@ export default async function AdminDashboard() {
           </Link>
         </div>
       </div>
+
+      {desk ? <PrizeDeskPanel desk={desk} /> : (
+        <p role="alert" className="rounded-xl border border-gold/40 bg-gold/10 p-4 text-sm">Prize desk unavailable — run <code>npm run migrate</code> (0016 / 0017).</p>
+      )}
 
       {/* stat tiles */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

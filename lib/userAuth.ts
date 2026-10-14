@@ -5,6 +5,8 @@ import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { getPool } from "./db";
 import { withTx } from "./events/common";
 import { SITE_URL } from "./constants";
+import type { Destination, PayoutMethod } from "./payout";
+import type { PrizeOwner } from "./prizes";
 
 // Viewer accounts: "Continue with Kick" / "Continue with Discord", and
 // linking the other provider from /account. OAuth authorization-code flow
@@ -229,30 +231,57 @@ export async function currentAccountId(): Promise<number | null> {
 export interface Identity { provider: Provider; provider_user_id: string; username: string; avatar: string; linked_at: string }
 export interface AccountSummary {
   id: number; display_name: string; avatar: string; identities: Identity[];
-  payout_method: "stake" | "rainbet" | "other" | null; payout_username: string;
+  /** preferred destination */
+  payout_method: PayoutMethod | null;
+  stake_username: string; rainbet_username: string; usdc_address: string; usdc_network: string;
+  notif_seen_at: string | null;
 }
 
 export async function getAccount(accountId: number): Promise<AccountSummary | null> {
   const pool = getPool();
   const [[acc], [ids]] = await Promise.all([
-    pool.query<RowDataPacket[]>("SELECT id, display_name, avatar, payout_method, payout_username FROM user_accounts WHERE id = ?", [accountId]),
+    pool.query<RowDataPacket[]>(
+      `SELECT id, display_name, avatar, payout_method, stake_username, rainbet_username, usdc_address, usdc_network, notif_seen_at
+         FROM user_accounts WHERE id = ?`, [accountId]),
     pool.query<RowDataPacket[]>("SELECT provider, provider_user_id, username, avatar, linked_at FROM user_identities WHERE account_id = ? ORDER BY linked_at", [accountId]),
   ]);
   if (!acc[0]) return null;
+  const a = acc[0];
   return {
-    id: Number(acc[0].id), display_name: acc[0].display_name, avatar: acc[0].avatar, identities: ids as Identity[],
-    payout_method: acc[0].payout_method ?? null, payout_username: acc[0].payout_username ?? "",
+    id: Number(a.id), display_name: a.display_name, avatar: a.avatar, identities: ids as Identity[],
+    payout_method: a.payout_method === "other" ? null : a.payout_method ?? null,
+    stake_username: a.stake_username ?? "", rainbet_username: a.rainbet_username ?? "", usdc_address: a.usdc_address ?? "", usdc_network: a.usdc_network ?? "",
+    notif_seen_at: a.notif_seen_at ?? null,
   };
 }
 
-/** The linked Kick identity as a prize owner, if any. */
-export function kickOwner(acc: AccountSummary): { id: string; username: string } | null {
+/** The linked Kick / Discord identities that own prizes, or null when neither is linked. */
+export function prizeOwner(acc: AccountSummary): PrizeOwner | null {
   const k = acc.identities.find((i) => i.provider === "kick");
-  return k ? { id: k.provider_user_id, username: k.username } : null;
+  const d = acc.identities.find((i) => i.provider === "discord");
+  if (!k && !d) return null;
+  return { kickId: k?.provider_user_id ?? null, kickName: k?.username ?? null, discordId: d?.provider_user_id ?? null };
 }
 
-export async function savePayoutDefaults(accountId: number, method: "stake" | "rainbet" | "other" | null, username: string): Promise<void> {
-  await getPool().query("UPDATE user_accounts SET payout_method = ?, payout_username = ? WHERE id = ?", [method, username.slice(0, 191), accountId]);
+/** Save one destination; each method is stored on its own. The first one saved becomes the preferred. */
+export async function saveDestination(accountId: number, d: Destination): Promise<void> {
+  const col = d.method === "stake" ? "stake_username = ?" : d.method === "rainbet" ? "rainbet_username = ?" : "usdc_address = ?, usdc_network = ?";
+  const args = d.method === "usdc" ? [d.value, d.network] : [d.value];
+  await getPool().query(`UPDATE user_accounts SET ${col}, payout_method = COALESCE(payout_method, ?) WHERE id = ?`, [...args, d.method, accountId]);
+}
+
+/** Remove one destination (and the preference if it pointed at it). */
+export async function clearDestination(accountId: number, method: PayoutMethod): Promise<void> {
+  const col = method === "stake" ? "stake_username = ''" : method === "rainbet" ? "rainbet_username = ''" : "usdc_address = '', usdc_network = ''";
+  await getPool().query(`UPDATE user_accounts SET ${col}, payout_method = IF(payout_method = ?, NULL, payout_method) WHERE id = ?`, [method, accountId]);
+}
+
+export async function setPreferredDestination(accountId: number, method: PayoutMethod): Promise<void> {
+  await getPool().query("UPDATE user_accounts SET payout_method = ? WHERE id = ?", [method, accountId]);
+}
+
+export async function markNotificationsSeen(accountId: number): Promise<void> {
+  await getPool().query("UPDATE user_accounts SET notif_seen_at = UTC_TIMESTAMP() WHERE id = ?", [accountId]);
 }
 
 export interface AccountActivity {

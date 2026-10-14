@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { KICK_URL } from "@/lib/constants";
 import { AccountButton } from "./AccountButton";
 
 // Admin reaches /login by URL. The chrome shows search, the Kick live pill
-// (streamer status, from the cached read), a sign-up CTA that jumps to the
-// partner-casino section on the home page, and the viewer account button.
+// (streamer status, from the cached read) and the viewer account button
+// (signed out: one Discord "Sign up" button).
 export function TopBar({ live, viewers }: { live: boolean; viewers: number | null }) {
   const [mac, setMac] = useState(false);
   useEffect(() => {
@@ -66,14 +65,6 @@ export function TopBar({ live, viewers }: { live: boolean; viewers: number | nul
           )}
         </a>
 
-        <Link
-          href="/#play"
-          className="press inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-bg-0 hover:bg-gold-hi"
-        >
-          <Icon name="Zap" className="h-4 w-4" />
-          <span className="hidden sm:inline">Sign up &amp; play</span>
-          <span className="sm:hidden">Play</span>
-        </Link>
         <AccountButton />
       </div>
     </header>

@@ -118,37 +118,40 @@ dbt("prize claim: only the Kick winner claims, admin pays, winner confirms recei
   const common = await import("../lib/events/common");
   const rejects = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => e instanceof common.EventError && e.code === code, code);
   const pool = db.getPool();
-  const add = async (ref: string, source: string, winner: string, kickId: string | null) => {
-    await common.withTx((c) => prizes.recordAward(c, { source: source as "giveaway", sourceRef: ref, title: "Test", winner, winnerKickId: kickId, amount: "50" }));
+  const add = async (ref: string, source: string, winner: string, kickId: string | null, discordId: string | null = null) => {
+    await common.withTx((c) => prizes.recordAward(c, { source: source as "giveaway", sourceRef: ref, title: "Test", winner, winnerKickId: kickId, winnerDiscordId: discordId, amount: "50" }));
     const [r] = await pool.query<mysql.RowDataPacket[]>("SELECT id FROM prize_awards WHERE source_ref = ?", [ref]);
     return Number(r[0].id);
   };
-  const winner = { id: "kw1", username: "WinnerGuy" };
-  const other = { id: "kw2", username: "OtherGuy" };
-  const acc = await auth.signInWith("kick", { id: winner.id, username: winner.username, avatar: "" }, null);
+  const winner = { kickId: "kw1", kickName: "WinnerGuy", discordId: null };
+  const other = { kickId: "kw2", kickName: "OtherGuy", discordId: null };
+  const acc = await auth.signInWith("kick", { id: "kw1", username: "WinnerGuy", avatar: "" }, null);
   const byName = await add("t:name", "giveaway", "winnerguy", null);   // matched by username (case-insensitive)
   const byId = await add("t:id", "tournament", "OldName", "kw1");      // matched by Kick id despite a rename
   const casino = await add("t:lb", "leaderboard", "WinnerGuy", null);  // casino username: never claimable
   const notMine = await add("t:other", "giveaway", "OtherGuy", "kw2");
+  const discordNamesake = await add("t:dname", "manual", "WinnerGuy", null, "d-someone-else"); // Discord-verified: a same-named Kick user doesn't own it
 
   const owned = (await prizes.listOwnedAwards(winner)).map((a) => Number(a.id)).sort();
   assert.deepEqual(owned, [byName, byId].sort());
+  assert.ok(!owned.includes(discordNamesake));
   assert.equal(await prizes.countOwnedActions(winner), 2);
 
-  const payout = { method: "stake" as const, username: "stakeWinner", note: "" };
-  await rejects(prizes.claimAward(notMine, acc, winner, payout), "award_not_yours");
-  await rejects(prizes.claimAward(casino, acc, winner, payout), "award_not_yours");
-  await prizes.claimAward(byName, acc, winner, payout);
-  await prizes.claimAward(byName, acc, winner, { ...payout, username: "stakeWinner2" }); // edit while unpaid
+  const stake = { method: "stake" as const, value: "stakeWinner", network: "" as const };
+  await rejects(prizes.claimAward(notMine, acc, winner, stake, ""), "award_not_yours");
+  await rejects(prizes.claimAward(casino, acc, winner, stake, ""), "award_not_yours");
+  await prizes.claimAward(byName, acc, winner, stake, "");
+  await prizes.claimAward(byName, acc, winner, { method: "usdc", value: "0x52908400098527886E0F7030069857D2E4169EE7", network: "BASE" }, "fast pls"); // edit while unpaid
   let [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT * FROM prize_awards WHERE id = ?", [byName]))[0];
-  assert.equal(row.payout_username, "stakeWinner2");
-  assert.equal(row.winner_kick_id, "kw1", "claim pins the Kick id");
+  assert.equal(row.payout_method, "usdc");
+  assert.equal(row.payout_network, "BASE");
+  assert.equal(row.claim_note, "fast pls");
   assert.ok(row.claimed_at);
   assert.equal(await prizes.countOwnedActions(winner), 1, "claimed prize no longer needs an action");
 
   await rejects(prizes.confirmReceived(byName, winner), "award_not_paid");
   await prizes.confirmPaid(byName, "50", "tx1");
-  await rejects(prizes.claimAward(byName, acc, winner, payout), "award_not_pending");
+  await rejects(prizes.claimAward(byName, acc, winner, stake, ""), "award_not_pending");
   assert.equal(await prizes.countOwnedActions(winner), 2, "paid prize waits for receipt");
   await rejects(prizes.confirmReceived(byName, other), "award_not_yours");
   await prizes.confirmReceived(byName, winner);
@@ -159,6 +162,64 @@ dbt("prize claim: only the Kick winner claims, admin pays, winner confirms recei
   [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT status, received_at FROM prize_awards WHERE id = ?", [byName]))[0];
   assert.equal(row.status, "pending");
   assert.equal(row.received_at, null, "undo clears the receipt");
+
+  // notifications: won + paid events, unread after the last open
+  const feed = await prizes.listPrizeNotifications(winner, null);
+  assert.ok(feed.items.some((n) => n.kind === "won" && n.award_id === byId));
+  assert.equal(feed.unread, feed.items.length, "never opened: all unread");
+  assert.equal((await prizes.listPrizeNotifications(winner, "2999-01-01 00:00:00")).unread, 0);
+});
+
+dbt("prize claim from Discord: verified Discord winner owns it, only the ticket member claims / confirms", async () => {
+  const prizes = await import("../lib/prizes");
+  const common = await import("../lib/events/common");
+  const rejects = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => e instanceof common.EventError && e.code === code, code);
+  const pool = db.getPool();
+  await common.withTx((c) => prizes.recordAward(c, { source: "manual", sourceRef: "t:discord", title: "Stream", winner: "discordwinner", winnerDiscordId: "d-win", amount: "20" }));
+  const [r] = await pool.query<mysql.RowDataPacket[]>("SELECT id FROM prize_awards WHERE source_ref = 't:discord'");
+  const id = Number(r[0].id);
+  await pool.query("UPDATE prize_awards SET discord_user_id = 'd-win' WHERE id = ?", [id]);
+
+  // site side: owned through the linked Discord
+  const acc = await auth.signInWith("discord", { id: "d-win", username: "discordwinner", avatar: "" }, null);
+  const owner = { kickId: null, kickName: null, discordId: "d-win" };
+  assert.deepEqual((await prizes.listOwnedAwards(owner)).map((a) => Number(a.id)), [id]);
+
+  // Discord side
+  const rainbet = { method: "rainbet" as const, value: "rain_guy", network: "" as const };
+  await rejects(prizes.claimFromDiscord(id, "d-intruder", false, rainbet), "award_not_yours");
+  await prizes.claimFromDiscord(id, "d-win", false, rainbet);
+  let [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT * FROM prize_awards WHERE id = ?", [id]))[0];
+  assert.equal(row.payout_method, "rainbet");
+  assert.equal(Number(row.claim_account_id), acc, "claim is tied to the linked site account");
+  await prizes.claimFromDiscord(id, "d-staff", true, { method: "stake", value: "fixedByStaff", network: "" }); // staff may fix it
+  [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT payout_username FROM prize_awards WHERE id = ?", [id]))[0];
+  assert.equal(row.payout_username, "fixedByStaff");
+  await rejects(prizes.confirmReceivedFromDiscord(id, "d-win"), "award_not_paid");
+  await prizes.confirmPaid(id, "20", "");
+  await rejects(prizes.confirmReceivedFromDiscord(id, "d-staff"), "award_not_yours");
+  await prizes.confirmReceivedFromDiscord(id, "d-win");
+  await rejects(prizes.confirmReceivedFromDiscord(id, "d-win"), "award_already_received");
+});
+
+dbt("payout wallets: Stake, Rainbet and USDC are saved / removed independently", async () => {
+  const a = await auth.signInWith("kick", { id: "k-wallet", username: "walletguy", avatar: "" }, null);
+  await auth.saveDestination(a, { method: "stake", value: "stk", network: "" });
+  await auth.saveDestination(a, { method: "rainbet", value: "rb", network: "" });
+  await auth.saveDestination(a, { method: "usdc", value: "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV", network: "SOL" });
+  let acc = (await auth.getAccount(a))!;
+  assert.equal(acc.payout_method, "stake", "first saved becomes the default");
+  assert.deepEqual([acc.stake_username, acc.rainbet_username, acc.usdc_address, acc.usdc_network], ["stk", "rb", "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV", "SOL"]);
+  await auth.setPreferredDestination(a, "usdc");
+  await auth.clearDestination(a, "rainbet");
+  acc = (await auth.getAccount(a))!;
+  assert.equal(acc.rainbet_username, "");
+  assert.equal(acc.stake_username, "stk", "removing one keeps the others");
+  assert.equal(acc.payout_method, "usdc");
+  await auth.clearDestination(a, "usdc");
+  acc = (await auth.getAccount(a))!;
+  assert.equal(acc.payout_method, null, "removing the default clears it");
+  assert.equal(acc.usdc_network, "");
 });
 
 dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {

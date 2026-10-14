@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { z } from "zod";
 import { adminAction, requireAdmin } from "@/lib/adminAction";
-import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, PAYOUT_LABEL, type Award } from "@/lib/prizes";
+import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, type Award } from "@/lib/prizes";
+import { describeDestination } from "@/lib/payout";
+import { verifyWinner } from "@/lib/winnerLookup";
+import { EventError } from "@/lib/events/common";
 import { parseForm, zId, zText, zRequiredText } from "@/lib/events/common";
+import { ManualPrizeForm } from "@/components/admin/ManualPrizeForm";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
-import { Flash, Field, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
+import { Flash, AdminHeader, Hidden, Help, Utc, inputCls, btnGold, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
 
 export const dynamic = "force-dynamic";
@@ -41,13 +45,31 @@ async function reopenAction(formData: FormData) {
 async function manualAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "prize.manual", revalidate: REVALIDATE }, async () => {
-    const f = parseForm(z.object({ title: zRequiredText(191), winner: zRequiredText(191), amount: zAmount, prize_label: zText(120) }), formData);
-    await createManualAward({ title: f.title, winner: f.winner, amount: f.amount, prizeLabel: f.prize_label });
+    const f = parseForm(z.object({ platform: z.enum(["kick", "discord"]), title: zRequiredText(191), winner: zRequiredText(40), amount: zAmount, prize_label: zText(120) }), formData);
+    // only real accounts: the prize is tied to that exact Kick / Discord id
+    const w = await verifyWinner(f.platform, f.winner);
+    if (!w) throw new EventError("winner_not_found", `${f.platform === "kick" ? "Kick" : "Discord"}: ${f.winner}`);
+    await createManualAward({
+      title: f.title, winner: w.username, amount: f.amount, prizeLabel: f.prize_label,
+      winnerKickId: w.platform === "kick" ? w.id : null, winnerDiscordId: w.platform === "discord" ? w.id : null,
+    });
+    return { platform: w.platform, id: w.id, username: w.username };
   });
 }
 
 const SOURCE: Record<Award["source"], string> = { tournament: "Tournament", giveaway: "Giveaway", race: "Race", leaderboard: "Leaderboard", gb: "Guess the Balance", challenge: "Challenge", manual: "Manual" };
 const PLACE = ["", "🥇 1st", "🥈 2nd", "🥉 3rd"];
+
+function TicketLink({ a }: { a: Award }) {
+  const guild = process.env.DISCORD_GUILD_ID;
+  if (!guild || !a.discord_channel_id) return null;
+  return (
+    <a href={`https://discord.com/channels/${guild}/${a.discord_channel_id}`} target="_blank" rel="noreferrer"
+      className="inline-flex items-center gap-1 rounded-full border border-[#5865F2]/50 bg-[#5865F2]/15 px-2 py-0.5 text-xs text-[#8f99ff] hover:brightness-125">
+      <Icon name="Ticket" className="h-3 w-3" /> Ticket
+    </a>
+  );
+}
 
 export default async function AdminPrizes({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
@@ -64,7 +86,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
       <Flash searchParams={searchParams} />
       <Help>
         Every win lands here automatically: tournament podium (1st/2nd/3rd), giveaway draws, races, leaderboard periods, Guess the Balance and challenges.
-        Winners claim their prize from their account (Kick-linked) and say where to send it — the destination shows on each prize. Pay, then mark it
+        Each new prize opens a private Discord ticket; winners claim from the ticket (green button) or from their account and pick Stake, Rainbet or a USDC wallet — the destination shows on each prize. Pay, then mark it
         <strong className="text-text-0"> Paid</strong>; the winner then confirms receipt (✓ received). Only paid prizes count in “Prizes awarded” on the home page and on /prizes.
         Leaderboard and race prizes go to the casino account and aren&apos;t claimed.
         Void a prize that won&apos;t be paid (e.g. a rerolled giveaway winner). Set the $ amount when confirming if it wasn&apos;t detected.
@@ -85,13 +107,15 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
                 <span className="font-semibold text-text-0">{a.winner}</span>
                 <Badge>{SOURCE[a.source]}</Badge>
                 {a.place && a.place <= 3 && a.source === "tournament" && <Badge tone="gold">{PLACE[a.place]}</Badge>}
+                {a.winner_discord_id && <Badge>Discord</Badge>}
+                <TicketLink a={a} />
               </div>
               <p className="text-xs text-text-2">{a.title}{a.prize_label ? ` · ${a.prize_label}` : ""} · won <Utc value={a.created_at} /></p>
               {a.claimed_at ? (
                 <p className="mt-1.5 inline-flex flex-wrap items-center gap-2 rounded-lg border border-volt/40 bg-volt/10 px-2 py-1 text-xs">
                   <span className="font-semibold text-volt">Claimed</span>
-                  <span>send to <strong className="text-text-0">{a.payout_method ? PAYOUT_LABEL[a.payout_method] : "—"}</strong></span>
-                  <code className="select-all font-mono text-text-0">{a.payout_username}</code>
+                  <span>send to</span>
+                  <code className="select-all break-all font-mono text-text-0">{describeDestination(a.payout_method, a.payout_username, a.payout_network)}</code>
                   {a.claim_note && <span className="text-text-2">“{a.claim_note}”</span>}
                 </p>
               ) : (
@@ -115,14 +139,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
         ))}
       </section>
 
-      <form action={manualAction} className="surface grid gap-3 p-6 sm:grid-cols-4">
-        <p className="label sm:col-span-4">Add a prize won elsewhere (stream giveaway, bonus…)</p>
-        <Field label="Event"><input name="title" required maxLength={191} placeholder="Friday stream giveaway" className={inputCls} /></Field>
-        <Field label="Winner"><input name="winner" required maxLength={191} placeholder="kick username" className={inputCls} /></Field>
-        <Field label="Amount ($)"><input name="amount" inputMode="decimal" placeholder="20" className={inputCls} /></Field>
-        <Field label="Prize (text)"><input name="prize_label" maxLength={120} placeholder="$20 tip" className={inputCls} /></Field>
-        <div className="sm:col-span-4"><SubmitButton className={btnGold}><Icon name="Plus" className="h-4 w-4" /> Add (waits for confirmation)</SubmitButton></div>
-      </form>
+      <ManualPrizeForm action={manualAction} />
 
       {done.length > 0 && (
         <section className="space-y-2">
@@ -132,6 +149,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
               <Badge tone={a.status === "paid" ? "volt" : "neutral"}>{a.status}</Badge>
               {a.received_at && <Badge tone="gold">✓ received</Badge>}
               <span className="font-semibold">{a.winner}</span>
+              <TicketLink a={a} />
               <span className="text-text-2">{SOURCE[a.source]} · {a.title}{a.place && a.source === "tournament" ? ` · ${PLACE[a.place] ?? ""}` : ""}</span>
               <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>
               <span className="text-xs text-text-2">{a.status === "paid" ? <>paid <Utc value={a.paid_at} /></> : a.note}</span>

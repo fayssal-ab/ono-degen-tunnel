@@ -17,7 +17,11 @@ test("every admin Server Action checks the session itself (not only the layout)"
   for (const file of files("app/admin")) {
     const src = readFileSync(file, "utf8");
     // each `"use server"` body up to the next top-level function
-    const bodies = src.split(/\n(?=async function |export default |function |const )/).filter((chunk) => chunk.includes('"use server"'));
+    const chunks = src.split(/\n(?=async function |export async function |export default |function |const )/);
+    // a module-level "use server" file (e.g. app/admin/users/actions.ts): every exported async function is an action
+    const bodies = src.trimStart().startsWith('"use server"')
+      ? chunks.filter((chunk) => chunk.startsWith("export async function "))
+      : chunks.filter((chunk) => chunk.includes('"use server"'));
     for (const body of bodies) {
       actions++;
       assert.match(body, /adminAction\(|requireAdmin\(|isAdminSession\(|guard\(/, `${file}: server action without an admin check:\n${body.slice(0, 200)}`);

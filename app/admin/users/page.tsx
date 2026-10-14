@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { z } from "zod";
-import { adminAction, requireAdmin } from "@/lib/adminAction";
-import { parseForm, zId, zText } from "@/lib/events/common";
-import { listUsers, getUserStats, setBanned, signOutEverywhere, deleteUser, type UserRow } from "@/lib/userAdmin";
-import { PAYOUT_LABEL, type PayoutMethod } from "@/lib/prizes";
+import { requireAdmin } from "@/lib/adminAction";
+import { listUsers, getUserStats, type UserRow } from "@/lib/userAdmin";
+import { formatMoney } from "@/lib/money";
+import { banAction, unbanAction, signOutAction, deleteAction } from "./actions";
+import { UserWallets } from "@/components/admin/UserWallets";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { BrandIcon } from "@/components/ui/BrandIcon";
@@ -20,46 +20,19 @@ const FILTERS = [
 ] as const;
 type Filter = (typeof FILTERS)[number]["key"];
 
-/** Return to the same search / filter / page after an action (only this page's own URL). */
-function back(formData: FormData): string {
-  const b = String(formData.get("back") ?? "");
-  return /^\/admin\/users(\?[\w=&%.+-]*)?$/.test(b) ? b : PATH;
-}
-
-async function banAction(formData: FormData) {
-  "use server";
-  await adminAction({ path: back(formData), audit: "user.ban", target: String(formData.get("id")) }, async () => {
-    const f = parseForm(z.object({ id: zId, reason: zText(255) }), formData);
-    await setBanned(f.id, true, f.reason);
-    return { reason: f.reason };
-  });
-}
-async function unbanAction(formData: FormData) {
-  "use server";
-  await adminAction({ path: back(formData), audit: "user.unban", target: String(formData.get("id")) }, async () => {
-    await setBanned(parseForm(z.object({ id: zId }), { id: formData.get("id") }).id, false, "");
-  });
-}
-async function signOutAction(formData: FormData) {
-  "use server";
-  await adminAction({ path: back(formData), audit: "user.signout", target: String(formData.get("id")) }, async () => {
-    return { sessions: await signOutEverywhere(parseForm(z.object({ id: zId }), { id: formData.get("id") }).id) };
-  });
-}
-async function deleteAction(formData: FormData) {
-  "use server";
-  await adminAction({ path: back(formData), audit: "user.delete", target: String(formData.get("id")) }, async () => {
-    await deleteUser(parseForm(z.object({ id: zId }), { id: formData.get("id") }).id);
-  });
-}
-
 function Avatar({ u }: { u: UserRow }) {
   return <UserAvatar src={u.avatar} name={u.display_name} className="h-10 w-10 rounded-xl border border-line" />;
 }
 
-function Stat({ label, value, tone = "text-text-0" }: { label: string; value: number; tone?: string }) {
-  return <div className="surface p-4"><p className="label">{label}</p><p className={`mt-1 font-mono text-2xl font-bold ${tone}`}>{value.toLocaleString("en-US")}</p></div>;
+function Stat({ label, value, tone = "text-text-0", icon }: { label: string; value: number; tone?: string; icon: string }) {
+  return (
+    <div className="surface p-4">
+      <p className="label flex items-center gap-1.5"><Icon name={icon} className="h-3.5 w-3.5" />{label}</p>
+      <p className={`mt-1 font-mono text-2xl font-bold ${tone}`}>{value.toLocaleString("en-US")}</p>
+    </div>
+  );
 }
+
 
 export default async function AdminUsers({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
@@ -78,24 +51,27 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
       </AdminHeader>
       <Flash searchParams={searchParams} />
       <Help>
-        Viewers who signed in with Kick or Discord. Prizes are matched through the linked Kick account. <strong className="text-text-0">Ban</strong> signs the user out
+        Viewers who signed in with Kick or Discord. Prizes are matched through the linked Kick or verified Discord account; open a user for the full history. <strong className="text-text-0">Ban</strong> signs the user out
         everywhere, blocks sign-in and prize claims. <strong className="text-text-0">Sign out</strong> ends all their sessions. <strong className="text-text-0">Delete</strong> removes
         the account and its links (their prizes stay in Admin → Prizes under their Kick name); they can sign up again unless banned first.
       </Help>
 
-      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <Stat label="Users" value={stats.total} tone="text-gold" />
-        <Stat label="New · 7 days" value={stats.new7} tone="text-volt" />
-        <Stat label="Kick linked" value={stats.kick} />
-        <Stat label="Discord linked" value={stats.discord} />
-        <Stat label="Both linked" value={stats.both} />
-        <Stat label="Banned" value={stats.banned} tone={stats.banned ? "text-danger" : "text-text-0"} />
+      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <Stat icon="Users" label="Users" value={stats.total} tone="text-gold" />
+        <Stat icon="UserPlus" label="New · 7 days" value={stats.new7} tone="text-volt" />
+        <Stat icon="Activity" label="Active · 24h" value={stats.active24} tone="text-cyan" />
+        <Stat icon="Trophy" label="Prize winners" value={stats.winners} />
+        <Stat icon="Wallet" label="Wallet set" value={stats.withWallet} />
+        <Stat icon="Zap" label="Kick linked" value={stats.kick} />
+        <Stat icon="MessageCircle" label="Discord linked" value={stats.discord} />
+        <Stat icon="Link" label="Both linked" value={stats.both} />
+        <Stat icon="Ban" label="Banned" value={stats.banned} tone={stats.banned ? "text-danger" : "text-text-0"} />
       </div>
 
       <form className="surface flex flex-wrap items-center gap-2 p-3" action={PATH}>
         <label className="relative min-w-60 flex-1">
           <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-2" />
-          <input name="q" defaultValue={q} placeholder="Search name, Kick or Discord username, id…" aria-label="Search users"
+          <input name="q" defaultValue={q} placeholder="Search name, Kick / Discord / Stake / Rainbet username, wallet, id…" aria-label="Search users"
             className="h-10 w-full rounded-xl border border-line bg-bg-2 pl-9 pr-3 text-sm focus:border-gold focus:outline-none" />
         </label>
         {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
@@ -117,7 +93,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-line text-left">
-                {["User", "Kick", "Discord", "Joined", "Last login", "Prizes", "Payout", "Actions"].map((h) => <th key={h} className="label px-3 py-3 font-normal">{h}</th>)}
+                {["User", "Kick", "Discord", "Joined", "Last login", "Prizes", "Wallets", "Actions"].map((h) => <th key={h} className="label px-3 py-3 font-normal">{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -127,7 +103,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
                     <div className="flex items-center gap-3">
                       <Avatar u={u} />
                       <span className="min-w-0">
-                        <span className="block max-w-48 truncate font-semibold text-text-0">{u.display_name}</span>
+                        <Link href={`/admin/users/${u.id}`} className="block max-w-48 truncate font-semibold text-text-0 hover:text-gold">{u.display_name}</Link>
                         <span className="flex items-center gap-1.5 text-xs text-text-2">#{u.id}
                           {u.banned ? <Badge tone="danger">banned</Badge> : null}
                           {Number(u.sessions) > 0 && !u.banned && <span className="text-volt">● {u.sessions} session{Number(u.sessions) > 1 ? "s" : ""}</span>}
@@ -142,15 +118,16 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
                   <td className="px-3 py-3 text-xs text-text-1">{u.last_login_at ? <Utc value={u.last_login_at} /> : "—"}</td>
                   <td className="px-3 py-3">
                     {Number(u.prizes_won) > 0 ? (
-                      <Link href="/admin/prizes" className="inline-flex flex-col text-xs hover:text-gold">
-                        <span className="font-semibold text-text-0">{u.prizes_won} won</span>
-                        <span className="text-text-2">{u.prizes_open} open · {u.prizes_paid} paid</span>
+                      <Link href={`/admin/users/${u.id}#prizes`} className="inline-flex flex-col text-xs hover:text-gold">
+                        <span className="font-semibold text-text-0">{u.prizes_won} won · <span className="font-mono text-gold">{formatMoney(u.won_amount)}</span></span>
+                        <span className="text-text-2">{u.prizes_open} open · {u.prizes_paid} paid ({formatMoney(u.paid_amount)})</span>
                       </Link>
                     ) : <span className="text-text-2">—</span>}
                   </td>
-                  <td className="px-3 py-3 text-xs">{u.payout_method ? <><span className="text-text-2">{PAYOUT_LABEL[u.payout_method as PayoutMethod]}</span> <code className="select-all font-mono text-text-0">{u.payout_username}</code></> : <span className="text-text-2">—</span>}</td>
+                  <td className="px-3 py-3 text-xs"><UserWallets u={u} /></td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap items-center gap-2">
+                      <Link href={`/admin/users/${u.id}`} className={btnGhost} aria-label={`Open ${u.display_name}`}><Icon name="Eye" className="h-4 w-4" /></Link>
                       {u.banned ? (
                         <form action={unbanAction}><Hidden fields={{ id: u.id, back: here }} /><SubmitButton className={btnVolt} confirm={`Unban ${u.display_name}?`}>Unban</SubmitButton></form>
                       ) : (
