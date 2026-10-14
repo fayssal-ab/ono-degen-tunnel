@@ -328,10 +328,44 @@ export async function refreshTicket(id: number, note?: string): Promise<void> {
         throw e;
       }),
   ];
-  if (a.discord_message_id) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages/${a.discord_message_id}`, { method: "PATCH", body: ticketMessage(a, member) }));
+  jobs.push(updateMessage(token, a, member));
   if (note) jobs.push(discord(token, `/channels/${a.discord_channel_id}/messages`, { method: "POST", body: { content: note, allowed_mentions: { parse: [] } } }));
   const results = await Promise.allSettled(jobs);
   for (const r of results) if (r.status === "rejected") console.error(`discord ticket #${id} update failed`, r.reason);
+}
+
+/**
+ * Edit the pinned ticket message. A message can only be edited by the bot that
+ * wrote it: when the token changed (or the message is gone), post a fresh one
+ * with working buttons, pin it and remember it.
+ */
+async function updateMessage(token: string, a: TicketAward, member: GuildMember | null): Promise<void> {
+  const body = ticketMessage(a, member);
+  if (a.discord_message_id) {
+    try {
+      await discord(token, `/channels/${a.discord_channel_id}/messages/${a.discord_message_id}`, { method: "PATCH", body });
+      return;
+    } catch (e) {
+      if (!(e instanceof DiscordError && (e.status === 403 || e.status === 404))) throw e;
+    }
+  }
+  const msg = await discord<{ id: string }>(token, `/channels/${a.discord_channel_id}/messages`, {
+    method: "POST", body: { content: a.discord_user_id ? `<@${a.discord_user_id}>` : undefined, ...body, allowed_mentions: { users: a.discord_user_id ? [a.discord_user_id] : [] } },
+  });
+  await discord(token, `/channels/${a.discord_channel_id}/pins/${msg.id}`, { method: "PUT" }).catch(() => {});
+  await getPool().query("UPDATE prize_awards SET discord_message_id = ? WHERE id = ?", [msg.id, a.id]);
+}
+
+/** Re-render every live ticket (newest first): moves them to their status category and replaces messages the current bot can't edit. */
+export async function refreshAllTickets(limit = 25): Promise<number> {
+  if (!discordConfig()) return 0;
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    "SELECT id FROM prize_awards WHERE discord_channel_id IS NOT NULL AND discord_channel_id <> '' ORDER BY id DESC LIMIT ?", [limit]);
+  let done = 0;
+  for (const r of rows) {
+    try { await refreshTicket(Number(r.id)); done++; } catch (e) { console.error(`discord ticket #${r.id} refresh failed`, e); }
+  }
+  return done;
 }
 
 /** Staff closed the ticket: the winner loses access, the channel stays in its status category for the record. */

@@ -5,6 +5,8 @@ import { listAwards, confirmPaid, voidAward, reopenAward, createManualAward, del
 import { describeDestination } from "@/lib/payout";
 import { verifyWinner } from "@/lib/winnerLookup";
 import { EventError } from "@/lib/events/common";
+import { after } from "next/server";
+import { discordConfig, refreshAllTickets } from "@/lib/discordTickets";
 import { parseForm, zId, zText, zRequiredText } from "@/lib/events/common";
 import { ManualPrizeForm } from "@/components/admin/ManualPrizeForm";
 import { formatMoney } from "@/lib/money";
@@ -51,6 +53,14 @@ async function deleteAction(formData: FormData) {
   });
 }
 
+async function refreshTicketsAction() {
+  "use server";
+  await adminAction({ path: PATH, audit: "prize.tickets_refresh", ok: "tickets_refreshing" }, async () => {
+    if (!discordConfig()) throw new EventError("discord_not_configured");
+    after(() => refreshAllTickets().catch((e) => console.error("refresh all tickets failed", e)));
+  });
+}
+
 async function manualAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "prize.manual", revalidate: REVALIDATE }, async () => {
@@ -91,6 +101,9 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
   return (
     <div className="space-y-8">
       <AdminHeader kicker="Rewards" title="Prizes">
+        <form action={refreshTicketsAction}>
+          <SubmitButton className={btnGhost}><Icon name="RefreshCw" className="h-4 w-4" /> Refresh Discord tickets</SubmitButton>
+        </form>
         <Link href="/prizes" className={btnGhost}><Icon name="ExternalLink" className="h-4 w-4" /> Public page</Link>
       </AdminHeader>
       <Flash searchParams={searchParams} />
