@@ -69,6 +69,14 @@ export interface GuildMember { user: DiscordUser; nick: string | null; avatar?: 
 export const avatarUrl = (u: DiscordUser) =>
   u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) >> 22n) % 6}.png`;
 
+/** A server member's own Discord avatar (null when they use Discord's default one or aren't on the server). */
+export async function memberAvatar(userId: string): Promise<string | null> {
+  const cfg = discordConfig();
+  if (!cfg) return null;
+  const m = await getMember(cfg.token, cfg.guildId, userId).catch(() => null);
+  return m?.user.avatar ? avatarUrl(m.user) : null;
+}
+
 /** Exact (case-insensitive) username / display name / nickname match among server members. */
 export async function searchMember(token: string, guildId: string, name: string): Promise<GuildMember | null> {
   const q = name.trim().replace(/^@/, "");

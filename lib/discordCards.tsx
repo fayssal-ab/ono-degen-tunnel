@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
+import { memberAvatar } from "./discordTickets";
 
 // Image cards for the Discord slash commands: /profile (a player card: avatar,
 // totals, last win) and /top (this month's biggest winners). Rendered to PNG
@@ -15,32 +16,45 @@ const C = {
   text0: "#e6ecf5", text1: "#8a94a8", text2: "#5c6578",
   gold: "#f5c451", goldHi: "#ffd97a", volt: "#34d399", plasma: "#8b5cf6", kick: "#53fc18", discord: "#5865F2",
 };
-const AVATAR_GRADIENTS = [
-  ["#f5c451", "#ff3d9a"], ["#22d3ee", "#8b5cf6"], ["#34d399", "#22d3ee"], ["#ff3d9a", "#ff8a3d"], ["#8b5cf6", "#f5c451"], ["#0ea5e9", "#34d399"],
+// Same generated avatar as the site (components/ui/UserAvatar.tsx): gradient
+// + icon watermark picked from the name, first letter in the graffiti font.
+const THEMES = [
+  ["#f5c451", "#ff3d9a"], ["#22d3ee", "#8b5cf6"], ["#34d399", "#22d3ee"], ["#ff3d9a", "#ff8a3d"],
+  ["#8b5cf6", "#f5c451"], ["#ff4d5e", "#f5c451"], ["#0ea5e9", "#34d399"], ["#a855f7", "#ff3d9a"],
 ];
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
 
 type Fonts = NonNullable<NonNullable<ConstructorParameters<typeof ImageResponse>[1]>["fonts"]>;
-let assets: Promise<{ fonts: Fonts; logo: string }> | null = null;
+let assets: Promise<{ fonts: Fonts; logo: string; marks: string[] }> | null = null;
 function loadAssets() {
   assets ??= (async () => {
     const dir = join(process.cwd(), "assets/og");
-    const [clash, inter4, inter6, mono, logo] = await Promise.all(
-      ["ClashDisplay-Bold.ttf", "InterTight-400.ttf", "InterTight-600.ttf", "JetBrainsMono-500.ttf", "logo.png"].map((f) => readFile(join(dir, f))));
+    const [clash, inter4, inter6, mono, tag, logo, marksJson] = await Promise.all(
+      ["ClashDisplay-Bold.ttf", "InterTight-400.ttf", "InterTight-600.ttf", "JetBrainsMono-500.ttf", "RubikWetPaint-tag.ttf", "logo.png", "avatar-marks.json"]
+        .map((f) => readFile(join(dir, f))));
+    const marks = JSON.parse(marksJson.toString()) as { order: string[]; svg: Record<string, string> };
     return {
       fonts: [
         { name: "Clash", data: clash, weight: 700 as const, style: "normal" as const },
         { name: "Inter", data: inter4, weight: 400 as const, style: "normal" as const },
         { name: "Inter", data: inter6, weight: 600 as const, style: "normal" as const },
         { name: "Mono", data: mono, weight: 500 as const, style: "normal" as const },
+        { name: "Tag", data: tag, weight: 400 as const, style: "normal" as const },
       ],
       logo: `data:image/png;base64,${logo.toString("base64")}`,
+      // icon watermarks as ready-to-use SVG images (black stroke; faded on the avatar)
+      marks: marks.order.map((n) => `data:image/svg+xml;base64,${Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${marks.svg[n]}</svg>`).toString("base64")}`),
     };
   })();
   return assets;
 }
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
-const gradientFor = (name: string) => AVATAR_GRADIENTS[[...name].reduce((h, ch) => h + ch.charCodeAt(0), 0) % AVATAR_GRADIENTS.length];
 function ago(dbTime: string): string {
   const days = Math.floor((Date.now() - new Date(`${dbTime.replace(" ", "T")}Z`).getTime()) / 86_400_000);
   return days <= 0 ? "today" : days === 1 ? "yesterday" : days < 30 ? `${days} days ago` : `${Math.floor(days / 30)} mo ago`;
@@ -58,20 +72,34 @@ async function inlineImage(url: string | null): Promise<string | null> {
   } catch { return null; }
 }
 
-function Initial({ name, size }: { name: string; size: number }) {
-  const [a, b] = gradientFor(name);
+/** The site's generated avatar, drawn for the image cards. */
+function GeneratedAvatar({ name, size, marks }: { name: string; size: number; marks: string[] }) {
+  const h = hash(name.trim().toLowerCase() || "?");
+  const [a, b] = THEMES[h % THEMES.length];
+  const letter = (name.trim().match(/[a-z0-9]/i)?.[0] ?? "?").toUpperCase();
   return (
-    <div style={{ width: size, height: size, borderRadius: size, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg, ${a}, ${b})`, fontFamily: "Clash", fontSize: size * 0.46, color: "#0a1020" }}>
-      {(name.replace(/[^a-z0-9]/gi, "")[0] ?? "?").toUpperCase()}
+    <div style={{ width: size, height: size, borderRadius: size, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", background: `linear-gradient(135deg, ${a}, ${b})` }}>
+      <div style={{ position: "absolute", inset: 0, display: "flex", background: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.35), rgba(255,255,255,0) 55%)" }} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={marks[(h >>> 3) % marks.length]} width={size * 0.78} height={size * 0.78} alt=""
+        style={{ position: "absolute", right: -size * 0.14, bottom: -size * 0.12, transform: "rotate(-18deg)", opacity: 0.25 }} />
+      <div style={{ display: "flex", fontFamily: "Tag", fontSize: size * 0.62, lineHeight: 1, color: "#fff", transform: "rotate(-8deg)",
+        textShadow: `0 ${size * 0.025}px 0 #000, ${size * 0.03}px ${size * 0.04}px 0 rgba(0,0,0,0.55)` }}>{letter}</div>
     </div>
   );
 }
 
+/** A real picture when we have one (png / jpeg), else the generated avatar. */
+function Avatar({ src, name, size, marks }: { src: string | null; name: string; size: number; marks: string[] }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return src ? <img src={src} width={size} height={size} alt="" style={{ borderRadius: size, objectFit: "cover" }} /> : <GeneratedAvatar name={name} size={size} marks={marks} />;
+}
+
 function Frame({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
   return (
-    <div style={{ width, height, display: "flex", position: "relative", background: C.bg0, fontFamily: "Inter", color: C.text0, overflow: "hidden" }}>
-      <div style={{ position: "absolute", top: -220, right: -160, width: 560, height: 560, borderRadius: 560, background: "radial-gradient(circle closest-side, rgba(245,196,81,0.22), rgba(245,196,81,0))", display: "flex" }} />
-      <div style={{ position: "absolute", bottom: -260, left: -160, width: 560, height: 560, borderRadius: 560, background: "radial-gradient(circle closest-side, rgba(139,92,246,0.22), rgba(139,92,246,0))", display: "flex" }} />
+    <div style={{ width, height, display: "flex", position: "relative", fontFamily: "Inter", color: C.text0, overflow: "hidden",
+      backgroundColor: C.bg0,
+      backgroundImage: "radial-gradient(circle at 95% 0%, rgba(245,196,81,0.20), rgba(245,196,81,0) 45%), radial-gradient(circle at 0% 100%, rgba(139,92,246,0.20), rgba(139,92,246,0) 45%)" }}>
       <div style={{ position: "absolute", inset: 0, border: `2px solid ${C.line}`, borderRadius: 28, display: "flex" }} />
       {children}
     </div>
@@ -135,7 +163,7 @@ function Pill({ color, children }: { color: string; children: React.ReactNode })
 }
 
 export async function renderProfileCard(p: ProfileData): Promise<Buffer> {
-  const { fonts, logo } = await loadAssets();
+  const { fonts, logo, marks } = await loadAssets();
   const avatar = await inlineImage(p.avatar);
   const W = 1100, H = 480;
   const img = new ImageResponse(
@@ -144,10 +172,7 @@ export async function renderProfileCard(p: ProfileData): Promise<Buffer> {
         <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "44px 52px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 34 }}>
             <div style={{ display: "flex", padding: 6, borderRadius: 200, background: `linear-gradient(135deg, ${C.goldHi}, ${C.gold}, #c08a2a)`, boxShadow: "0 0 50px rgba(245,196,81,0.45)" }}>
-              {avatar
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={avatar} width={164} height={164} style={{ borderRadius: 164, border: `5px solid ${C.bg0}` }} alt="" />
-                : <div style={{ display: "flex", borderRadius: 170, border: `5px solid ${C.bg0}` }}><Initial name={p.name} size={164} /></div>}
+              <div style={{ display: "flex", borderRadius: 180, border: `5px solid ${C.bg0}` }}><Avatar src={avatar} name={p.name} size={164} marks={marks} /></div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, letterSpacing: 5, color: C.gold, textTransform: "uppercase", display: "flex" }}>ONO Degen Tunnel · Player card</div>
@@ -187,12 +212,13 @@ export async function renderProfileCard(p: ProfileData): Promise<Buffer> {
 }
 
 // ── /top ──────────────────────────────────────────────────────────────────
-export interface TopRow { name: string; prizes: number; total: number }
+export interface TopRow { name: string; prizes: number; total: number; avatar?: string | null }
 
 /** Biggest stream winners this month (falls back to all time when the month is empty). Casino-username prizes are left out. */
 export async function getTopWinners(limit = 10): Promise<{ rows: TopRow[]; period: string }> {
   const q = (since: string | null) => getPool().query<RowDataPacket[]>(
-    `SELECT MAX(winner) name, COUNT(*) prizes, COALESCE(SUM(amount), 0) total FROM prize_awards
+    `SELECT MAX(winner) name, COUNT(*) prizes, COALESCE(SUM(amount), 0) total,
+            MAX(winner_discord_id) discord_winner, MAX(discord_user_id) discord_ticket FROM prize_awards
       WHERE status <> 'void' AND source NOT IN ('leaderboard','race') ${since ? "AND created_at >= ?" : ""}
       GROUP BY LOWER(winner) ORDER BY total DESC, prizes DESC LIMIT ?`, since ? [since, limit] : [limit]);
   const now = new Date();
@@ -200,13 +226,43 @@ export async function getTopWinners(limit = 10): Promise<{ rows: TopRow[]; perio
   let [rows] = await q(monthStart);
   let period = now.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   if (!rows.length) { [rows] = await q(null); period = "All time"; }
-  return { rows: rows.map((r) => ({ name: String(r.name), prizes: Number(r.prizes), total: Number(r.total) })), period };
+  const out = await Promise.all(rows.map(async (r) => ({
+    name: String(r.name), prizes: Number(r.prizes), total: Number(r.total),
+    avatar: await avatarFor(String(r.name), [r.discord_winner, r.discord_ticket].filter(Boolean).map(String)),
+  })));
+  return { rows: out, period };
+}
+
+/**
+ * A winner's picture: the Discord avatar of their site account (or of the
+ * Discord member their prize ticket went to), else their site avatar. null →
+ * the card draws the generated one, like the site does.
+ */
+async function avatarFor(name: string, discordIds: string[]): Promise<string | null> {
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    `SELECT d.avatar discord_avatar, a.avatar account_avatar FROM user_identities k
+       JOIN user_accounts a ON a.id = k.account_id
+       LEFT JOIN user_identities d ON d.account_id = a.id AND d.provider = 'discord'
+      WHERE k.provider = 'kick' AND LOWER(k.username) = LOWER(?)
+     UNION ALL
+     SELECT d.avatar, a.avatar FROM user_identities d JOIN user_accounts a ON a.id = d.account_id
+      WHERE d.provider = 'discord' AND d.provider_user_id IN (?)
+     LIMIT 1`, [name, discordIds.length ? discordIds : [""]]);
+  const r = rows[0];
+  const picked = r?.discord_avatar || null;
+  if (picked) return picked;
+  for (const id of discordIds) {
+    const a = await memberAvatar(id);
+    if (a) return a;
+  }
+  return r?.account_avatar || null;
 }
 
 const RANK = [C.gold, "#cfd6e4", "#d08a4e"];
 
 export async function renderTopCard(top: { rows: TopRow[]; period: string }): Promise<Buffer> {
-  const { fonts, logo } = await loadAssets();
+  const { fonts, logo, marks } = await loadAssets();
+  const pics = await Promise.all(top.rows.map((r) => inlineImage(r.avatar ?? null)));
   const W = 1000, rowH = 62, H = 200 + Math.max(1, top.rows.length) * rowH + 30;
   const max = Math.max(1, ...top.rows.map((r) => r.total));
   const img = new ImageResponse(
@@ -229,7 +285,7 @@ export async function renderTopCard(top: { rows: TopRow[]; period: string }): Pr
                 <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(r.total / max) * 100}%`, background: "linear-gradient(90deg, rgba(245,196,81,0.10), rgba(245,196,81,0))", display: "flex" }} />
                 <div style={{ width: 40, height: 40, borderRadius: 40, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Clash", fontSize: 22,
                   background: i < 3 ? RANK[i] : "transparent", color: i < 3 ? C.bg0 : C.text1, border: i < 3 ? "none" : `1.5px solid ${C.line}` }}>{i + 1}</div>
-                <Initial name={r.name} size={38} />
+                <Avatar src={pics[i]} name={r.name} size={38} marks={marks} />
                 <div style={{ display: "flex", flex: 1, fontSize: 24, fontWeight: 600 }}>{r.name}</div>
                 <div style={{ display: "flex", fontSize: 18, color: C.text1 }}>{r.prizes} prize{r.prizes > 1 ? "s" : ""}</div>
                 <div style={{ display: "flex", width: 150, justifyContent: "flex-end", fontFamily: "Mono", fontSize: 26, color: i < 3 ? C.gold : C.text0 }}>{money(r.total)}</div>

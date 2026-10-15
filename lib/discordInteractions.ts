@@ -72,8 +72,8 @@ async function replyWithImage(i: Interaction, png: Buffer, filename: string): Pr
   if (!res.ok) console.error("discord image reply failed", res.status, await res.text());
 }
 
-const avatarOf = (u: DiscordUserLite) =>
-  u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) >> 22n) % 6}.png`;
+/** Their own Discord avatar; none (Discord's default) → the card draws the site's generated one. */
+const avatarOf = (u: DiscordUserLite) => (u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256` : null);
 
 /** Slash commands: answer "thinking…" (public), draw the card after the response, then swap it in. */
 function command(i: Interaction): object {
