@@ -128,6 +128,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
   // the drawn winner's chat lines (the 15 s response window reads these)
   const [winnerChat, setWinnerChat] = useState<ChatLine[]>([]);
   const watchRef = useRef<string | null>(null);
+  const [drawAt, setDrawAt] = useState(0);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -427,6 +428,10 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
         return;
       }
       const { winner } = (await res.json()) as { winner: Winner };
+      // watch the winner's chat from the draw itself: the stream overlay shows
+      // their name before the reel lands, so they may answer during the spin
+      watchRef.current = winner.username.toLowerCase();
+      setDrawAt(Date.now());
       runReel(winner, () => {
         watchRef.current = winner.username.toLowerCase();
         setModalWinner({ username: winner.username, avatar: winner.avatar, nonce: winner.nonce });
@@ -680,6 +685,8 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
           giveawayId={id}
           winner={modalWinner}
           messages={winnerChat}
+          since={drawAt}
+          chat={{ channel, status: liveStatus }}
           isSubscriber={Boolean(winnerEntry?.isSubscriber)}
           muted={muted}
           guildId={guildId}

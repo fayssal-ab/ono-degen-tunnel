@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -16,6 +16,7 @@ export interface ChatLine { text: string; at: number }
 export interface DrawnWinner { username: string; avatar: string | null; nonce: number }
 interface Info {
   response: "waiting" | "confirmed" | "no_show";
+  chat: { id: number; text: string }[];
   responseText: string;
   account: { id: number; name: string } | null;
   kick: string | null;
@@ -56,9 +57,11 @@ function LinkRow({ brand, label, value, tint }: { brand: "kick" | "discord"; lab
 }
 
 export function WinnerCheck({
-  giveawayId, winner, messages, isSubscriber, muted, guildId, onReroll, onClose,
+  giveawayId, winner, messages: socketLines, since, chat, isSubscriber, muted, guildId, onReroll, onClose,
 }: {
-  giveawayId: number; winner: DrawnWinner; messages: ChatLine[]; isSubscriber: boolean; muted: boolean; guildId: string | null;
+  giveawayId: number; winner: DrawnWinner; messages: ChatLine[]; since: number;
+  chat: { channel: string; status: "off" | "connecting" | "connected" | "error" };
+  isSubscriber: boolean; muted: boolean; guildId: string | null;
   onReroll: () => void; onClose: () => void;
 }) {
   const [startedAt] = useState(() => Date.now());
@@ -67,6 +70,13 @@ export function WinnerCheck({
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState<string | null>(null);
   const chatBox = useRef<HTMLDivElement>(null);
+  // lines from the Kick webhook (server), stamped when first seen here; a line
+  // the browser socket already showed isn't repeated
+  const [serverLines, setServerLines] = useState<(ChatLine & { id: number })[]>([]);
+  const messages = useMemo(() => {
+    const extra = serverLines.filter((c) => !socketLines.some((m) => m.text === c.text.slice(0, 300) && Math.abs(m.at - c.at) < 15000));
+    return [...socketLines, ...extra].sort((a, b) => a.at - b.at);
+  }, [socketLines, serverLines]);
   const left = Math.max(0, WINDOW - (now - startedAt) / 1000);
 
   async function decide(action: "confirm" | "no_show", text = "") {
@@ -98,25 +108,31 @@ export function WinnerCheck({
   const decided = useRef(false);
   useEffect(() => {
     if (decided.current || phase !== "waiting") return;
-    const said = messages.find((m) => m.at >= startedAt);
+    const said = messages.find((m) => m.at >= since);
     if (said) { decided.current = true; decide("confirm", said.text); }
     else if (left <= 0) { decided.current = true; decide("no_show"); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, left, phase]);
+  }, [messages.length, left, phase]);
 
   // site links now; the prize ticket appears a moment after confirming
   useEffect(() => {
     let alive = true;
     const load = () => fetch(`/api/admin/giveaways/${giveawayId}/winner?nonce=${winner.nonce}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null)).then((d: Info | null) => { if (alive && d) setInfo(d); }).catch(() => {});
+      .then((r) => (r.ok ? r.json() : null)).then((d: Info | null) => {
+        if (!alive || !d) return;
+        setInfo(d);
+        const now = Date.now();
+        setServerLines((prev) => [...prev, ...d.chat.filter((c) => !prev.some((p) => p.id === c.id)).map((c) => ({ ...c, at: now }))]);
+      }).catch(() => {});
     load();
-    const t = setInterval(() => { if (phase === "confirmed" && !info?.award?.ticket) load(); }, 3000);
+    // while waiting: poll fast for webhook-caught lines; once confirmed: until the ticket shows
+    const t = setInterval(() => { if (phase === "waiting" || (phase === "confirmed" && !info?.award?.ticket)) load(); }, phase === "waiting" ? 1500 : 3000);
     return () => { alive = false; clearInterval(t); };
   }, [giveawayId, winner.nonce, phase, info?.award?.ticket]);
 
   useEffect(() => { chatBox.current?.scrollTo({ top: chatBox.current.scrollHeight }); }, [messages.length]);
 
-  const firstAt = messages.find((m) => m.at >= startedAt)?.at;
+  const firstAt = messages.find((m) => m.at >= since)?.at;
   const ring = 2 * Math.PI * 34;
 
   return (
@@ -165,7 +181,7 @@ export function WinnerCheck({
           {phase === "waiting" || phase === "saving"
             ? <><b className="text-text-0">{winner.username}</b> has {WINDOW}s to type anything in chat to claim the prize.</>
             : phase === "confirmed"
-              ? <>{firstAt ? <>Answered in <b className="text-volt">{((firstAt - startedAt) / 1000).toFixed(1)}s</b></> : "Accepted by you"} — prize recorded, Discord ticket + notification sent.</>
+              ? <>{firstAt ? (firstAt < startedAt ? <>Answered <b className="text-volt">before the reveal</b></> : <>Answered in <b className="text-volt">{((firstAt - startedAt) / 1000).toFixed(1)}s</b></>) : "Accepted by you"} — prize recorded, Discord ticket + notification sent.</>
               : <>Silent for {WINDOW}s. No prize — roll again.</>}
         </p>
 
@@ -187,6 +203,10 @@ export function WinnerCheck({
           </div>
           <div>
             <p className="label mb-2 flex items-center gap-1.5"><Icon name="MessageSquare" className="h-3.5 w-3.5" /> {winner.username}&apos;s chat</p>
+            <p className={`-mt-1 mb-2 flex items-center gap-1.5 text-[11px] ${chat.status === "connected" ? "text-volt" : chat.status === "error" ? "text-danger" : "text-text-2"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${chat.status === "connected" ? "bg-volt" : chat.status === "error" ? "bg-danger" : "animate-pulse bg-gold"}`} />
+              {chat.status === "connected" ? <>Reading kick.com/{chat.channel} live</> : chat.status === "error" ? <>Can&apos;t read kick.com/{chat.channel} — watching the Kick webhook only</> : <>Connecting to kick.com/{chat.channel}…</>}
+            </p>
             <div ref={chatBox} className="h-36 space-y-1.5 overflow-y-auto rounded-xl border border-line bg-bg-0/60 p-2.5">
               {messages.length === 0 ? (
                 <p className="flex h-full items-center justify-center gap-2 text-xs text-text-2">
@@ -194,7 +214,7 @@ export function WinnerCheck({
                 </p>
               ) : messages.map((m, i) => (
                 <p key={i} className={`rounded-lg px-2 py-1 text-sm ${m.at === firstAt ? "bg-volt/15 text-text-0" : "text-text-1"}`}>
-                  <span className="mr-1.5 font-mono text-[10px] text-text-2">+{Math.max(0, (m.at - startedAt) / 1000).toFixed(1)}s</span>{m.text}
+                  <span className="mr-1.5 font-mono text-[10px] text-text-2">{m.at < startedAt ? "during spin" : `+${((m.at - startedAt) / 1000).toFixed(1)}s`}</span>{m.text}
                 </p>
               ))}
             </div>

@@ -8,6 +8,7 @@ import { CustomCursor } from "./CustomCursor";
 import { Preloader } from "./Preloader";
 import { ScrollProgress } from "./ScrollProgress";
 import { BackToTop } from "./BackToTop";
+import { ScrollToTop } from "./ScrollToTop";
 import { PlanetGame } from "@/components/home/PlanetGame";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -29,6 +30,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <LiveRefresh />
+      <ScrollToTop />
       <Preloader />
       <ScrollProgress />
       <StarField />

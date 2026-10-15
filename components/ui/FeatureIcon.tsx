@@ -20,6 +20,7 @@ export type FeatureColor = keyof typeof PALETTES;
 export const FEATURE_ICONS: Record<string, { icon: string; color: FeatureColor }> = {
   "/leaderboard": { icon: "Trophy", color: "cyan" },
   "/giveaways": { icon: "Gift", color: "volt" },
+  "/prizes": { icon: "Gift", color: "volt" },
   "/races": { icon: "Flag", color: "electric" },
   "/tournaments": { icon: "Swords", color: "plasma" },
   "/bonus-hunt": { icon: "Dices", color: "magenta" },

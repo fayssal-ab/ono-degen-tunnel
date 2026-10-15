@@ -25,7 +25,7 @@ const COLUMNS = [
     title: "Rewards",
     links: [
       { label: "VIP Club", href: "/vip" },
-      { label: "Giveaways", href: "/giveaways" },
+      { label: "Prizes", href: "/prizes" },
       { label: "Hall of Fame", href: "/hall-of-fame" },
     ],
   },

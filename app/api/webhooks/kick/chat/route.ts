@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ResultSetHeader } from "mysql2";
 import { verifyKickWebhookSignature } from "@/lib/kick";
 import { getPool } from "@/lib/db";
-import { recordChatEntry } from "@/lib/giveaways";
+import { recordChatEntry, recordWinnerReply } from "@/lib/giveaways";
 import { recordBalanceGuessIfActive } from "@/lib/guessBalance";
 import { isConfiguredBroadcaster, messageSentAt } from "@/lib/kickEvents";
 import { recordJoin, JOIN_RE } from "@/lib/knockout";
@@ -56,6 +56,8 @@ export async function POST(request: Request) {
       if (!res.affectedRows) { await conn.commit(); return NextResponse.json({ ok: true, deduped: true }); }
       const subscriber = payload.sender.identity?.badges?.some((b) => b.type === "subscriber") ?? false;
       await recordChatEntry(payload.sender.username, payload.content, payload.sender.profile_picture ?? null, subscriber, conn);
+      // a drawn giveaway winner answering in chat (15 s window on the dashboard)
+      await recordWinnerReply(payload.sender.username, payload.content, conn);
       await recordBalanceGuessIfActive({
         kickUserId: payload.sender.user_id != null ? String(payload.sender.user_id) : null,
         username: payload.sender.username, content: payload.content, sentAt,

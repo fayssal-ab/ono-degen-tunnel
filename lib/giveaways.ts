@@ -210,6 +210,20 @@ export async function recordChatEntry(username: string, content: string, avatar:
   }
 }
 
+/**
+ * A chat line from a drawn winner who still has to answer (drawn in the last
+ * 2 minutes): kept for the dashboard's 15 s window. Same transaction as the
+ * webhook's de-dupe, so a Kick retry can't store it twice.
+ */
+export async function recordWinnerReply(username: string, content: string, conn: PoolConnection): Promise<void> {
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `SELECT id FROM giveaway_winners WHERE response = 'waiting' AND LOWER(kick_username) = LOWER(?)
+        AND drawn_at > UTC_TIMESTAMP() - INTERVAL 2 MINUTE`, [username]);
+  for (const r of rows) {
+    await conn.query("INSERT INTO giveaway_winner_chat (winner_id, content) VALUES (?, ?)", [r.id, content.slice(0, 500)]);
+  }
+}
+
 // ── admin ──
 
 export async function createGiveaway(input: {
@@ -336,6 +350,8 @@ export async function markNoShow(giveawayId: number, nonce: number): Promise<voi
 
 export interface WinnerInfo {
   response: WinnerResponse;
+  /** chat lines the Kick webhook caught while the winner was waiting */
+  chat: { id: number; text: string }[];
   responseText: string;
   account: { id: number; name: string } | null;
   kick: string | null;
@@ -358,11 +374,14 @@ export async function getWinnerInfo(giveawayId: number, nonce: number): Promise<
        LEFT JOIN user_identities d ON d.account_id = a.id AND d.provider = 'discord'
       WHERE k.provider = 'kick' AND (k.provider_user_id = ? OR LOWER(k.username) = LOWER(?))
       ORDER BY k.provider_user_id = ? DESC LIMIT 1`, [w.kick_id ?? "", w.kick_username, w.kick_id ?? ""]);
-  const [award] = await pool.query<RowDataPacket[]>(
-    "SELECT id, status, discord_channel_id FROM prize_awards WHERE source = 'giveaway' AND source_ref = ?", [`gw:${w.id}`]);
+  const [[award], [chat]] = await Promise.all([
+    pool.query<RowDataPacket[]>("SELECT id, status, discord_channel_id FROM prize_awards WHERE source = 'giveaway' AND source_ref = ?", [`gw:${w.id}`]),
+    pool.query<RowDataPacket[]>("SELECT id, content FROM giveaway_winner_chat WHERE winner_id = ? ORDER BY id LIMIT 50", [w.id]),
+  ]);
   const a = acc[0];
   return {
     response: w.response, responseText: String(w.response_text ?? ""),
+    chat: chat.map((c) => ({ id: Number(c.id), text: String(c.content) })),
     account: a ? { id: Number(a.id), name: String(a.display_name) } : null,
     kick: a ? String(a.kick) : null,
     discord: a?.discord ? String(a.discord) : null,

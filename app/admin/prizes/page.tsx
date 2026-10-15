@@ -12,12 +12,24 @@ import { ManualPrizeForm } from "@/components/admin/ManualPrizeForm";
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
-import { Flash, AdminHeader, Hidden, Help, Utc, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
+import { Flash, first, AdminHeader, Hidden, Help, Utc, btnGhost, btnDanger, btnVolt, type SearchParams } from "@/components/admin/ui";
 import { SubmitButton } from "@/components/admin/client";
 
 export const dynamic = "force-dynamic";
 const PATH = "/admin/prizes";
 const REVALIDATE = ["/prizes", "/"];
+type Tab = "pending" | "paid" | "rejected" | "add";
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: "pending", label: "To pay", icon: "Hourglass" },
+  { key: "paid", label: "Paid", icon: "CircleCheck" },
+  { key: "rejected", label: "Rejected", icon: "Ban" },
+  { key: "add", label: "Add prize", icon: "Plus" },
+];
+/** Back to the tab the form was on. */
+const tabPath = (formData: FormData) => {
+  const t = String(formData.get("tab") ?? "");
+  return TABS.some((x) => x.key === t) && t !== "pending" ? `${PATH}?tab=${t}` : PATH;
+};
 const zAmount = z.union([z.literal("").transform(() => null), z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/, "invalid_amount")]);
 
 async function payAction(formData: FormData) {
@@ -39,14 +51,14 @@ async function voidActionFn(formData: FormData) {
 
 async function reopenAction(formData: FormData) {
   "use server";
-  await adminAction({ path: PATH, audit: "prize.reopen", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
+  await adminAction({ path: tabPath(formData), audit: "prize.reopen", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
     await reopenAward(parseForm(z.object({ id: zId }), { id: formData.get("id") }).id);
   });
 }
 
 async function deleteAction(formData: FormData) {
   "use server";
-  await adminAction({ path: PATH, audit: "prize.delete", target: String(formData.get("id") ?? "all-rejected"), revalidate: REVALIDATE }, async () => {
+  await adminAction({ path: `${PATH}?tab=rejected`, audit: "prize.delete", target: String(formData.get("id") ?? "all-rejected"), revalidate: REVALIDATE }, async () => {
     const raw = formData.get("id");
     const deleted = await deleteVoidedAwards(raw ? parseForm(z.object({ id: zId }), { id: raw }).id : null);
     return { deleted };
@@ -92,6 +104,8 @@ function TicketLink({ a }: { a: Award }) {
 
 export default async function AdminPrizes({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
+  const rawTab = first((await searchParams).tab);
+  const tab: Tab = TABS.some((t) => t.key === rawTab) ? (rawTab as Tab) : "pending";
   const awards = await listAwards("all", 300);
   const pending = awards.filter((a) => a.status === "pending");
   const paid = awards.filter((a) => a.status === "paid");
@@ -101,10 +115,12 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
   return (
     <div className="space-y-8">
       <AdminHeader kicker="Rewards" title="Prizes">
-        <form action={refreshTicketsAction}>
-          <SubmitButton className={btnGhost}><Icon name="RefreshCw" className="h-4 w-4" /> Refresh Discord tickets</SubmitButton>
-        </form>
-        <Link href="/prizes" className={btnGhost}><Icon name="ExternalLink" className="h-4 w-4" /> Public page</Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <form action={refreshTicketsAction}>
+            <SubmitButton className={btnGhost}><Icon name="RefreshCw" className="h-4 w-4" /> Refresh Discord tickets</SubmitButton>
+          </form>
+          <Link href="/prizes" className={btnGhost}><Icon name="ExternalLink" className="h-4 w-4" /> Public page</Link>
+        </div>
       </AdminHeader>
       <Flash searchParams={searchParams} />
       <Help>
@@ -121,7 +137,20 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
         <div className="surface p-4"><p className="label">Paid prizes</p><p className="mt-1 font-mono text-2xl font-bold">{awards.filter((a) => a.status === "paid").length}</p></div>
       </div>
 
-      <section className="space-y-2">
+      <nav aria-label="Prize lists" className="surface flex flex-wrap gap-1 p-1.5">
+        {TABS.map((t) => {
+          const n = t.key === "pending" ? pending.length : t.key === "paid" ? paid.length : t.key === "rejected" ? rejected.length : null;
+          return (
+            <Link key={t.key} href={t.key === "pending" ? PATH : `${PATH}?tab=${t.key}`} aria-current={tab === t.key ? "page" : undefined}
+              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none ${tab === t.key ? "bg-gold/15 text-gold" : "text-text-1 hover:bg-bg-2 hover:text-text-0"}`}>
+              <Icon name={t.icon} className="h-4 w-4" /> {t.label}
+              {n != null && <span className={`rounded-full px-1.5 font-mono text-[11px] ${tab === t.key ? "bg-gold/20" : "bg-bg-3 text-text-2"}`}>{n}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {tab === "pending" && <section className="space-y-2">
         <p className="label">To confirm</p>
         {pending.length === 0 ? <p className="surface p-5 text-sm text-text-1">Nothing waiting. New wins appear here automatically.</p> : pending.map((a) => (
           <div key={a.id} className="surface flex flex-wrap items-center gap-3 p-4">
@@ -160,11 +189,11 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
             </form>
           </div>
         ))}
-      </section>
+      </section>}
 
-      <ManualPrizeForm action={manualAction} />
+      {tab === "add" && <ManualPrizeForm action={manualAction} />}
 
-      {paid.length > 0 && (
+      {tab === "paid" && (paid.length === 0 ? <p className="surface p-5 text-sm text-text-1">No paid prize yet.</p> : (
         <section className="space-y-2">
           <p className="label">History · paid</p>
           {paid.map((a) => (
@@ -176,13 +205,13 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
               <span className="text-text-2">{SOURCE[a.source]} · {a.title}{a.place && a.source === "tournament" ? ` · ${PLACE[a.place] ?? ""}` : ""}</span>
               <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>
               <span className="text-xs text-text-2">paid <Utc value={a.paid_at} /></span>
-              <form action={reopenAction}><Hidden fields={{ id: a.id }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
+              <form action={reopenAction}><Hidden fields={{ id: a.id, tab }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
             </div>
           ))}
         </section>
-      )}
+      ))}
 
-      {rejected.length > 0 && (
+      {tab === "rejected" && (rejected.length === 0 ? <p className="surface p-5 text-sm text-text-1">Nothing rejected. Voided prizes land here.</p> : (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <p className="label">Rejected · {rejected.length}</p>
@@ -200,14 +229,14 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
               <span className="text-text-2">{SOURCE[a.source]} · {a.title}</span>
               <span className="ml-auto font-mono">{a.amount != null ? formatMoney(a.amount) : a.prize_label || "—"}</span>
               {a.note && <span className="text-xs text-text-2">{a.note}</span>}
-              <form action={reopenAction}><Hidden fields={{ id: a.id }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
+              <form action={reopenAction}><Hidden fields={{ id: a.id, tab }} /><SubmitButton className={btnGhost} confirm="Move back to “to confirm”?">Undo</SubmitButton></form>
               <form action={deleteAction}><Hidden fields={{ id: a.id }} />
                 <SubmitButton className={btnDanger} confirm={`Delete ${a.winner}'s rejected prize for good? Its Discord ticket is deleted too.`}><Icon name="Trash2" className="h-4 w-4" /><span className="sr-only">Delete</span></SubmitButton>
               </form>
             </div>
           ))}
         </section>
-      )}
+      ))}
     </div>
   );
 }

@@ -64,14 +64,19 @@ export function PrizeBell({ feed, onSeen }: { feed: NotificationFeed | null; onS
         className={`press relative grid h-10 w-10 place-items-center rounded-xl border bg-bg-1 ${open ? "border-gold text-gold" : "border-line text-text-1 hover:border-gold hover:text-gold"}`}>
         <Icon name="Bell" className={`h-[18px] w-[18px] ${feed?.unread ? "origin-top animate-[bell-ring_1.2s_ease-in-out_2]" : ""}`} />
         {feed && feed.unread > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-gold px-1 text-[11px] font-bold text-bg-0 shadow-[0_0_12px_var(--color-gold)]">{feed.unread}</span>
+          <span aria-hidden className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 font-mono text-[11px] font-bold leading-none text-white ring-2 ring-bg-0 shadow-[0_2px_10px_rgba(255,77,94,0.55)]">
+            {feed.unread > 9 ? "9+" : feed.unread}
+          </span>
         )}
       </button>
 
       {open && (
         <div role="menu" className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line-strong bg-bg-1 shadow-2xl">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <p className="font-display text-sm font-bold uppercase tracking-wider text-text-0">Notifications</p>
+            <p className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wider text-text-0">
+              Notifications
+              {feed && feed.items.length > 0 && <span className="rounded-full bg-bg-3 px-2 py-0.5 font-mono text-[11px] font-semibold text-text-1">{feed.items.length}</span>}
+            </p>
             <Link href="/account/prizes" onClick={() => setOpen(false)} className="text-xs font-semibold text-gold hover:underline">My prizes</Link>
           </div>
           {!feed ? (

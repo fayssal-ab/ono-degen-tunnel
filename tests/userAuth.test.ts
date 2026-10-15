@@ -224,6 +224,7 @@ dbt("payout wallets: Stake, Rainbet and USDC are saved / removed independently",
 
 dbt("giveaway winner: 15 s chat window decides the prize", async () => {
   const gw = await import("../lib/giveaways");
+  const common = await import("../lib/events/common");
   const pool = db.getPool();
   const awards = async (gid: number) => (await pool.query<mysql.RowDataPacket[]>(
     "SELECT pa.winner FROM prize_awards pa JOIN giveaway_winners w ON pa.source_ref = CONCAT('gw:', w.id) WHERE pa.source = 'giveaway' AND w.giveaway_id = ? ORDER BY w.nonce", [gid]))[0].map((r) => r.winner);
@@ -238,7 +239,13 @@ dbt("giveaway winner: 15 s chat window decides the prize", async () => {
   assert.deepEqual(await awards(gid), [], "a no-show gets nothing");
 
   const [second] = await gw.drawWinners(gid, 1);
+  // the Kick webhook keeps what a waiting winner writes (backup for the dashboard socket)
+  await common.withTx((c) => gw.recordWinnerReply(second.username.toUpperCase(), "here!!", c));
+  await common.withTx((c) => gw.recordWinnerReply("not_the_winner", "me me me", c));
+  assert.deepEqual((await gw.getWinnerInfo(gid, second.nonce))?.chat.map((l) => l.text), ["here!!"]);
   await gw.confirmWinner(gid, second.nonce, "here!!");
+  await common.withTx((c) => gw.recordWinnerReply(second.username, "after confirm", c));
+  assert.equal((await gw.getWinnerInfo(gid, second.nonce))?.chat.length, 1, "nothing stored once decided");
   await assert.rejects(gw.confirmWinner(gid, second.nonce, "again"), /winner_already_decided/);
   assert.deepEqual(await awards(gid), [second.username], "answering in chat records the prize");
   const info = await gw.getWinnerInfo(gid, second.nonce);

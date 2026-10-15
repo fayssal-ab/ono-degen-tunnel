@@ -107,7 +107,6 @@ export function AccountButton() {
       >
         <span className="relative">
           <Avatar me={me} size="h-8 w-8 text-sm" />
-          {me.actions > 0 && <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white" aria-label={`${me.actions} prize action${me.actions > 1 ? "s" : ""}`}>{me.actions}</span>}
         </span>
         <span className="hidden max-w-[10ch] truncate text-sm font-semibold text-text-0 md:inline">{me.name}</span>
         <Icon name="ChevronDown" className={`hidden h-4 w-4 text-text-2 transition-transform md:block ${open ? "rotate-180" : ""}`} />
