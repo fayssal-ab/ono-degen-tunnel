@@ -6,6 +6,9 @@ import { maskUsername } from "./mask";
 import { EventError, withTx } from "./events/common";
 import { deleteTicketChannel, openPrizeTickets, ticketChanged } from "./discordTickets";
 import type { Destination, PayoutMethod } from "./payout";
+import { SITE_URL } from "./constants";
+
+const SITE = SITE_URL.replace(/\/$/, "");
 
 export { PAYOUT_LABEL, PAYOUT_METHODS, type PayoutMethod } from "./payout";
 
@@ -120,7 +123,7 @@ export async function confirmPaid(id: number, amount: string | null, note: strin
     if (rows[0].status !== "pending") throw new EventError("award_not_pending");
     await conn.query("UPDATE prize_awards SET status = 'paid', amount = ?, note = ?, paid_at = UTC_TIMESTAMP() WHERE id = ?", [amount, note, id]);
   });
-  ticketChanged(id, `💸 **Paid**${amount ? ` — $${amount}` : ""}${note ? ` · ${note}` : ""}. Ticket is now staff-only; the winner confirms receipt on the site.`);
+  ticketChanged(id, `💸 **Paid**${amount ? ` — $${amount}` : ""}${note ? ` · ${note}` : ""}. Got it? Press **I received it** below or **[confirm on the site](${SITE}/account/prizes#prize-${id})**.`);
 }
 
 export async function voidAward(id: number, note: string): Promise<void> {

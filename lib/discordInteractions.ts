@@ -217,7 +217,7 @@ export async function handleInteraction(i: Interaction): Promise<object> {
     if (amount && !/^\d{1,9}(\.\d{1,2})?$/.test(amount)) return reply("❌ Amount must be a number like `50` or `12.50`.");
     return deferred(i, async () => {
       await confirmPaid(id, amount || null, note);
-      return msg(`💸 **Marked as paid**${amount ? ` — $${amount}` : ""}. The ticket moved to **PAID PRIZES** — it is now staff-only; the winner confirms receipt on the site.`);
+      return msg(`💸 **Marked as paid**${amount ? ` — $${amount}` : ""}. The ticket moved to **PAID PRIZES** — the winner can still read it and press **I received it**.`);
     });
   }
 
