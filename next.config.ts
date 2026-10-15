@@ -32,6 +32,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // TTF copies of the brand fonts for the Discord /profile and /top image cards
+  // (read with fs at runtime, so they must ship with the function)
+  outputFileTracingIncludes: { "/api/discord/interactions": ["./assets/og/**"] },
   async headers() {
     return [
       { source: "/((?!overlay(?:/|$)).*)", headers: securityHeaders },

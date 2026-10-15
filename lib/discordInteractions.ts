@@ -7,6 +7,7 @@ import { EventError } from "./events/common";
 import { explainError } from "./events/messages";
 import { claimFromDiscord, confirmPaid, confirmReceivedFromDiscord, voidAward } from "./prizes";
 import { closeTicket, deleteTicket } from "./discordTickets";
+import { getProfileData, getTopWinners, renderProfileCard, renderTopCard } from "./discordCards";
 import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, type PayoutMethod } from "./payout";
 
 // Buttons on the Discord prize ticket (lib/discordTickets.ts). Discord POSTs
@@ -17,6 +18,7 @@ import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, typ
 //     Stake|Rainbet  → form: username
 //     USDC wallet    → network menu → form: address
 //   ✅ I received it → marks it received
+//   /profile [user] → player card image · /top → top winners image
 //   staff: 💸 Mark paid (form: amount + note / tx id) · 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
 //          REJECTED category) · 🗑️ Delete (asks, then removes the channel)
 //
@@ -38,10 +40,14 @@ export function verifyDiscordRequest(body: string, signature: string | null, tim
   } catch { return false; }
 }
 
+interface DiscordUserLite { id: string; username: string; global_name?: string | null; avatar?: string | null }
 interface Interaction {
   type: number; id: string; token: string; application_id: string;
-  member?: { user: { id: string }; permissions?: string }; user?: { id: string };
-  data?: { custom_id?: string; values?: string[]; components?: ModalRow[] };
+  member?: { user: DiscordUserLite; permissions?: string; nick?: string | null }; user?: DiscordUserLite;
+  data?: {
+    custom_id?: string; values?: string[]; components?: ModalRow[];
+    name?: string; options?: { name: string; value: string }[]; resolved?: { users?: Record<string, DiscordUserLite> };
+  };
 }
 interface ModalRow { type: number; components?: { custom_id: string; value?: string }[]; component?: { custom_id: string; value?: string } }
 
@@ -55,6 +61,38 @@ async function editReply(i: Interaction, body: object): Promise<void> {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) console.error("discord interaction reply failed", res.status, await res.text());
+}
+
+/** Replace the deferred reply with a picture (multipart: the PNG rides as an attachment, no link). */
+async function replyWithImage(i: Interaction, png: Buffer, filename: string): Promise<void> {
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify({ content: "", attachments: [{ id: 0, filename }], allowed_mentions: { parse: [] } }));
+  form.append("files[0]", new Blob([new Uint8Array(png)], { type: "image/png" }), filename);
+  const res = await fetch(`${API}/webhooks/${i.application_id}/${i.token}/messages/@original`, { method: "PATCH", body: form, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) console.error("discord image reply failed", res.status, await res.text());
+}
+
+const avatarOf = (u: DiscordUserLite) =>
+  u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) >> 22n) % 6}.png`;
+
+/** Slash commands: answer "thinking…" (public), draw the card after the response, then swap it in. */
+function command(i: Interaction): object {
+  const name = i.data?.name;
+  if (name !== "profile" && name !== "top") return reply("❌ Unknown command.");
+  after(async () => {
+    try {
+      if (name === "top") return replyWithImage(i, await renderTopCard(await getTopWinners()), "ono-top.png");
+      const self = i.member?.user ?? i.user!;
+      const picked = i.data?.options?.find((o) => o.name === "user")?.value;
+      const target = (picked && i.data?.resolved?.users?.[picked]) || self;
+      const data = await getProfileData(target.id, { name: target.global_name || target.username, avatar: avatarOf(target) });
+      await replyWithImage(i, await renderProfileCard(data), "ono-profile.png");
+    } catch (e) {
+      console.error(`discord /${name} failed`, e);
+      await editReply(i, { content: "❌ Couldn't draw the card right now. Try again in a minute." });
+    }
+  });
+  return { type: 5 }; // public "thinking…"
 }
 
 function deferred(i: Interaction, work: () => Promise<object>) {
@@ -147,6 +185,7 @@ async function amountFor(id: number): Promise<string> {
 
 export async function handleInteraction(i: Interaction): Promise<object> {
   if (i.type === 1) return { type: 1 }; // PING
+  if (i.type === 2) return command(i);
   const userId = i.member?.user.id ?? i.user?.id;
   if (!userId) return reply("❌ Use this inside the server.");
   const perms = BigInt(i.member?.permissions ?? "0");

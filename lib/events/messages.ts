@@ -84,6 +84,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   award_not_found: "That prize no longer exists.",
   winner_not_found: "No real account with that name — check the spelling and the platform (Kick or Discord).",
   award_not_pending: "This prize was already confirmed or voided.",
+  discord_commands_failed: "Discord refused the slash commands — check the bot token and that the bot is on the server.",
   discord_not_configured: "Discord isn't set up: add DISCORD_BOT_TOKEN and DISCORD_GUILD_ID in Netlify, then redeploy.",
   award_not_void: "Only rejected (voided) prizes can be deleted — void it first.",
   award_not_yours: "This prize isn't linked to your Kick or Discord account.",

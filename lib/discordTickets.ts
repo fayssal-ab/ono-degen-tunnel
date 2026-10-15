@@ -419,6 +419,21 @@ export function deleteTicketChannel(channelId: string | null): void {
   try { after(run); } catch { void run(); }
 }
 
+/** (Re)register the server's slash commands for this bot: /profile and /top. Idempotent. */
+export async function registerCommands(): Promise<void> {
+  const cfg = discordConfig();
+  if (!cfg) return;
+  const app = await discord<{ id: string }>(cfg.token, "/applications/@me");
+  await discord(cfg.token, `/applications/${app.id}/guilds/${cfg.guildId}/commands`, {
+    method: "PUT",
+    body: [
+      { name: "profile", type: 1, description: "Show an ONO player card: wins, total won, last prize",
+        options: [{ type: 6, name: "user", description: "Whose card (default: yours)", required: false }] },
+      { name: "top", type: 1, description: "Top winners on ONO this month" },
+    ],
+  });
+}
+
 /** After the response: refresh the award's ticket. Safe anywhere (no-op outside a request or without Discord config). */
 export function ticketChanged(id: number, note?: string): void {
   if (!discordConfig()) return;
