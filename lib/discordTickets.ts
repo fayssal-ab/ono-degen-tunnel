@@ -356,9 +356,13 @@ async function updateMessage(token: string, a: TicketAward, member: GuildMember 
   await getPool().query("UPDATE prize_awards SET discord_message_id = ? WHERE id = ?", [msg.id, a.id]);
 }
 
-/** Re-render every live ticket (newest first): moves them to their status category and replaces messages the current bot can't edit. */
+/** Create the 4 status categories, then re-render every live ticket (newest first): moves them to their status category and replaces messages the current bot can't edit. */
 export async function refreshAllTickets(limit = 25): Promise<number> {
-  if (!discordConfig()) return 0;
+  const cfg = discordConfig();
+  if (!cfg) return 0;
+  // every status category exists up front, even before its first ticket
+  const staff = await staffRoles(cfg.token, cfg.guildId);
+  for (const stage of ["waiting", "claimed", "paid", "void"] as Stage[]) await categoryFor(cfg.token, cfg.guildId, stage, staff);
   const [rows] = await getPool().query<RowDataPacket[]>(
     "SELECT id FROM prize_awards WHERE discord_channel_id IS NOT NULL AND discord_channel_id <> '' ORDER BY id DESC LIMIT ?", [limit]);
   let done = 0;
