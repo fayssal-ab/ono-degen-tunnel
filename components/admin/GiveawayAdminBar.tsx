@@ -68,10 +68,10 @@ export function GiveawayAdminBar({ giveaways, selectedId }: { giveaways: Giveawa
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Icon name="Gift" className="h-5 w-5 text-gold" />
-          <span className="font-display text-sm font-bold tracking-wide">Giveaways</span>
+      <div className="surface flex flex-wrap items-center gap-3 p-2.5 pl-3">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-gold/30 to-gold/5 text-gold ring-1 ring-gold/40"><Icon name="Gift" className="h-5 w-5" /></span>
+          <span className="font-bang text-lg tracking-wide">Giveaways</span>
         </div>
 
         {giveaways.length > 0 && (
@@ -79,7 +79,7 @@ export function GiveawayAdminBar({ giveaways, selectedId }: { giveaways: Giveawa
             <select
               value={selectedId ?? ""}
               onChange={(e) => select(e.target.value)}
-              className="h-10 appearance-none rounded-xl border border-line bg-bg-1 pl-3 pr-9 text-sm text-text-0 focus:border-gold focus:outline-none"
+              className="h-10 max-w-[70vw] appearance-none rounded-xl border border-line bg-bg-0/60 pl-3 pr-9 text-sm font-semibold text-text-0 focus:border-gold focus:outline-none"
             >
               {giveaways.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -104,7 +104,7 @@ export function GiveawayAdminBar({ giveaways, selectedId }: { giveaways: Giveawa
           )}
           <button
             onClick={() => setOpen(true)}
-            className="press inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-bg-0 hover:bg-gold-hi"
+            className="press inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-bold text-bg-0 shadow-[0_8px_24px_-10px_var(--color-gold)] hover:bg-gold-hi"
           >
             <Icon name="Plus" className="h-4 w-4" /> New giveaway
           </button>

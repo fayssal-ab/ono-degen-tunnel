@@ -451,47 +451,69 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
   const filtered = data.entries.filter((e) => e.username.toLowerCase().includes(search.trim().toLowerCase()));
   const reelItems = reelEntries.length > 0 ? reelEntries : eligible;
 
+  const statusTone = !listening ? (finished ? "text-text-2" : "text-gold") : liveStatus === "connected" ? "text-volt" : liveStatus === "error" ? "text-danger" : "text-gold";
+  const statusText = !listening
+    ? finished ? "Round finished" : g.poolLocked ? "Drawn · ready to reroll" : "Not listening"
+    : liveStatus === "connected" ? "Live · reading Kick chat" : liveStatus === "error" ? "Chat unreachable" : "Connecting…";
+  const confirmed = data.winners.filter((w) => w.response !== "no_show");
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-[120] -translate-x-1/2 rounded-xl border border-line-strong bg-bg-2 px-4 py-2 text-sm text-text-0 shadow-lg">
+        <div className="pop-in fixed bottom-6 left-1/2 z-[120] -translate-x-1/2 rounded-xl border border-gold/40 bg-bg-1 px-4 py-2.5 text-sm font-semibold text-text-0 shadow-[0_10px_40px_-12px_rgba(245,196,81,0.5)]">
           {toast}
         </div>
       )}
 
-      {/* vault */}
-      <div className="surface gold-border relative space-y-5 overflow-hidden p-5 md:p-6 [background:radial-gradient(ellipse_at_top_right,rgba(126,67,226,0.12),transparent_65%),var(--color-bg-1)]">
-        {/* header */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
-          <Icon name="Gift" className="h-6 w-6 text-gold" />
+      {/* ── hero ── */}
+      <section className="surface relative isolate overflow-hidden px-6 pb-7 pt-8 md:px-10 md:pt-10">
+        <div className="tunnel-grid pointer-events-none absolute inset-0 opacity-40" aria-hidden />
+        <div className="pointer-events-none absolute -right-24 -top-32 h-96 w-96 rounded-full bg-gold/15 blur-3xl" aria-hidden />
+        <div className="pointer-events-none absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-plasma/15 blur-3xl" aria-hidden />
+
+        <div className="relative z-10 flex flex-wrap items-start gap-6">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-xl font-extrabold tracking-tight">Giveaway Control</h1>
-            <p className="text-xs text-text-2">{g.title} · <span className="text-gold">{g.prize}</span></p>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-line bg-bg-1 px-3 py-1.5 text-xs">
-            <span className={`relative flex h-2.5 w-2.5 ${listening && liveStatus === "connected" ? "pulse-ring rounded-full" : ""}`}>
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${
-                  !listening ? "bg-text-2" : liveStatus === "connected" ? "bg-volt" : liveStatus === "error" ? "bg-danger" : "bg-gold"
-                }`}
-              />
+            <span className={`label inline-flex items-center gap-2 ${statusTone}`}>
+              <span className="relative flex h-2 w-2">
+                {listening && liveStatus === "connected" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-volt opacity-60" />}
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${!listening ? (finished ? "bg-text-2" : "bg-gold") : liveStatus === "connected" ? "bg-volt" : liveStatus === "error" ? "bg-danger" : "bg-gold"}`} />
+              </span>
+              {statusText}
             </span>
-            <span className="text-text-1">
-              {!listening ? (finished ? "Round finished" : g.poolLocked ? "Ready to reroll" : "Not listening") : liveStatus === "connected" ? "Kick chat connected" : liveStatus === "error" ? "Chat unreachable" : "Connecting…"}
-            </span>
+            <h1 className="font-bang mt-3 text-4xl [overflow-wrap:anywhere] md:text-6xl">{g.title}</h1>
+            <p className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5">
+              <Icon name="Gift" className="h-4 w-4 text-gold" />
+              <span className="label text-gold/80">Prize</span>
+              <span className="font-display text-lg font-extrabold text-gold neon-gold">{g.prize || "—"}</span>
+            </p>
           </div>
-          <button onClick={() => setMuted((m) => !m)} className="press grid h-9 w-9 place-items-center rounded-lg border border-line text-text-1 hover:text-text-0" aria-label={muted ? "Unmute" : "Mute"}>
-            <Icon name={muted ? "VolumeX" : "Volume2"} className="h-4 w-4" />
-          </button>
-          <a href="/api/auth/logout" className="press inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-sm text-text-1 hover:border-danger hover:text-danger">
-            <Icon name="LogOut" className="h-4 w-4" /> Sign out
-          </a>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setMuted((m) => !m)} className="press grid h-10 w-10 place-items-center rounded-xl border border-line bg-bg-1/70 text-text-1 backdrop-blur hover:border-gold hover:text-gold" aria-label={muted ? "Unmute" : "Mute"}>
+              <Icon name={muted ? "VolumeX" : "Volume2"} className="h-4 w-4" />
+            </button>
+            <a href={`/verify/${id}`} target="_blank" className="press inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-bg-1/70 px-3 text-sm text-text-1 backdrop-blur hover:border-plasma hover:text-plasma">
+              <Icon name="ShieldCheck" className="h-4 w-4" /> Fair proof
+            </a>
+          </div>
         </div>
 
-        {/* channel + listen */}
+        <div className="relative z-10 mt-8 flex flex-wrap items-center gap-x-8 gap-y-4 border-t border-line pt-5">
+          <div className="hero-stat"><p className="font-mono text-3xl font-bold tabular-nums text-volt neon-volt">{data.eligibleCount}</p><p className="label mt-0.5">Eligible</p></div>
+          <div className="hero-stat"><p className="font-mono text-3xl font-bold tabular-nums text-text-0">{data.entries.length}</p><p className="label mt-0.5">Entries</p></div>
+          <div className="hero-stat"><p className="font-mono text-3xl font-bold tabular-nums text-gold">{confirmed.length}</p><p className="label mt-0.5">Winners</p></div>
+          <div className="hero-stat">
+            <p className="inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1 font-mono text-xl font-bold text-gold"><Icon name="Hash" className="h-4 w-4" />{g.keyword ?? "—"}</p>
+            <p className="label mt-1">Command</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── controls ── */}
+      <section className="surface space-y-4 p-4 md:p-5">
         <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="flex h-12 flex-1 items-center gap-2 rounded-xl border border-line bg-bg-1 px-4 focus-within:border-gold">
-            <Icon name="Radio" className="h-4 w-4 text-volt" />
+          <div className="flex h-13 flex-1 items-center gap-3 rounded-xl border border-line bg-bg-0/60 px-4 focus-within:border-volt">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#53fc18]/15 text-[#53fc18]"><Icon name="Radio" className="h-4 w-4" /></span>
+            <span className="hidden text-sm text-text-2 sm:inline">kick.com/</span>
             <input
               value={channelDraft}
               onChange={(e) => setChannelDraft(e.target.value)}
@@ -502,181 +524,152 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
                   applyChannel(channelDraft);
                 }
               }}
-              placeholder="kick channel (e.g. yuuukine)"
+              placeholder="channel"
               spellCheck={false}
-              className="h-full flex-1 bg-transparent font-mono text-base text-text-0 placeholder:text-text-2 focus:outline-none"
+              className="h-full min-w-0 flex-1 bg-transparent font-mono text-base font-semibold text-text-0 placeholder:text-text-2 focus:outline-none"
               aria-label="Kick channel to read"
             />
-            <span className="ml-auto shrink-0 text-xs text-text-2">kick channel</span>
           </div>
           <button
             onClick={toggleListening}
             disabled={busy || spinning || finished}
-            className={`press inline-flex h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold disabled:opacity-50 ${
-              listening ? "border border-volt/50 bg-volt/10 text-volt" : "bg-volt text-bg-0 hover:brightness-110"
+            className={`press inline-flex h-13 items-center justify-center gap-2 rounded-xl px-7 text-sm font-extrabold uppercase tracking-wide disabled:opacity-50 ${
+              listening ? "border border-volt/60 bg-volt/10 text-volt glow-volt" : "bg-volt text-bg-0 hover:brightness-110"
             }`}
           >
             <Icon name={listening ? "Radio" : "Play"} className={`h-4 w-4 ${listening ? "animate-pulse" : ""}`} />
-            {finished ? "Round finished" : g.poolLocked ? "Finish & reveal results" : listening ? "Stop listening" : "Start listening"}
+            {finished ? "Round finished" : g.poolLocked ? "Finish & reveal" : listening ? "Stop listening" : "Start listening"}
           </button>
         </div>
-
-        {/* command + current channel */}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-text-2">Command:</span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1 font-mono font-semibold text-gold">
-            <Icon name="Hash" className="h-3.5 w-3.5" />
-            {g.keyword ?? "—"}
-          </span>
-          <span className="text-text-2">
-            · reading <span className="font-mono text-text-1">{channel}</span>
-          </span>
-        </div>
-
-        {/* platforms */}
-        <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-2 rounded-xl border border-volt/50 bg-volt/10 px-4 py-2.5 text-sm font-semibold text-volt">
-            <Icon name="Radio" className="h-4 w-4" /> Kick Chat
-          </span>
-          <span className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-text-2 opacity-50" title="Not integrated">
-            Twitch Chat
-          </span>
-          <span className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-text-2 opacity-50" title="Not integrated">
-            Both (Kick + Twitch)
-          </span>
-        </div>
-
-        {/* filters */}
-        <div>
-          <div className="flex flex-wrap gap-2">
-            {FILTERS.map((f) => {
-              const active = f.key === "subs" ? g.subscribersOnly : f.key === "active" && g.minMessages > 1;
-              return (
-                <button
-                  type="button"
-                  key={f.key}
-                  onClick={() => toggleFilter(f.key)}
-                  disabled={!f.available || busy || spinning || g.poolLocked}
-                  aria-pressed={active}
-                  title={f.available ? (active ? "Active" : "Off") : "Not available from Kick chat events"}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs ${
-                    active
-                      ? "border-volt/50 bg-volt/10 text-volt"
-                      : f.available
-                        ? "border-line text-text-1"
-                        : "cursor-not-allowed border-line text-text-2 opacity-50"
-                  }`}
-                >
-                  <Icon name={active ? "SquareCheckBig" : f.available ? "Square" : "Lock"} className="h-3.5 w-3.5" />
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-text-2">Active requires at least 2 matching chat messages. Subscribed requires a Kick subscription. Rules lock after the first draw. Repeat wins are allowed.</p>
-        </div>
-
-        {/* reel */}
-        <div ref={viewportRef} className="relative h-44 overflow-hidden rounded-2xl border border-line bg-bg-0">
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-0.5 -translate-x-1/2 bg-gold shadow-[0_0_12px_var(--color-gold)]" />
-          <div className="pointer-events-none absolute left-1/2 top-1 z-20 -translate-x-1/2 text-gold"><Icon name="ChevronDown" className="h-5 w-5" /></div>
-          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-28 w-32 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-gold/40" />
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-bg-0 to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-bg-0 to-transparent" />
-          <div ref={stripRef} className="absolute inset-y-0 left-0 flex items-center" style={{ willChange: "transform" }}>
-            {reelItems.map((e, i) => (
-              <div key={i} className="flex flex-col items-center justify-center" style={{ width: CARD }}>
-                <span className="h-16 w-16 overflow-hidden rounded-full ring-2 ring-line-strong"><Avatar src={e.avatar} name={e.username} size={64} /></span>
-                <span className="mt-2 max-w-[120px] truncate font-mono text-xs text-text-1">{e.username}</span>
-              </div>
-            ))}
-            {reelItems.length === 0 && <div className="flex h-full items-center px-6 text-sm text-text-2">Entries will appear here to spin.</div>}
-          </div>
-        </div>
-
-        {/* roll */}
-        <button
-          onClick={draw}
-          disabled={spinning || busy || finished || eligible.length === 0}
-          className="press relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gold text-base font-extrabold uppercase tracking-wide text-bg-0 hover:bg-gold-hi disabled:opacity-50"
-        >
-          {spinning ? (
-            <>
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-bg-0/30 border-t-bg-0" /> Rolling winner…
-            </>
-          ) : (
-            <>
-              <Icon name="Sparkles" className="h-5 w-5" /> {finished ? "Round finished" : "Roll winner"}
-            </>
-          )}
-        </button>
-
-        {/* winners + test tools */}
         <div className="flex flex-wrap items-center gap-2">
-          {data.winners.map((w) => (
-            <span key={w.nonce} title={w.response === "no_show" ? "No response in chat — no prize" : w.response === "waiting" ? "Waiting for an answer in chat" : "Confirmed"}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${w.response === "no_show" ? "border-danger/40 bg-danger/10 text-danger line-through" : w.response === "waiting" ? "border-line-strong text-text-1" : "border-gold/40 bg-gold/10 text-gold"}`}>
-              <Icon name={w.response === "no_show" ? "UserX" : w.response === "waiting" ? "Clock" : "Trophy"} className="h-3 w-3" /> {w.username}
-            </span>
-          ))}
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={addTest} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:text-text-0 disabled:opacity-50" title="Load sample entrants to rehearse the reel">
-              <Icon name="FlaskConical" className="h-3.5 w-3.5" /> Add test entrants
-            </button>
-            <button onClick={clearAll} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:border-danger hover:text-danger disabled:opacity-50">
-              <Icon name="Trash2" className="h-3.5 w-3.5" /> Clear
-            </button>
-          </div>
+          {FILTERS.filter((f) => f.available).map((f) => {
+            const active = f.key === "subs" ? g.subscribersOnly : f.key === "active" && g.minMessages > 1;
+            return (
+              <button type="button" key={f.key} onClick={() => toggleFilter(f.key)} disabled={busy || spinning || g.poolLocked} aria-pressed={active}
+                className={`press inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold disabled:opacity-50 ${active ? "border-volt/60 bg-volt/15 text-volt" : "border-line text-text-1 hover:border-line-strong hover:text-text-0"}`}>
+                <Icon name={active ? "CircleCheck" : "Circle"} className="h-3.5 w-3.5" /> {f.key === "subs" ? "Subscribers only" : "Active chatters (2+ msgs)"}
+              </button>
+            );
+          })}
+          <span className="text-xs text-text-2">Rules lock after the first draw · repeat wins allowed</span>
         </div>
-      </div>
+      </section>
 
       {listening && liveStatus === "error" && (
         <div className="flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm text-text-1">
           <Icon name="TriangleAlert" className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
-          <div>Couldn&rsquo;t reach Kick&rsquo;s chat socket right now (it&rsquo;s an unofficial endpoint and can rate-limit or change). It&rsquo;ll keep retrying. Meanwhile use <b>Add test entrants</b> to rehearse the reel.</div>
+          <div>Couldn&rsquo;t reach Kick&rsquo;s chat socket for <b>kick.com/{channel}</b> (unofficial endpoint, can rate-limit). It keeps retrying; entries from the Kick webhook still count. Check the channel name above.</div>
         </div>
       )}
-      {!listening && (
-        <p className="text-xs text-text-2">
-          Reads Kick chat live in your browser while listening (unofficial public socket — no login needed). Hit <b>Start listening</b> during a live stream, or <b>Add test entrants</b> to preview.
-        </p>
-      )}
 
-      {/* entries */}
-      <div className="surface p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
-          <p className="font-display text-sm font-bold tracking-wide">
-            Entries <span className="font-mono text-volt">{data.eligibleCount}</span>
-            <span className="text-text-2"> / {data.entries.length}</span>
+      {/* ── stage: reel + roll ── */}
+      <section className="surface relative isolate overflow-hidden p-4 md:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_50%_0%,rgba(245,196,81,0.12),transparent_70%)]" aria-hidden />
+        <div className="relative flex items-center justify-between gap-3 pb-4">
+          <p className="font-bang text-2xl tracking-wide md:text-3xl">The draw</p>
+          <div className="flex items-center gap-2">
+            <button onClick={addTest} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:text-text-0 disabled:opacity-50" title="Load sample entrants to rehearse the reel">
+              <Icon name="FlaskConical" className="h-3.5 w-3.5" /> Test entrants
+            </button>
+            <button onClick={clearAll} disabled={busy || spinning} className="press inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-text-2 hover:border-danger hover:text-danger disabled:opacity-50">
+              <Icon name="RotateCcw" className="h-3.5 w-3.5" /> New round
+            </button>
+          </div>
+        </div>
+
+        <div ref={viewportRef} className="relative h-52 overflow-hidden rounded-2xl border border-line-strong bg-bg-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.6)]">
+          <div className="tunnel-grid pointer-events-none absolute inset-0 opacity-30" aria-hidden />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-40 w-36 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-gold/70 bg-gold/5 shadow-[0_0_40px_-6px_var(--color-gold),inset_0_0_30px_-10px_var(--color-gold)]" />
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-gold to-transparent" />
+          <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 -translate-x-1/2 text-gold drop-shadow-[0_0_8px_var(--color-gold)]"><Icon name="ChevronDown" className="h-6 w-6" /></div>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-bg-0 via-bg-0/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-bg-0 via-bg-0/80 to-transparent" />
+          <div ref={stripRef} className="absolute inset-y-0 left-0 flex items-center" style={{ willChange: "transform" }}>
+            {reelItems.map((e, i) => (
+              <div key={i} className="flex flex-col items-center justify-center" style={{ width: CARD }}>
+                <span className="h-20 w-20 overflow-hidden rounded-full ring-2 ring-line-strong ring-offset-4 ring-offset-bg-0"><Avatar src={e.avatar} name={e.username} size={80} /></span>
+                <span className="mt-3 max-w-[120px] truncate font-mono text-xs font-semibold text-text-1">{e.username}</span>
+              </div>
+            ))}
+            {reelItems.length === 0 && (
+              <div className="flex h-full w-[min(90vw,900px)] flex-col items-center justify-center gap-2 text-center text-sm text-text-2">
+                <Icon name="Users" className="h-7 w-7" />
+                Entries spin here — start listening and have chat type <b className="font-mono text-gold">{g.keyword ?? "the keyword"}</b>.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={draw}
+          disabled={spinning || busy || finished || eligible.length === 0}
+          className="press group relative mt-5 inline-flex h-16 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-gold via-gold-hi to-gold text-bg-0 shadow-[0_14px_44px_-14px_var(--color-gold)] transition-[filter,transform] hover:brightness-105 disabled:opacity-50 disabled:shadow-none"
+        >
+          <span aria-hidden className="gw-shine pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 -skew-x-12 bg-white/40 blur-md" />
+          {spinning ? (
+            <>
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-bg-0/30 border-t-bg-0" />
+              <span className="font-bang text-2xl tracking-wide">Rolling…</span>
+            </>
+          ) : (
+            <>
+              <Icon name="Sparkles" className="h-6 w-6" />
+              <span className="font-bang text-2xl tracking-wide md:text-3xl">{finished ? "Round finished" : "Roll winner"}</span>
+            </>
+          )}
+        </button>
+
+        {data.winners.length > 0 && (
+          <div className="relative mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+            <span className="label mr-1">Winners</span>
+            {data.winners.map((w) => (
+              <span key={w.nonce} title={w.response === "no_show" ? "No response in chat — no prize" : w.response === "waiting" ? "Waiting for an answer in chat" : "Confirmed"}
+                className={`inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold ${w.response === "no_show" ? "border-danger/40 bg-danger/10 text-danger line-through" : w.response === "waiting" ? "border-line-strong text-text-1" : "border-gold/50 bg-gold/10 text-gold glow-gold"}`}>
+                <span className={`h-6 w-6 overflow-hidden rounded-full ${w.response === "no_show" ? "grayscale" : ""}`}><Avatar src={w.avatar} name={w.username} size={24} /></span>
+                {w.username}
+                <Icon name={w.response === "no_show" ? "UserX" : w.response === "waiting" ? "Clock" : "Trophy"} className="h-3 w-3" />
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── entries ── */}
+      <section className="surface p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+          <p className="flex items-baseline gap-2">
+            <span className="font-bang text-2xl tracking-wide md:text-3xl">Entries</span>
+            <span className="font-mono text-lg font-bold text-volt">{data.eligibleCount}</span>
+            <span className="font-mono text-sm text-text-2">/ {data.entries.length}</span>
           </p>
-          <div className="flex h-9 items-center gap-2 rounded-lg border border-line bg-bg-1 px-3">
+          <div className="flex h-10 items-center gap-2 rounded-xl border border-line bg-bg-0/60 px-3 focus-within:border-gold">
             <Icon name="Search" className="h-4 w-4 text-text-2" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="h-full w-36 bg-transparent text-sm focus:outline-none" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search entrant" className="h-full w-40 bg-transparent text-sm focus:outline-none" />
           </div>
         </div>
         {filtered.length === 0 ? (
-          <p className="pt-4 text-sm text-text-2">{data.entries.length === 0 ? "Nobody has entered yet." : "No matches."}</p>
+          <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-text-2">{data.entries.length === 0 ? "Nobody has entered yet." : "No matches."}</p>
         ) : (
-          <div className="mt-1 max-h-96 divide-y divide-line/60 overflow-y-auto">
+          <div className="grid max-h-[28rem] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((e) => (
-              <div key={e.username} className={`flex items-center gap-3 py-2.5 ${e.excluded ? "opacity-50" : ""}`}>
-                <span className="h-9 w-9 overflow-hidden rounded-full ring-1 ring-line-strong"><Avatar src={e.avatar} name={e.username} size={36} /></span>
+              <div key={e.username} className={`group flex items-center gap-3 rounded-xl border p-2.5 transition-colors ${e.excluded ? "border-danger/30 bg-danger/5 opacity-60" : e.eligible ? "border-line bg-bg-1/60 hover:border-volt/40" : "border-line bg-bg-1/30 opacity-70"}`}>
+                <span className={`relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ${e.eligible && !e.excluded ? "ring-volt/50" : "ring-line-strong"}`}><Avatar src={e.avatar} name={e.username} size={40} /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-sm text-text-0">
-                    {e.username}
-                    {e.isSubscriber && <span className="ml-2 rounded bg-volt/15 px-1.5 text-[10px] font-semibold uppercase text-volt">sub</span>}
+                  <p className="flex items-center gap-1.5 truncate font-mono text-sm font-semibold text-text-0">
+                    <span className="truncate">{e.username}</span>
+                    {e.isSubscriber && <span className="rounded bg-volt/15 px-1.5 text-[10px] font-bold uppercase text-volt">sub</span>}
                   </p>
-                  <p className="text-xs text-text-2">{e.createdAt ? new Date(e.createdAt.replace(" ", "T") + "Z").toLocaleTimeString() : "—"}</p>
+                  <p className="text-[11px] text-text-2">{e.excluded ? "excluded" : e.eligible ? "eligible" : "not eligible yet"} · {e.createdAt ? new Date(e.createdAt.replace(" ", "T") + "Z").toLocaleTimeString() : "—"}</p>
                 </div>
-                <span className="rounded-md border border-line px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-2">Kick</span>
-                <button onClick={() => exclude(e.username, !e.excluded)} disabled={g.poolLocked || spinning || busy} className="press grid h-8 w-8 place-items-center rounded-lg border border-line text-text-2 hover:text-text-0" title={e.excluded ? "Restore" : "Exclude"}>
+                <button onClick={() => exclude(e.username, !e.excluded)} disabled={g.poolLocked || spinning || busy}
+                  className="press grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line text-text-2 opacity-60 transition-opacity hover:text-text-0 group-hover:opacity-100 disabled:opacity-30" title={e.excluded ? "Restore" : "Exclude"}>
                   <Icon name={e.excluded ? "RotateCcw" : "Ban"} className="h-4 w-4" />
                 </button>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {/* winner modal: 15 s to answer in chat */}
       {modalWinner && (

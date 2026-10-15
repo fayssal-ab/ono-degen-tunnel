@@ -630,3 +630,11 @@ img, svg, video, canvas, picture {
 @media (prefers-reduced-motion: reduce) {
   .prize-focus { animation: none; box-shadow: 0 0 0 2px var(--color-gold); }
 }
+
+/* giveaway roll button: a light sweep across the gold */
+@keyframes gw-shine {
+  0% { transform: translateX(0) skewX(-12deg); }
+  60%, 100% { transform: translateX(560%) skewX(-12deg); }
+}
+.gw-shine { animation: gw-shine 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .gw-shine { display: none; } }

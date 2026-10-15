@@ -155,7 +155,7 @@ export function WinnerCheck({
           </div>
           <div className="min-w-0 flex-1">
             <p className={`label ${phase === "no_show" ? "text-danger" : "text-gold"}`}>{phase === "no_show" ? "No response — no prize" : phase === "confirmed" ? "Winner confirmed" : "Winner drawn"}</p>
-            <p className={`truncate font-display text-2xl font-extrabold ${phase === "no_show" ? "text-text-1 line-through decoration-danger/70" : ""}`}>{winner.username}</p>
+            <p className={`font-bang text-xl tracking-wide [overflow-wrap:anywhere] ${phase === "no_show" ? "text-text-1 line-through decoration-danger/70" : phase === "confirmed" ? "text-gold neon-gold" : ""}`}>{winner.username}</p>
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
               <span className="inline-flex items-center gap-1 rounded-full border border-volt/40 bg-volt/10 px-2 py-0.5 text-volt"><Icon name="Radio" className="h-3 w-3" /> Kick chat</span>
               {isSubscriber && <span className="rounded-full border border-volt/40 bg-volt/10 px-2 py-0.5 text-volt">subscriber</span>}
