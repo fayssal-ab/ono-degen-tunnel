@@ -5,7 +5,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { EventError } from "./events/common";
 import { explainError } from "./events/messages";
-import { claimFromDiscord, confirmReceivedFromDiscord, voidAward } from "./prizes";
+import { claimFromDiscord, confirmPaid, confirmReceivedFromDiscord, voidAward } from "./prizes";
 import { closeTicket, deleteTicket } from "./discordTickets";
 import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, type PayoutMethod } from "./payout";
 
@@ -17,7 +17,7 @@ import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, typ
 //     Stake|Rainbet  → form: username
 //     USDC wallet    → network menu → form: address
 //   ✅ I received it → marks it received
-//   staff: 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
+//   staff: 💸 Mark paid (form: amount + note / tx id) · 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
 //          REJECTED category) · 🗑️ Delete (asks, then removes the channel)
 //
 // Only the ticket's winner may claim / confirm (staff may claim for them).
@@ -128,11 +128,21 @@ async function prefillFor(userId: string, method: PayoutMethod, network: string)
   return saved[method];
 }
 
-function modalValue(rows: ModalRow[] | undefined): string {
+function modalValue(rows: ModalRow[] | undefined, field = "value"): string {
   for (const r of rows ?? []) {
-    for (const c of r.components ?? (r.component ? [r.component] : [])) if (c.custom_id === "value") return c.value ?? "";
+    for (const c of r.components ?? (r.component ? [r.component] : [])) if (c.custom_id === field) return c.value ?? "";
   }
   return "";
+}
+
+/** Award amount to pre-fill the payout form, without risking Discord's 3 s deadline. */
+async function amountFor(id: number): Promise<string> {
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 1200));
+  const row = await Promise.race([
+    getPool().query<RowDataPacket[]>("SELECT amount FROM prize_awards WHERE id = ?", [id]).then(([r]) => r[0] ?? null).catch(() => null),
+    timeout,
+  ]);
+  return row?.amount != null ? String(row.amount) : "";
 }
 
 export async function handleInteraction(i: Interaction): Promise<object> {
@@ -145,6 +155,32 @@ export async function handleInteraction(i: Interaction): Promise<object> {
   if (parts[0] !== "prize") return reply("❌ Unknown action.");
   const id = Number(parts[parts.length - 1]);
   if (!Number.isInteger(id) || id <= 0) return reply("❌ Unknown prize.");
+
+  // staff: mark paid → form, then save
+  if ((i.type === 3 && parts[1] === "pay") || (i.type === 5 && parts[1] === "paymodal")) {
+    if (!staff) return reply("❌ Staff only.");
+    if (i.type === 3) {
+      const amount = await amountFor(id);
+      return {
+        type: 9,
+        data: {
+          custom_id: `prize:paymodal:${id}`,
+          title: "Mark the prize as paid",
+          components: [
+            { type: 1, components: [{ type: 4, custom_id: "amount", label: "Amount paid ($)", style: 1, required: false, max_length: 12, placeholder: "50", ...(amount ? { value: amount } : {}) }] },
+            { type: 1, components: [{ type: 4, custom_id: "note", label: "Note / transaction id (optional)", style: 1, required: false, max_length: 255, placeholder: "tx 0x… / tip sent on Stake" }] },
+          ],
+        },
+      };
+    }
+    const amount = modalValue(i.data?.components, "amount").trim().replace(/^\$/, "");
+    const note = modalValue(i.data?.components, "note").trim();
+    if (amount && !/^\d{1,9}(\.\d{1,2})?$/.test(amount)) return reply("❌ Amount must be a number like `50` or `12.50`.");
+    return deferred(i, async () => {
+      await confirmPaid(id, amount || null, note);
+      return msg(`💸 **Marked as paid**${amount ? ` — $${amount}` : ""}. The ticket moved to **PAID PRIZES** — it is now staff-only; the winner confirms receipt on the site.`);
+    });
+  }
 
   // staff tools
   if (i.type === 3 && ["close", "reject", "delete", "delete-yes"].includes(parts[1])) {

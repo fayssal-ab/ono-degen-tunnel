@@ -16,8 +16,10 @@ import { describeDestination } from "./payout";
 // (claim, paid, void, received) edits the message, renames the channel with
 // the status emoji, moves it to the category of its status (🆕 NEW → 📨 CLAIMED
 // → 💸 PAID, or ❌ REJECTED; created on demand, staff-only) and posts a line,
-// so the ticket is the full history. Staff buttons: Close (winner loses
-// access), Reject (voids the prize) and Delete (removes the channel).
+// so the ticket is the full history. Once paid (or received / rejected) the
+// ticket is staff-only. Staff buttons: Mark paid (amount + tx
+// note), Close (winner loses access), Reject (voids the prize) and Delete
+// (removes the channel).
 //
 // recordAward() schedules a sweep after the response; the cron sync sweeps
 // again so a Discord outage only delays a ticket.
@@ -148,7 +150,7 @@ function ticketMessage(a: TicketAward, member: GuildMember | null) {
       ? `GG ${who}! You placed in the **${a.title}**. Send your casino username here and the team pays you.`
       : `GG ${who}! You won ${prizeText(a).split("\n")[0]} in **${a.title || "the stream"}**.\nPress **Claim prize** and pick where to send it: **Stake**, **Rainbet** or a **USDC wallet**.`,
     claimed: `${who}, your claim is in. The team pays you shortly; this ticket updates when it's sent.`,
-    paid: `${who}, your prize was sent! Press **I received it** once it's in your account.`,
+    paid: `💸 Paid to ${who}. The ticket is now staff-only; the winner confirms receipt on the site.`,
     received: `All done — ${who} confirmed the prize. Thanks for watching ONO! 💛`,
     void: `This prize was voided${a.note ? `: ${a.note}` : "."}`,
   };
@@ -173,10 +175,11 @@ function ticketMessage(a: TicketAward, member: GuildMember | null) {
   if (stage === "waiting" || stage === "claimed") {
     buttons.push({ type: 2, style: 3, custom_id: `prize:claim:${a.id}`, label: stage === "waiting" ? "Claim prize" : "Change payout", emoji: { name: "💸" } });
   }
-  if (stage === "paid") buttons.push({ type: 2, style: 3, custom_id: `prize:recv:${a.id}`, label: "I received it", emoji: { name: "✅" } });
   buttons.push({ type: 2, style: 5, url: `${SITE}/account/prizes`, label: "Prize page", emoji: { name: "🌐" } });
   // staff row (the interaction handler refuses non-staff)
-  const staffRow: unknown[] = [{ type: 2, style: 2, custom_id: `prize:close:${a.id}`, label: "Close", emoji: { name: "🔒" } }];
+  const staffRow: unknown[] = [];
+  if (a.status === "pending") staffRow.push({ type: 2, style: 3, custom_id: `prize:pay:${a.id}`, label: "Mark paid", emoji: { name: "💸" } });
+  staffRow.push({ type: 2, style: 2, custom_id: `prize:close:${a.id}`, label: "Close", emoji: { name: "🔒" } });
   if (a.status === "pending") staffRow.push({ type: 2, style: 4, custom_id: `prize:reject:${a.id}`, label: "Reject", emoji: { name: "❌" } });
   staffRow.push({ type: 2, style: 4, custom_id: `prize:delete:${a.id}`, label: "Delete", emoji: { name: "🗑️" } });
 
@@ -319,6 +322,15 @@ export async function refreshTicket(id: number, note?: string): Promise<void> {
     console.error(`discord ticket #${id} category failed`, e);
     return undefined;
   });
+  // paid / received / rejected tickets are staff-only; reopened ones let the winner back in
+  if (a.discord_user_id) {
+    const winnerSees = stage === "waiting" || stage === "claimed";
+    const perm = `/channels/${a.discord_channel_id}/permissions/${a.discord_user_id}`;
+    await (winnerSees
+      ? discord(token, perm, { method: "PUT", body: { type: 1, allow: String(VIEW | SEND | HISTORY | ATTACH), deny: "0" } })
+      : discord(token, perm, { method: "DELETE" })
+    ).catch((e) => { if (!(e instanceof DiscordError && e.status === 404)) console.error(`discord ticket #${id} access failed`, e); });
+  }
   const jobs: Promise<unknown>[] = [
     // moving category keeps the channel's own permissions (lock_permissions false)
     discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a.winner, STAGE[stage].emoji), ...(parent ? { parent_id: parent, lock_permissions: false } : {}) } })

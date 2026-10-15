@@ -120,7 +120,7 @@ export async function confirmPaid(id: number, amount: string | null, note: strin
     if (rows[0].status !== "pending") throw new EventError("award_not_pending");
     await conn.query("UPDATE prize_awards SET status = 'paid', amount = ?, note = ?, paid_at = UTC_TIMESTAMP() WHERE id = ?", [amount, note, id]);
   });
-  ticketChanged(id, `💸 **Paid**${amount ? ` — $${amount}` : ""}${note ? ` · ${note}` : ""}. Press **I received it** once it lands.`);
+  ticketChanged(id, `💸 **Paid**${amount ? ` — $${amount}` : ""}${note ? ` · ${note}` : ""}. Ticket is now staff-only; the winner confirms receipt on the site.`);
 }
 
 export async function voidAward(id: number, note: string): Promise<void> {
