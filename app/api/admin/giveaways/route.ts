@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     return jsonError("invalid_body", 400);
   }
 
-  const keyword = (body.keyword || "!win").trim();
+  const keyword = (body.keyword || "ONO").trim();
   const id = await createGiveaway({
     title: body.title?.trim() || "Giveaway",
     type: "keyword",

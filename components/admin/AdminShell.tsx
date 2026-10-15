@@ -10,7 +10,7 @@ import { BRAND_NAME } from "@/lib/constants";
 // Admin chrome: grouped sections; on small screens the same list opens as a
 // drawer from the header (the sidebar is desktop-only).
 // Live control rooms and big tables use the full width.
-const WIDE = ["/admin/tournaments", "/admin/users"];
+const WIDE = ["/admin/tournaments", "/admin/users", "/admin/giveaways"];
 const SECTIONS = [
   { label: "Overview", items: [
     { label: "Dashboard", href: "/admin", icon: "LayoutDashboard" },
