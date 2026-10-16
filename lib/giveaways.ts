@@ -327,15 +327,32 @@ async function confirmInTx(conn: PoolConnection, g: GiveawayDb, nonce: number, t
   // a no-show can still be accepted by the admin (they answered another way)
   if (w.response === "confirmed") throw new Error("winner_already_decided");
   await conn.query("UPDATE giveaway_winners SET response = 'confirmed', responded_at = UTC_TIMESTAMP(), response_text = ? WHERE id = ?", [text.slice(0, 500), w.id]);
-  const [entry] = await conn.query<RowDataPacket[]>(
-    "SELECT kick_user_id FROM giveaway_entries WHERE giveaway_id = ? AND LOWER(kick_username) = LOWER(?) LIMIT 1", [g.id, w.kick_username]);
-  await recordAward(conn, {
-    source: "giveaway", sourceRef: `gw:${w.id}`, title: String(g.title || "Giveaway"), winner: String(w.kick_username),
-    winnerKickId: entry[0]?.kick_user_id ? String(entry[0].kick_user_id) : null, prizeLabel: String(g.prize ?? ""),
+}
+
+/**
+ * The admin enters what the confirmed winner actually gets (a $25 bonus buy
+ * may pay $4) → the prize is recorded with that amount: Admin → Prizes,
+ * Discord ticket and the winner's notification.
+ */
+export async function awardWinner(giveawayId: number, nonce: number, amount: string): Promise<void> {
+  await withGiveaway(giveawayId, async (conn, g) => {
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT id, kick_username, response FROM giveaway_winners WHERE giveaway_id = ? AND nonce = ? FOR UPDATE", [giveawayId, nonce]);
+    const w = rows[0];
+    if (!w) throw new Error("winner_not_found");
+    if (w.response !== "confirmed") throw new Error("winner_not_confirmed");
+    const [have] = await conn.query<RowDataPacket[]>("SELECT id FROM prize_awards WHERE source = 'giveaway' AND source_ref = ?", [`gw:${w.id}`]);
+    if (have.length) throw new Error("winner_already_awarded");
+    const [entry] = await conn.query<RowDataPacket[]>(
+      "SELECT kick_user_id FROM giveaway_entries WHERE giveaway_id = ? AND LOWER(kick_username) = LOWER(?) LIMIT 1", [g.id, w.kick_username]);
+    await recordAward(conn, {
+      source: "giveaway", sourceRef: `gw:${w.id}`, title: String(g.title || "Giveaway"), winner: String(w.kick_username),
+      winnerKickId: entry[0]?.kick_user_id ? String(entry[0].kick_user_id) : null, amount, prizeLabel: String(g.prize ?? ""),
+    });
   });
 }
 
-/** The winner answered in chat (`text` = what they wrote), or the admin accepted them. */
+/** The winner answered in chat (`text` = what they wrote), or the admin accepted them. No prize yet: awardWinner sets the payout. */
 export async function confirmWinner(giveawayId: number, nonce: number, text: string): Promise<void> {
   await withGiveaway(giveawayId, (conn, g) => confirmInTx(conn, g, nonce, text));
 }
@@ -350,6 +367,8 @@ export async function markNoShow(giveawayId: number, nonce: number): Promise<voi
 
 export interface WinnerInfo {
   response: WinnerResponse;
+  /** the giveaway's prize text (e.g. "$25 bonus buy"), to suggest the payout */
+  prize: string;
   /** chat lines the Kick webhook caught while the winner was waiting */
   chat: { id: number; text: string }[];
   responseText: string;
@@ -363,7 +382,7 @@ export interface WinnerInfo {
 export async function getWinnerInfo(giveawayId: number, nonce: number): Promise<WinnerInfo | null> {
   const pool = getPool();
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT w.id, w.kick_username, w.response, w.response_text,
+    `SELECT w.id, w.kick_username, w.response, w.response_text, w.prize,
             (SELECT e.kick_user_id FROM giveaway_entries e WHERE e.giveaway_id = w.giveaway_id AND LOWER(e.kick_username) = LOWER(w.kick_username) LIMIT 1) kick_id
        FROM giveaway_winners w WHERE w.giveaway_id = ? AND w.nonce = ?`, [giveawayId, nonce]);
   const w = rows[0];
@@ -380,7 +399,7 @@ export async function getWinnerInfo(giveawayId: number, nonce: number): Promise<
   ]);
   const a = acc[0];
   return {
-    response: w.response, responseText: String(w.response_text ?? ""),
+    response: w.response, responseText: String(w.response_text ?? ""), prize: String(w.prize ?? ""),
     chat: chat.map((c) => ({ id: Number(c.id), text: String(c.content) })),
     account: a ? { id: Number(a.id), name: String(a.display_name) } : null,
     kick: a ? String(a.kick) : null,
@@ -400,14 +419,21 @@ export interface WinnerRow {
   avatar: string | null;
   nonce: number;
   response: WinnerResponse;
+  /** the prize was recorded (payout entered) */
+  awarded: boolean;
 }
 
 export async function getWinners(giveawayId: number): Promise<WinnerRow[]> {
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT kick_username, avatar, nonce, response FROM giveaway_winners WHERE giveaway_id = ? ORDER BY nonce ASC",
+    `SELECT w.kick_username, w.avatar, w.nonce, w.response,
+            EXISTS(SELECT 1 FROM prize_awards pa WHERE pa.source = 'giveaway' AND pa.source_ref = CONCAT('gw:', w.id)) awarded
+       FROM giveaway_winners w WHERE w.giveaway_id = ? ORDER BY w.nonce ASC`,
     [giveawayId]
   );
-  return rows.map((r) => ({ username: String(r.kick_username), avatar: (r.avatar as string) ?? null, nonce: Number(r.nonce), response: r.response as WinnerResponse }));
+  return rows.map((r) => ({
+    username: String(r.kick_username), avatar: (r.avatar as string) ?? null, nonce: Number(r.nonce),
+    response: r.response as WinnerResponse, awarded: Boolean(Number(r.awarded)),
+  }));
 }
 
 export interface DrawResult {

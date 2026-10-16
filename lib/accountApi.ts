@@ -34,14 +34,14 @@ export async function accountPost<S extends z.ZodTypeAny>(
 
 /** A payout destination; checkDestination (lib/payout) decides if it's valid. */
 export const zDestination = z.object({
-  method: z.enum(["stake", "rainbet", "usdc"]),
+  method: z.enum(["stake", "usdc"]),
   value: z.string().max(128),
   network: z.string().max(16).default(""),
 });
 
 /** Validated destination or an EventError carrying the readable reason. */
-export function destinationOrThrow(b: { method: string; value: string; network: string }): Destination {
-  const r = checkDestination(b.method, b.value, b.network);
+export function destinationOrThrow(b: { method: string; value: string }): Destination {
+  const r = checkDestination(b.method, b.value);
   if (!r.ok) throw new EventError("payout_invalid", r.error);
   return r.dest;
 }

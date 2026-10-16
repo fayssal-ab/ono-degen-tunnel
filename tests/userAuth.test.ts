@@ -141,10 +141,10 @@ dbt("prize claim: only the Kick winner claims, admin pays, winner confirms recei
   await rejects(prizes.claimAward(notMine, acc, winner, stake, ""), "award_not_yours");
   await rejects(prizes.claimAward(casino, acc, winner, stake, ""), "award_not_yours");
   await prizes.claimAward(byName, acc, winner, stake, "");
-  await prizes.claimAward(byName, acc, winner, { method: "usdc", value: "0x52908400098527886E0F7030069857D2E4169EE7", network: "BASE" }, "fast pls"); // edit while unpaid
+  await prizes.claimAward(byName, acc, winner, { method: "usdc", value: "0x52908400098527886E0F7030069857D2E4169EE7", network: "ERC20" }, "fast pls"); // edit while unpaid
   let [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT * FROM prize_awards WHERE id = ?", [byName]))[0];
   assert.equal(row.payout_method, "usdc");
-  assert.equal(row.payout_network, "BASE");
+  assert.equal(row.payout_network, "ERC20");
   assert.equal(row.claim_note, "fast pls");
   assert.ok(row.claimed_at);
   assert.equal(await prizes.countOwnedActions(winner), 1, "claimed prize no longer needs an action");
@@ -186,11 +186,11 @@ dbt("prize claim from Discord: verified Discord winner owns it, only the ticket 
   assert.deepEqual((await prizes.listOwnedAwards(owner)).map((a) => Number(a.id)), [id]);
 
   // Discord side
-  const rainbet = { method: "rainbet" as const, value: "rain_guy", network: "" as const };
-  await rejects(prizes.claimFromDiscord(id, "d-intruder", false, rainbet), "award_not_yours");
-  await prizes.claimFromDiscord(id, "d-win", false, rainbet);
+  const usdc = { method: "usdc" as const, value: "0x52908400098527886E0F7030069857D2E4169EE7", network: "ERC20" as const };
+  await rejects(prizes.claimFromDiscord(id, "d-intruder", false, usdc), "award_not_yours");
+  await prizes.claimFromDiscord(id, "d-win", false, usdc);
   let [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT * FROM prize_awards WHERE id = ?", [id]))[0];
-  assert.equal(row.payout_method, "rainbet");
+  assert.equal(row.payout_method, "usdc");
   assert.equal(Number(row.claim_account_id), acc, "claim is tied to the linked site account");
   await prizes.claimFromDiscord(id, "d-staff", true, { method: "stake", value: "fixedByStaff", network: "" }); // staff may fix it
   [row] = (await pool.query<mysql.RowDataPacket[]>("SELECT payout_username FROM prize_awards WHERE id = ?", [id]))[0];
@@ -202,24 +202,26 @@ dbt("prize claim from Discord: verified Discord winner owns it, only the ticket 
   await rejects(prizes.confirmReceivedFromDiscord(id, "d-win"), "award_already_received");
 });
 
-dbt("payout wallets: Stake, Rainbet and USDC are saved / removed independently", async () => {
+dbt("payout wallets: Stake and USDC are saved / removed independently", async () => {
   const a = await auth.signInWith("kick", { id: "k-wallet", username: "walletguy", avatar: "" }, null);
   await auth.saveDestination(a, { method: "stake", value: "stk", network: "" });
-  await auth.saveDestination(a, { method: "rainbet", value: "rb", network: "" });
-  await auth.saveDestination(a, { method: "usdc", value: "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV", network: "SOL" });
+  await auth.saveDestination(a, { method: "usdc", value: "0x52908400098527886E0F7030069857D2E4169EE7", network: "ERC20" });
   let acc = (await auth.getAccount(a))!;
   assert.equal(acc.payout_method, "stake", "first saved becomes the default");
-  assert.deepEqual([acc.stake_username, acc.rainbet_username, acc.usdc_address, acc.usdc_network], ["stk", "rb", "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV", "SOL"]);
+  assert.deepEqual([acc.stake_username, acc.usdc_address, acc.usdc_network], ["stk", "0x52908400098527886E0F7030069857D2E4169EE7", "ERC20"]);
   await auth.setPreferredDestination(a, "usdc");
-  await auth.clearDestination(a, "rainbet");
+  await auth.clearDestination(a, "stake");
   acc = (await auth.getAccount(a))!;
-  assert.equal(acc.rainbet_username, "");
-  assert.equal(acc.stake_username, "stk", "removing one keeps the others");
+  assert.equal(acc.stake_username, "");
+  assert.equal(acc.usdc_address, "0x52908400098527886E0F7030069857D2E4169EE7", "removing one keeps the other");
   assert.equal(acc.payout_method, "usdc");
   await auth.clearDestination(a, "usdc");
   acc = (await auth.getAccount(a))!;
   assert.equal(acc.payout_method, null, "removing the default clears it");
   assert.equal(acc.usdc_network, "");
+  // an old 'rainbet' preference reads as none
+  await db.getPool().query("UPDATE user_accounts SET payout_method = 'rainbet' WHERE id = ?", [a]);
+  assert.equal((await auth.getAccount(a))!.payout_method, null);
 });
 
 dbt("giveaway winner: 15 s chat window decides the prize", async () => {
@@ -247,17 +249,34 @@ dbt("giveaway winner: 15 s chat window decides the prize", async () => {
   await common.withTx((c) => gw.recordWinnerReply(second.username, "after confirm", c));
   assert.equal((await gw.getWinnerInfo(gid, second.nonce))?.chat.length, 1, "nothing stored once decided");
   await assert.rejects(gw.confirmWinner(gid, second.nonce, "again"), /winner_already_decided/);
-  assert.deepEqual(await awards(gid), [second.username], "answering in chat records the prize");
-  const info = await gw.getWinnerInfo(gid, second.nonce);
+  assert.deepEqual(await awards(gid), [], "confirmed, but no prize until the admin enters the payout");
+  let info = await gw.getWinnerInfo(gid, second.nonce);
   assert.equal(info?.response, "confirmed");
   assert.equal(info?.responseText, "here!!");
+  assert.equal(info?.prize, "$25");
+  assert.equal(info?.award, null);
+  assert.equal((await gw.getWinners(gid)).find((w) => w.nonce === second.nonce)?.awarded, false);
+  await assert.rejects(gw.awardWinner(gid, first.nonce, "4"), /winner_not_confirmed/, "a no-show can't be paid");
+  // a $25 bonus buy that paid $4: the prize is recorded with what was won
+  await gw.awardWinner(gid, second.nonce, "4");
+  await assert.rejects(gw.awardWinner(gid, second.nonce, "4"), /winner_already_awarded/);
+  assert.deepEqual(await awards(gid), [second.username]);
+  info = await gw.getWinnerInfo(gid, second.nonce);
   assert.ok(info?.award);
+  const [paid] = (await pool.query<mysql.RowDataPacket[]>("SELECT amount, prize_label FROM prize_awards WHERE id = ?", [info!.award!.id]))[0];
+  assert.equal(paid.amount, "4.00");
+  assert.equal(paid.prize_label, "$25");
+  assert.equal((await gw.getWinners(gid)).find((w) => w.nonce === second.nonce)?.awarded, true);
 
-  const [third] = await gw.drawWinners(gid, 1);   // left waiting: finishing the round confirms it
+  const [third] = await gw.drawWinners(gid, 1);   // left waiting: finishing the round confirms it (payout still to enter)
   await gw.setGiveawayStatus(gid, "closed");
+  assert.equal((await gw.getWinners(gid)).find((w) => w.nonce === third.nonce)?.response, "confirmed");
+  assert.deepEqual(await awards(gid), [second.username]);
+  await gw.awardWinner(gid, third.nonce, "25");
   assert.deepEqual(await awards(gid), [second.username, third.username]);
 
   await gw.confirmWinner(gid, first.nonce, "(accepted by the admin)"); // admin override of a no-show
+  await gw.awardWinner(gid, first.nonce, "10");
   assert.equal((await awards(gid)).length, 3);
   const pub = await gw.getPastWinners(50);
   assert.equal(pub.filter((w) => w.giveaway_id === gid).length, 3, "public list only shows confirmed winners");

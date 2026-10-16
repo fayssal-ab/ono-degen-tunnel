@@ -33,7 +33,7 @@ interface Data {
   kickConfigured: boolean;
   entries: Entry[];
   eligibleCount: number;
-  winners: { username: string; avatar: string | null; nonce: number; response?: "waiting" | "confirmed" | "no_show" }[];
+  winners: { username: string; avatar: string | null; nonce: number; response?: "waiting" | "confirmed" | "no_show"; awarded?: boolean }[];
 }
 
 // ── WebAudio SFX (no asset files) ──
@@ -125,6 +125,8 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
   const [spinning, setSpinning] = useState(false);
   const [muted, setMuted] = useState(false);
   const [modalWinner, setModalWinner] = useState<DrawnWinner | null>(null);
+  // reopened from the winners list to enter a payout (no 15 s window)
+  const [resume, setResume] = useState(false);
   // the drawn winner's chat lines (the 15 s response window reads these)
   const [winnerChat, setWinnerChat] = useState<ChatLine[]>([]);
   const watchRef = useRef<string | null>(null);
@@ -432,6 +434,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
       // their name before the reel lands, so they may answer during the spin
       watchRef.current = winner.username.toLowerCase();
       setDrawAt(Date.now());
+      setResume(false);
       runReel(winner, () => {
         watchRef.current = winner.username.toLowerCase();
         setModalWinner({ username: winner.username, avatar: winner.avatar, nonce: winner.nonce });
@@ -586,8 +589,15 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
           {data.winners.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
               <span className="mr-1 text-xs text-text-2">Winners</span>
-              {data.winners.map((w) => (
-                <span key={w.nonce} title={w.response === "no_show" ? "No response in chat — no prize" : w.response === "waiting" ? "Waiting for an answer in chat" : "Confirmed"}
+              {data.winners.map((w) => w.response === "confirmed" && !w.awarded ? (
+                <button key={w.nonce} type="button" title="Confirmed — enter the payout to create the prize"
+                  onClick={() => { watchRef.current = null; setResume(true); setModalWinner({ username: w.username, avatar: w.avatar, nonce: w.nonce }); }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gold/60 bg-gold/10 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-gold hover:bg-gold/20">
+                  <span className="h-5 w-5 overflow-hidden rounded-full"><Avatar src={w.avatar} name={w.username} size={20} /></span>
+                  {w.username} · $ set payout
+                </button>
+              ) : (
+                <span key={w.nonce} title={w.response === "no_show" ? "No response in chat — no prize" : w.response === "waiting" ? "Waiting for an answer in chat" : "Prize recorded"}
                   className={`inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs ${w.response === "no_show" ? "border-line text-text-2 line-through" : w.response === "waiting" ? "border-line-strong text-text-1" : "border-gold/40 text-gold"}`}>
                   <span className="h-5 w-5 overflow-hidden rounded-full"><Avatar src={w.avatar} name={w.username} size={20} /></span>
                   {w.username}
@@ -638,6 +648,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
           isSubscriber={Boolean(winnerEntry?.isSubscriber)}
           muted={muted}
           guildId={guildId}
+          resume={resume}
           onReroll={() => { watchRef.current = null; setModalWinner(null); refresh(); draw(); }}
           onClose={() => { watchRef.current = null; setModalWinner(null); refresh(); }}
         />

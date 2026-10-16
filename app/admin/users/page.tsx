@@ -71,7 +71,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
       <form className="surface flex flex-wrap items-center gap-2 p-3" action={PATH}>
         <label className="relative min-w-60 flex-1">
           <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-2" />
-          <input name="q" defaultValue={q} placeholder="Search name, Kick / Discord / Stake / Rainbet username, wallet, id…" aria-label="Search users"
+          <input name="q" defaultValue={q} placeholder="Search name, Kick / Discord / Stake username, wallet, id…" aria-label="Search users"
             className="h-10 w-full rounded-xl border border-line bg-bg-2 pl-9 pr-3 text-sm focus:border-gold focus:outline-none" />
         </label>
         {filter !== "all" && <input type="hidden" name="filter" value={filter} />}

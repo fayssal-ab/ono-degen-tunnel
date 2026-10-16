@@ -136,7 +136,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <span className="mt-1 block font-display text-2xl font-extrabold text-text-0">
             {prizes.length ? <>{prizes.length} prize{prizes.length > 1 ? "s" : ""} · <span className="font-mono text-gold">{formatMoney(won)}</span></> : "No prize yet"}
           </span>
-          <span className="block text-sm text-text-1">{prizes.length ? "Claim, follow the payout and manage your Stake / Rainbet / USDC wallets." : "Win on stream — your prizes and payout wallets live here."}</span>
+          <span className="block text-sm text-text-1">{prizes.length ? "Claim, follow the payout and manage your Stake / USDC wallets." : "Win on stream — your prizes and payout wallets live here."}</span>
         </span>
         <span className="relative inline-flex h-11 items-center gap-2 rounded-xl bg-gold px-5 text-sm font-bold text-bg-0 group-hover:bg-gold-hi">
           {toClaim > 0 ? `Claim ${toClaim}` : "Open"} <Icon name="ArrowRight" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -170,7 +170,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </section>
         <section id="settings" className="surface scroll-mt-24 p-6">
           <h2 className="label mb-1">Payout wallets</h2>
-          <p className="mb-4 text-sm text-text-2">Stake, Rainbet and USDC wallets, each saved on its own. They pre-fill every claim, here and in your Discord ticket.</p>
+          <p className="mb-4 text-sm text-text-2">Your Stake username and USDC wallet, each saved on its own. They pre-fill every claim, here and in your Discord ticket.</p>
           <Link href="/account/prizes#wallets" className="press inline-flex h-10 items-center gap-2 rounded-xl border border-line-strong px-4 text-sm text-text-0 hover:border-gold hover:text-gold">
             <Icon name="Wallet" className="h-4 w-4" /> Manage wallets
           </Link>

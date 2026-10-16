@@ -127,7 +127,7 @@ export default async function AdminPrizes({ searchParams }: { searchParams: Sear
       <Flash searchParams={searchParams} />
       <Help>
         Every win lands here automatically: tournament podium (1st/2nd/3rd), giveaway draws, races, leaderboard periods, Guess the Balance and challenges.
-        Each new prize opens a private Discord ticket; winners claim from the ticket (green button) or from their account and pick Stake, Rainbet or a USDC wallet — the destination shows on each prize. Pay, then mark it
+        Each new prize opens a private Discord ticket; winners claim from the ticket (green button) or from their account and pick Stake or a USDC wallet — the destination shows on each prize. Pay, then mark it
         <strong className="text-text-0"> Paid</strong>; the winner then confirms receipt (✓ received). Only paid prizes count in “Prizes awarded” on the home page and on /prizes.
         Leaderboard and race prizes go to the casino account and aren&apos;t claimed.
         Void a prize that won&apos;t be paid (e.g. a rerolled giveaway winner); rejected prizes can then be deleted for good, with their Discord ticket. Set the $ amount when confirming if it wasn&apos;t detected.

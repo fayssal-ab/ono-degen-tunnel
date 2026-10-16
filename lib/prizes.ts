@@ -246,7 +246,7 @@ async function writeClaim(conn: PoolConnection, id: number, accountId: number | 
 }
 
 const claimLine = (d: Destination, via: string) =>
-  `📨 **Claimed** ${via} — send to **${d.method === "usdc" ? `USDC (${d.network})` : d.method === "stake" ? "Stake" : "Rainbet"}** \`${d.value}\``;
+  `📨 **Claimed** ${via} — send to **${d.method === "usdc" ? "USDC (Ethereum)" : "Stake"}** \`${d.value}\``;
 
 /** Claim (or edit the claim) while unpaid, from the site. */
 export async function claimAward(id: number, accountId: number, o: PrizeOwner, d: Destination, note: string): Promise<void> {

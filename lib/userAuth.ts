@@ -233,7 +233,7 @@ export interface AccountSummary {
   id: number; display_name: string; avatar: string; identities: Identity[];
   /** preferred destination */
   payout_method: PayoutMethod | null;
-  stake_username: string; rainbet_username: string; usdc_address: string; usdc_network: string;
+  stake_username: string; usdc_address: string; usdc_network: string;
   notif_seen_at: string | null;
 }
 
@@ -241,7 +241,7 @@ export async function getAccount(accountId: number): Promise<AccountSummary | nu
   const pool = getPool();
   const [[acc], [ids]] = await Promise.all([
     pool.query<RowDataPacket[]>(
-      `SELECT id, display_name, avatar, payout_method, stake_username, rainbet_username, usdc_address, usdc_network, notif_seen_at
+      `SELECT id, display_name, avatar, payout_method, stake_username, usdc_address, usdc_network, notif_seen_at
          FROM user_accounts WHERE id = ?`, [accountId]),
     pool.query<RowDataPacket[]>("SELECT provider, provider_user_id, username, avatar, linked_at FROM user_identities WHERE account_id = ? ORDER BY linked_at", [accountId]),
   ]);
@@ -249,8 +249,9 @@ export async function getAccount(accountId: number): Promise<AccountSummary | nu
   const a = acc[0];
   return {
     id: Number(a.id), display_name: a.display_name, avatar: a.avatar, identities: ids as Identity[],
-    payout_method: a.payout_method === "other" ? null : a.payout_method ?? null,
-    stake_username: a.stake_username ?? "", rainbet_username: a.rainbet_username ?? "", usdc_address: a.usdc_address ?? "", usdc_network: a.usdc_network ?? "",
+    // only Stake / USDC are offered now; an older 'rainbet' / 'other' preference reads as none
+    payout_method: a.payout_method === "stake" || a.payout_method === "usdc" ? a.payout_method : null,
+    stake_username: a.stake_username ?? "", usdc_address: a.usdc_address ?? "", usdc_network: a.usdc_network ?? "",
     notif_seen_at: a.notif_seen_at ?? null,
   };
 }
@@ -265,14 +266,14 @@ export function prizeOwner(acc: AccountSummary): PrizeOwner | null {
 
 /** Save one destination; each method is stored on its own. The first one saved becomes the preferred. */
 export async function saveDestination(accountId: number, d: Destination): Promise<void> {
-  const col = d.method === "stake" ? "stake_username = ?" : d.method === "rainbet" ? "rainbet_username = ?" : "usdc_address = ?, usdc_network = ?";
+  const col = d.method === "stake" ? "stake_username = ?" : "usdc_address = ?, usdc_network = ?";
   const args = d.method === "usdc" ? [d.value, d.network] : [d.value];
   await getPool().query(`UPDATE user_accounts SET ${col}, payout_method = COALESCE(payout_method, ?) WHERE id = ?`, [...args, d.method, accountId]);
 }
 
 /** Remove one destination (and the preference if it pointed at it). */
 export async function clearDestination(accountId: number, method: PayoutMethod): Promise<void> {
-  const col = method === "stake" ? "stake_username = ''" : method === "rainbet" ? "rainbet_username = ''" : "usdc_address = '', usdc_network = ''";
+  const col = method === "stake" ? "stake_username = ''" : "usdc_address = '', usdc_network = ''";
   await getPool().query(`UPDATE user_accounts SET ${col}, payout_method = IF(payout_method = ?, NULL, payout_method) WHERE id = ?`, [method, accountId]);
 }
 

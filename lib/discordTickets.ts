@@ -156,7 +156,7 @@ function ticketMessage(a: TicketAward, member: GuildMember | null) {
   const intro: Record<Stage, string> = {
     waiting: casino
       ? `GG ${who}! You placed in the **${a.title}**. Send your casino username here and the team pays you.`
-      : `GG ${who}! You won ${prizeText(a).split("\n")[0]} in **${a.title || "the stream"}**.\nPress **Claim prize** and pick where to send it: **Stake**, **Rainbet** or a **USDC wallet**.`,
+      : `GG ${who}! You won ${prizeText(a).split("\n")[0]} in **${a.title || "the stream"}**.\nPress **Claim prize** and pick where to send it: **Stake** or a **USDC wallet**.`,
     claimed: `${who}, your claim is in. The team pays you shortly; this ticket updates when it's sent.`,
     paid: `💸 ${who}, your prize was sent! Press **I received it** once it's in your account.`,
     received: `All done — ${who} confirmed the prize. Thanks for watching ONO! 💛`,

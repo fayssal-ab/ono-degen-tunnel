@@ -5,10 +5,9 @@ import { networkLabel } from "@/lib/payout";
 import type { UserRow } from "@/lib/userAdmin";
 
 /** Saved payout wallets, one chip each (⭐ = the default). */
-export function UserWallets({ u }: { u: Pick<UserRow, "payout_method" | "stake_username" | "rainbet_username" | "usdc_address" | "usdc_network"> }) {
+export function UserWallets({ u }: { u: Pick<UserRow, "payout_method" | "stake_username" | "usdc_address" | "usdc_network"> }) {
   const items = [
     u.stake_username && { m: "stake", node: <><BrandIcon brand="stake" className="h-3.5 w-3.5" />{u.stake_username}</> },
-    u.rainbet_username && { m: "rainbet", node: <><BrandIcon brand="rainbet" className="h-3.5 w-3.5" />{u.rainbet_username}</> },
     u.usdc_address && { m: "usdc", node: <><span className="rounded bg-[#2775CA] px-1 text-[9px] font-bold text-white">USDC</span><span title={u.usdc_address}>{u.usdc_address.slice(0, 6)}…{u.usdc_address.slice(-4)}</span><span className="text-text-2">{networkLabel(u.usdc_network)}</span></> },
   ].filter(Boolean) as { m: string; node: ReactNode }[];
   if (!items.length) return <span className="text-text-2">—</span>;

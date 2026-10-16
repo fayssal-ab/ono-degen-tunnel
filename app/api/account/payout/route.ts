@@ -4,10 +4,10 @@ import { clearDestination, saveDestination, setPreferredDestination } from "@/li
 
 export const dynamic = "force-dynamic";
 
-// Saved payout destinations (Stake, Rainbet, USDC wallet): each one is saved,
+// Saved payout destinations (Stake, USDC wallet): each one is saved,
 // removed or made preferred on its own. They pre-fill prize claims on the site
 // and in the Discord ticket.
-const Method = z.enum(["stake", "rainbet", "usdc"]);
+const Method = z.enum(["stake", "usdc"]);
 const Body = z.discriminatedUnion("action", [
   zDestination.extend({ action: z.literal("save") }),
   z.object({ action: z.literal("clear"), method: Method }),

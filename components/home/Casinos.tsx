@@ -4,15 +4,13 @@ import { Icon } from "@/components/ui/Icon";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { SectionHeading } from "@/components/ui/Badge";
 
-type CasinoBrand = "stake" | "rainbet";
-
-// Partner-casino sign-up cards (Rainbet + Stake). Anchor target for the "Sign
-// up & play" CTA (#play). This is where viewers leave to register with the code.
+// Partner-casino sign-up card (Stake). Anchor target for the "Sign up & play"
+// CTA (#play). This is where viewers leave to register with the code.
 export function Casinos() {
   return (
     <section id="play" className="scroll-mt-24">
       <SectionHeading kicker="Step one" title="Sign up & play with the code" />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={`grid gap-4 ${CASINOS.length > 1 ? "md:grid-cols-2" : ""}`}>
         {CASINOS.map((c) => {
           const accent = c.accent === "gold" ? "text-gold" : "text-volt";
           const border = c.accent === "gold" ? "hover:border-gold" : "hover:border-volt";
@@ -28,7 +26,7 @@ export function Casinos() {
               <div className="relative">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3">
-                    <BrandIcon brand={c.name.toLowerCase() as CasinoBrand} className="h-10 w-10 shrink-0" />
+                    <BrandIcon brand="stake" className="h-10 w-10 shrink-0" />
                     <span className={`font-display text-2xl font-bold ${accent}`}>{c.name}</span>
                   </span>
                   <Icon name="ArrowUpRight" className="h-5 w-5 text-text-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
@@ -44,7 +42,7 @@ export function Casinos() {
         })}
       </div>
       <p className="mt-3 text-xs text-text-2">
-        18+ only. {CASINOS.map((c) => c.name).join(" & ")} are third-party casinos — play responsibly.
+        18+ only. {CASINOS.map((c) => c.name).join(" & ")} {CASINOS.length > 1 ? "are third-party casinos" : "is a third-party casino"} — play responsibly.
       </p>
     </section>
   );

@@ -56,13 +56,14 @@ export async function setSetting<K extends SettingKey>(key: K, value: (typeof DE
   );
 }
 
-/** Casino branding: admin override wins over env (prompt §6). */
+/** Casino branding: admin override wins over the Stake default. A Rainbet value saved before the switch is ignored. */
 export async function getCasinoInfo(): Promise<CasinoInfo> {
   const stored = await getSetting("casino");
+  const legacy = /rainbet/i.test(`${stored.name} ${stored.url}`);
   return {
-    name: stored.name || CASINO_NAME,
-    code: stored.code || CASINO_CODE,
-    url: stored.url || CASINO_URL,
+    name: (!legacy && stored.name) || CASINO_NAME,
+    code: (!legacy && stored.code) || CASINO_CODE,
+    url: (!legacy && stored.url) || CASINO_URL,
   };
 }
 

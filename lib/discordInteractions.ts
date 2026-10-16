@@ -8,15 +8,15 @@ import { explainError } from "./events/messages";
 import { claimFromDiscord, confirmPaid, confirmReceivedFromDiscord, voidAward } from "./prizes";
 import { closeTicket, deleteTicket } from "./discordTickets";
 import { getProfileData, getTopWinners, renderProfileCard, renderTopCard } from "./discordCards";
-import { USDC_NETWORKS, checkDestination, describeDestination, networkLabel, type PayoutMethod } from "./payout";
+import { USDC_HINT, USDC_NETWORK, checkDestination, describeDestination, type PayoutMethod } from "./payout";
 
 // Buttons on the Discord prize ticket (lib/discordTickets.ts). Discord POSTs
 // every click to /api/discord/interactions, signed with the application's
 // Ed25519 key (DISCORD_PUBLIC_KEY).
 //
-//   💸 Claim prize   → (ephemeral) Stake / Rainbet / USDC wallet buttons
-//     Stake|Rainbet  → form: username
-//     USDC wallet    → network menu → form: address
+//   💸 Claim prize   → (ephemeral) Stake / USDC wallet buttons
+//     Stake          → form: username
+//     USDC wallet    → form: Ethereum address
 //   ✅ I received it → marks it received
 //   /profile [user] → player card image · /top → top winners image
 //   staff: 💸 Mark paid (form: amount + note / tx id) · 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
@@ -116,14 +116,14 @@ async function loadAward(id: number): Promise<AwardRow> {
   return rows[0];
 }
 
-interface Saved { stake: string; rainbet: string; usdc: string; network: string }
+interface Saved { stake: string; usdc: string; network: string }
 /** Destinations saved on the site account linked to this Discord user. */
 async function savedFor(discordId: string): Promise<Saved | null> {
   const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT a.stake_username, a.rainbet_username, a.usdc_address, a.usdc_network FROM user_identities i
+    `SELECT a.stake_username, a.usdc_address, a.usdc_network FROM user_identities i
        JOIN user_accounts a ON a.id = i.account_id WHERE i.provider = 'discord' AND i.provider_user_id = ?`, [discordId]);
   const r = rows[0];
-  return r ? { stake: r.stake_username, rainbet: r.rainbet_username, usdc: r.usdc_address, network: r.usdc_network } : null;
+  return r ? { stake: r.stake_username, usdc: r.usdc_address, network: r.usdc_network } : null;
 }
 
 const prizeOf = (a: AwardRow) => (a.amount != null ? `$${Number(a.amount).toFixed(2)}` : a.prize_label || "your prize");
@@ -132,24 +132,22 @@ function methodButtons(id: number) {
   return [{
     type: 1, components: [
       { type: 2, style: 1, custom_id: `prize:pick:stake:${id}`, label: "Stake", emoji: { name: "🎲" } },
-      { type: 2, style: 1, custom_id: `prize:pick:rainbet:${id}`, label: "Rainbet", emoji: { name: "🌧️" } },
       { type: 2, style: 1, custom_id: `prize:pick:usdc:${id}`, label: "USDC wallet", emoji: { name: "💵" } },
     ],
   }];
 }
 
-function destinationModal(id: number, method: PayoutMethod, network: string, prefill: string) {
+function destinationModal(id: number, method: PayoutMethod, prefill: string) {
   const usdc = method === "usdc";
-  const label = usdc ? `USDC address · ${networkLabel(network)}`.slice(0, 45) : `Your ${method === "stake" ? "Stake" : "Rainbet"} username`;
   return {
     type: 9,
     data: {
-      custom_id: `prize:modal:${method}:${network}:${id}`,
-      title: usdc ? "Send to my USDC wallet" : `Send to my ${method === "stake" ? "Stake" : "Rainbet"} account`,
+      custom_id: `prize:modal:${method}:${id}`,
+      title: usdc ? "Send to my USDC wallet" : "Send to my Stake account",
       components: [{
         type: 1, components: [{
-          type: 4, custom_id: "value", label, style: 1, required: true, min_length: 3, max_length: 64,
-          placeholder: usdc ? USDC_NETWORKS.find((n) => n.id === network)?.hint ?? "" : "username",
+          type: 4, custom_id: "value", label: usdc ? "USDC address (Ethereum / ERC-20)" : "Your Stake username", style: 1, required: true, min_length: 3, max_length: 64,
+          placeholder: usdc ? USDC_HINT : "username",
           ...(prefill ? { value: prefill } : {}),
         }],
       }],
@@ -158,12 +156,12 @@ function destinationModal(id: number, method: PayoutMethod, network: string, pre
 }
 
 /** Saved value to pre-fill the form, without risking Discord's 3 s deadline. */
-async function prefillFor(userId: string, method: PayoutMethod, network: string): Promise<string> {
+async function prefillFor(userId: string, method: PayoutMethod): Promise<string> {
   const timeout = new Promise<null>((r) => setTimeout(() => r(null), 1200));
   const saved = await Promise.race([savedFor(userId).catch(() => null), timeout]);
   if (!saved) return "";
-  if (method === "usdc") return saved.network === network ? saved.usdc : "";
-  return saved[method];
+  if (method === "usdc") return saved.network === USDC_NETWORK ? saved.usdc : "";
+  return saved.stake;
 }
 
 function modalValue(rows: ModalRow[] | undefined, field = "value"): string {
@@ -250,37 +248,23 @@ export async function handleInteraction(i: Interaction): Promise<object> {
       if (!staff && a.discord_user_id !== userId) throw new EventError("award_not_yours");
       if (a.status !== "pending") throw new EventError("award_not_pending");
       const saved = await savedFor(userId);
-      const hint = saved && (saved.stake || saved.rainbet || saved.usdc)
-        ? `\n-# Saved on your account: ${[saved.stake && `Stake \`${saved.stake}\``, saved.rainbet && `Rainbet \`${saved.rainbet}\``, saved.usdc && `USDC \`${saved.usdc.slice(0, 6)}…\``].filter(Boolean).join(" · ")}`
+      const hint = saved && (saved.stake || saved.usdc)
+        ? `\n-# Saved on your account: ${[saved.stake && `Stake \`${saved.stake}\``, saved.usdc && `USDC \`${saved.usdc.slice(0, 6)}…\``].filter(Boolean).join(" · ")}`
         : "";
       return msg(`**Where should we send ${prizeOf(a)}?** (prize #${a.id} · ${a.title})${hint}`, methodButtons(id));
     });
   }
 
-  // Stake / Rainbet → form; USDC → network first
+  // Stake / USDC → form
   if (i.type === 3 && parts[1] === "pick") {
-    const method = parts[2] as PayoutMethod;
-    if (method === "usdc") {
-      return {
-        type: 7,
-        data: msg("**USDC wallet** — which network is your address on? Pick the exact one, a wrong network can lose the funds.", [
-          { type: 1, components: [{ type: 3, custom_id: `prize:net:${id}`, placeholder: "Choose the network", options: USDC_NETWORKS.map((n) => ({ label: n.label, value: n.id, description: n.hint })) }] },
-          ...methodButtons(id),
-        ]),
-      };
-    }
-    if (method !== "stake" && method !== "rainbet") return reply("❌ Unknown payout method.");
-    return destinationModal(id, method, "", await prefillFor(userId, method, ""));
-  }
-  if (i.type === 3 && parts[1] === "net") {
-    const network = i.data?.values?.[0] ?? "";
-    if (!USDC_NETWORKS.some((n) => n.id === network)) return reply("❌ Unknown network.");
-    return destinationModal(id, "usdc", network, await prefillFor(userId, "usdc", network));
+    const method = parts[2];
+    if (method !== "stake" && method !== "usdc") return reply("❌ Unknown payout method.");
+    return destinationModal(id, method, await prefillFor(userId, method));
   }
 
   // form submitted → save the claim
   if (i.type === 5 && parts[1] === "modal") {
-    const check = checkDestination(parts[2], modalValue(i.data?.components), parts[3]);
+    const check = checkDestination(parts[2], modalValue(i.data?.components));
     if (!check.ok) return reply(`❌ ${check.error}\nPress **Claim prize** again to fix it.`);
     return deferred(i, async () => {
       await claimFromDiscord(id, userId, staff, check.dest);

@@ -55,9 +55,7 @@ Server Action that re-checks the session and is written to the audit log.
   the baseline sync (≤ 20 min before start, else first sync after start) and
   the last sync before the end; accuracy is one sync interval (~10 min). A
   player missing from the baseline is only scored from 0 if the provider
-  guarantees complete listings (`demo` yes; `rainbet` only with
-  `RAINBET_LISTS_ALL_WAGERERS=true` after confirming with Rainbet; `manual`
-  no). A race freezes after a sync newer than its end; stale final data needs an
+  guarantees complete listings (`demo` yes; `manual` no). A race freezes after a sync newer than its end; stale final data needs an
   explicit admin “finalise”. Unallocated shares are not paid.
 - **Tournaments** — 8 seeds, QF 1v8/4v5/2v7/3v6; higher multiplier advances;
   ties must be replayed; corrections are refused once the next round is scored.
@@ -71,7 +69,7 @@ Server Action that re-checks the session and is written to the audit log.
 
 ## Casino provider
 
-`CASINO_PROVIDER` = `rainbet` | `manual` | `demo` (see `lib/providers/`). The
+`CASINO_PROVIDER` = `manual` | `demo` (see `lib/providers/`). The
 browser never calls the casino API — only the cron route does. Usernames are
 masked server-side; money is `DECIMAL(20,8)`; `final_results` is immutable.
 

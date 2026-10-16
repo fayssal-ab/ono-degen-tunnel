@@ -45,7 +45,7 @@ export default async function GiveawayControlPage({ params }: { params: Promise<
       createdAt: e.created_at,
     })),
     eligibleCount: eligible.length,
-    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce, response: w.response })),
+    winners: winners.map((w) => ({ username: w.username, avatar: w.avatar, nonce: w.nonce, response: w.response, awarded: w.awarded })),
   };
 
   return (

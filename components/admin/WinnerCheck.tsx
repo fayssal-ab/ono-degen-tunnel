@@ -16,6 +16,7 @@ export interface ChatLine { text: string; at: number }
 export interface DrawnWinner { username: string; avatar: string | null; nonce: number }
 interface Info {
   response: "waiting" | "confirmed" | "no_show";
+  prize: string;
   chat: { id: number; text: string }[];
   responseText: string;
   account: { id: number; name: string } | null;
@@ -56,17 +57,27 @@ function LinkRow({ brand, label, value, tint }: { brand: "kick" | "discord"; lab
   );
 }
 
+/** "$25 bonus buy" / "25$" / "50 USD" → "25" (pre-fills the payout; the admin types what was really won). */
+function suggestAmount(prize: string): string {
+  const m = prize.replace(/,/g, "").match(/(?:[$€£]\s*(\d{1,9}(?:\.\d{1,2})?))|(?:(\d{1,9}(?:\.\d{1,2})?)\s*(?:[$€£]|usd|usdt|eur|dollars?)(?![a-z]))/i);
+  return m?.[1] ?? m?.[2] ?? "";
+}
+
 export function WinnerCheck({
-  giveawayId, winner, messages: socketLines, since, chat, isSubscriber, muted, guildId, onReroll, onClose,
+  giveawayId, winner, messages: socketLines, since, chat, isSubscriber, muted, guildId, onReroll, onClose, resume = false,
 }: {
   giveawayId: number; winner: DrawnWinner; messages: ChatLine[]; since: number;
   chat: { channel: string; status: "off" | "connecting" | "connected" | "error" };
   isSubscriber: boolean; muted: boolean; guildId: string | null;
   onReroll: () => void; onClose: () => void;
+  /** reopened from the winners list for a confirmed winner still without a payout: no timer */
+  resume?: boolean;
 }) {
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
-  const [phase, setPhase] = useState<Phase>("waiting");
+  const [phase, setPhase] = useState<Phase>(resume ? "confirmed" : "waiting");
+  const [amount, setAmount] = useState<string | null>(null);
+  const [awarding, setAwarding] = useState(false);
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState<string | null>(null);
   const chatBox = useRef<HTMLDivElement>(null);
@@ -104,8 +115,28 @@ export function WinnerCheck({
     return () => clearInterval(t);
   }, [phase]);
 
+  /** The payout the admin entered becomes the prize (ticket + notification). */
+  async function award() {
+    const value = (amount ?? suggestAmount(info?.prize ?? "")).trim().replace(/^\$/, "");
+    if (!/^\d{1,9}(\.\d{1,2})?$/.test(value)) { setError("Enter the payout as a number, like 4 or 12.50."); return; }
+    setAwarding(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/admin/giveaways/${giveawayId}/winner`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "award", nonce: winner.nonce, amount: value }),
+      });
+      const d = (await r.json()) as { ok?: boolean; info?: Info; error?: string };
+      if (!r.ok || !d.ok) throw new Error(d.error ?? "failed");
+      if (d.info) setInfo(d.info);
+    } catch {
+      setError("Couldn't create the prize — try again.");
+    } finally {
+      setAwarding(false);
+    }
+  }
+
   // decisions: first chat line confirms; time out → no prize
-  const decided = useRef(false);
+  const decided = useRef(resume);
   useEffect(() => {
     if (decided.current || phase !== "waiting") return;
     const said = messages.find((m) => m.at >= since);
@@ -181,7 +212,8 @@ export function WinnerCheck({
           {phase === "waiting" || phase === "saving"
             ? <><b className="text-text-0">{winner.username}</b> has {WINDOW}s to type anything in chat to claim the prize.</>
             : phase === "confirmed"
-              ? <>{firstAt ? (firstAt < startedAt ? <>Answered <b className="text-volt">before the reveal</b></> : <>Answered in <b className="text-volt">{((firstAt - startedAt) / 1000).toFixed(1)}s</b></>) : "Accepted by you"} — prize recorded, Discord ticket + notification sent.</>
+              ? <>{resume ? "Confirmed" : firstAt ? (firstAt < startedAt ? <>Answered <b className="text-volt">before the reveal</b></> : <>Answered in <b className="text-volt">{((firstAt - startedAt) / 1000).toFixed(1)}s</b></>) : "Accepted by you"}
+                {info?.award ? " — prize recorded, Discord ticket + notification sent." : " — enter what they won to create the prize and the ticket."}</>
               : <>Silent for {WINDOW}s. No prize — roll again.</>}
         </p>
 
@@ -221,6 +253,22 @@ export function WinnerCheck({
           </div>
         </div>
 
+        {phase === "confirmed" && info && !info.award && (
+          <form onSubmit={(e) => { e.preventDefault(); award(); }} className="relative mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-gold/40 bg-gold/5 p-3">
+            <label className="min-w-0 flex-1">
+              <span className="label">Payout{info.prize ? <span className="normal-case tracking-normal text-text-2"> · prize: {info.prize}</span> : null}</span>
+              <span className="mt-1 flex h-11 items-center gap-1 rounded-lg border border-line bg-bg-0/60 px-3 focus-within:border-gold">
+                <span className="font-mono text-text-2">$</span>
+                <input autoFocus inputMode="decimal" value={amount ?? suggestAmount(info.prize)} onChange={(e) => setAmount(e.target.value)} placeholder="4"
+                  aria-label="Payout in dollars" className="h-full min-w-0 flex-1 bg-transparent font-mono text-lg text-text-0 focus:outline-none" />
+              </span>
+            </label>
+            <button disabled={awarding} className="press inline-flex h-11 items-center gap-2 rounded-lg bg-gold px-4 text-sm font-bold text-bg-0 hover:bg-gold-hi disabled:opacity-50">
+              <Icon name={awarding ? "LoaderCircle" : "Ticket"} className={`h-4 w-4 ${awarding ? "animate-spin" : ""}`} /> Create prize &amp; ticket
+            </button>
+          </form>
+        )}
+
         {error && <p role="alert" className="relative mt-3 text-sm text-danger">{error}</p>}
 
         <div className="relative mt-5 flex flex-wrap gap-2">
@@ -238,7 +286,9 @@ export function WinnerCheck({
               <button onClick={onReroll} className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong text-sm hover:border-gold hover:text-gold">
                 <Icon name="Shuffle" className="h-4 w-4" /> Draw another
               </button>
-              <button onClick={onClose} className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gold text-sm font-semibold text-bg-0 hover:bg-gold-hi">Continue</button>
+              <button onClick={onClose} className={`press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold ${info?.award ? "bg-gold text-bg-0 hover:bg-gold-hi" : "border border-line-strong text-text-1 hover:text-text-0"}`}>
+                {info?.award ? "Continue" : "Later"}
+              </button>
             </>
           ) : (
             <>

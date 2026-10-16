@@ -4,20 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
-import { PAYOUT_LABEL, USDC_NETWORKS, checkDestination, describeDestination, networkLabel, type PayoutMethod } from "@/lib/payout";
+import { PAYOUT_LABEL, USDC_HINT, USDC_NETWORK, checkDestination, describeDestination, type PayoutMethod } from "@/lib/payout";
 
 // /account/prizes: the winner's prize desk. Claim (where to send it) → admin
-// pays → "I received it". Saved payout wallets (Stake, Rainbet, USDC) each
+// pays → "I received it". Saved payout wallets (Stake, USDC on Ethereum) each
 // live on their own card and pre-fill every claim. Each action is a small
 // POST; the page refreshes after.
 
 export interface PrizeRow {
   id: number; title: string; source: string; place: number | null; amount: string | null; prize_label: string;
   status: "pending" | "paid"; created_at: string; paid_at: string | null; claimed_at: string | null; received_at: string | null;
-  payout_method: PayoutMethod | "other" | null; payout_username: string; payout_network: string; claim_note: string;
+  payout_method: string | null; payout_username: string; payout_network: string; claim_note: string;
   discord_channel_id: string | null;
 }
-export interface Wallets { preferred: PayoutMethod | null; stake: string; rainbet: string; usdc: string; network: string }
+export interface Wallets { preferred: PayoutMethod | null; stake: string; usdc: string; network: string }
 
 const SOURCE: Record<string, { label: string; icon: string; tone: string }> = {
   tournament: { label: "Tournament", icon: "Swords", tone: "text-plasma border-plasma/40 bg-plasma/10" },
@@ -58,10 +58,10 @@ function MethodMark({ m, className = "h-6 w-6" }: { m: PayoutMethod; className?:
 }
 
 function MethodTabs({ value, onChange, saved }: { value: PayoutMethod; onChange: (m: PayoutMethod) => void; saved: Wallets }) {
-  const has = { stake: !!saved.stake, rainbet: !!saved.rainbet, usdc: !!saved.usdc };
+  const has = { stake: !!saved.stake, usdc: !!saved.usdc };
   return (
-    <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Send to">
-      {(["stake", "rainbet", "usdc"] as PayoutMethod[]).map((m) => (
+    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Send to">
+      {(["stake", "usdc"] as PayoutMethod[]).map((m) => (
         <button key={m} type="button" role="radio" aria-checked={value === m} onClick={() => onChange(m)}
           className={`press relative flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-semibold transition-colors sm:text-sm ${value === m ? "border-gold bg-gold/10 text-gold shadow-[0_0_24px_-10px_var(--color-gold)]" : "border-line bg-bg-2 text-text-1 hover:border-line-strong"}`}>
           <MethodMark m={m} className="h-8 w-8" />
@@ -73,34 +73,16 @@ function MethodTabs({ value, onChange, saved }: { value: PayoutMethod; onChange:
   );
 }
 
-function NetworkPicker({ value, onChange }: { value: string; onChange: (n: string) => void }) {
-  return (
-    <div>
-      <p className="label mb-2">Network</p>
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="USDC network">
-        {USDC_NETWORKS.map((n) => (
-          <button key={n.id} type="button" role="radio" aria-checked={value === n.id} onClick={() => onChange(n.id)}
-            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${value === n.id ? "border-[#2775CA] bg-[#2775CA]/20 text-[#8cc0ff]" : "border-line bg-bg-2 text-text-1 hover:border-line-strong"}`}>
-            {n.label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-text-2"><Icon name="TriangleAlert" className="h-3.5 w-3.5 text-gold" /> Pick the exact network of your address — the wrong one can lose the funds.</p>
-    </div>
-  );
-}
 
 // ── claim ─────────────────────────────────────────────────────────────────
 function ClaimPanel({ p, wallets, onCancel }: { p: PrizeRow; wallets: Wallets; onCancel?: () => void }) {
   const refresh = useRefresh();
-  const start: PayoutMethod = p.payout_method && p.payout_method !== "other" ? p.payout_method : wallets.preferred ?? (wallets.stake ? "stake" : wallets.rainbet ? "rainbet" : wallets.usdc ? "usdc" : "stake");
+  const start: PayoutMethod = p.payout_method === "stake" || p.payout_method === "usdc" ? p.payout_method : wallets.preferred ?? (wallets.stake ? "stake" : wallets.usdc ? "usdc" : "stake");
   const [method, setMethod] = useState<PayoutMethod>(start);
   const [values, setValues] = useState<Record<PayoutMethod, string>>({
     stake: p.payout_method === "stake" ? p.payout_username : wallets.stake,
-    rainbet: p.payout_method === "rainbet" ? p.payout_username : wallets.rainbet,
-    usdc: p.payout_method === "usdc" ? p.payout_username : wallets.usdc,
+    usdc: p.payout_method === "usdc" ? p.payout_username : wallets.network === USDC_NETWORK ? wallets.usdc : "",
   });
-  const [network, setNetwork] = useState(p.payout_method === "usdc" ? p.payout_network : wallets.network);
   const [note, setNote] = useState(p.claim_note);
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -108,7 +90,7 @@ function ClaimPanel({ p, wallets, onCancel }: { p: PrizeRow; wallets: Wallets; o
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const check = checkDestination(method, values[method], method === "usdc" ? network : "");
+    const check = checkDestination(method, values[method]);
     if (!check.ok) { setErr(check.error); return; }
     setBusy(true); setErr(null);
     const e2 = await post("/api/account/prizes/claim", { id: p.id, method, value: check.dest.value, network: check.dest.network, note, remember });
@@ -120,11 +102,10 @@ function ClaimPanel({ p, wallets, onCancel }: { p: PrizeRow; wallets: Wallets; o
     <form onSubmit={submit} className="mt-4 space-y-4 rounded-2xl border border-gold/30 bg-bg-1/70 p-4">
       <p className="font-display text-sm font-bold uppercase tracking-wider text-text-0">Where should we send it?</p>
       <MethodTabs value={method} onChange={(m) => { setMethod(m); setErr(null); }} saved={wallets} />
-      {method === "usdc" && <NetworkPicker value={network} onChange={(n) => { setNetwork(n); setErr(null); }} />}
       <label className="block">
-        <span className="label">{method === "usdc" ? "USDC wallet address" : `Your ${PAYOUT_LABEL[method]} username`}</span>
+        <span className="label">{method === "usdc" ? "USDC wallet address (Ethereum)" : "Your Stake username"}</span>
         <input value={values[method]} onChange={(e) => { setValues({ ...values, [method]: e.target.value }); setErr(null); }} maxLength={64} autoComplete="off" spellCheck={false}
-          placeholder={method === "usdc" ? USDC_NETWORKS.find((n) => n.id === network)?.hint ?? "Pick a network first" : "username"} className={`${input} mt-1 ${method === "usdc" ? "font-mono" : ""}`} />
+          placeholder={method === "usdc" ? USDC_HINT : "username"} className={`${input} mt-1 ${method === "usdc" ? "font-mono" : ""}`} />
       </label>
       <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={255} className={input} placeholder="Note for the team (optional)" aria-label="Note" />
       <label className="flex items-center gap-2 text-sm text-text-1">
@@ -216,7 +197,7 @@ function PrizeCard({ p, wallets, guildId, focused }: { p: PrizeRow; wallets: Wal
 
       {p.claimed_at && stage !== "claim" && !editing && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg-1/70 px-3 py-2.5 text-sm">
-          {p.payout_method && p.payout_method !== "other" && <MethodMark m={p.payout_method} className="h-5 w-5" />}
+          {(p.payout_method === "stake" || p.payout_method === "usdc") && <MethodMark m={p.payout_method} className="h-5 w-5" />}
           <span className="text-text-2">Send to</span>
           <code className="min-w-0 break-all font-mono text-text-0">{describeDestination(p.payout_method, p.payout_username, p.payout_network)}</code>
           {stage === "claimed" && <button onClick={() => setEditing(true)} className="ml-auto text-xs font-semibold text-gold hover:underline">Change</button>}
@@ -251,7 +232,6 @@ function WalletCard({ m, wallets }: { m: PayoutMethod; wallets: Wallets }) {
   const saved = m === "usdc" ? wallets.usdc : wallets[m];
   const [editing, setEditing] = useState(!saved);
   const [value, setValue] = useState(saved);
-  const [network, setNetwork] = useState(wallets.network);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const preferred = wallets.preferred === m;
@@ -264,7 +244,7 @@ function WalletCard({ m, wallets }: { m: PayoutMethod; wallets: Wallets }) {
   }
   function save(e: React.FormEvent) {
     e.preventDefault();
-    const check = checkDestination(m, value, m === "usdc" ? network : "");
+    const check = checkDestination(m, value);
     if (!check.ok) { setMsg({ ok: false, text: check.error }); return; }
     run({ action: "save", method: m, value: check.dest.value, network: check.dest.network }, "Saved.");
   }
@@ -275,7 +255,7 @@ function WalletCard({ m, wallets }: { m: PayoutMethod; wallets: Wallets }) {
         <MethodMark m={m} className="h-10 w-10" />
         <div className="min-w-0 flex-1">
           <p className="font-display font-bold text-text-0">{PAYOUT_LABEL[m]}</p>
-          <p className="text-xs text-text-2">{saved ? (m === "usdc" ? networkLabel(wallets.network) : "Username saved") : "Not set"}</p>
+          <p className="text-xs text-text-2">{saved ? (m === "usdc" ? "Ethereum (ERC-20)" : "Username saved") : "Not set"}</p>
         </div>
         {saved && (
           <button type="button" disabled={busy || preferred} onClick={() => run({ action: "prefer", method: m }, "Now your default.")}
@@ -297,9 +277,8 @@ function WalletCard({ m, wallets }: { m: PayoutMethod; wallets: Wallets }) {
         </div>
       ) : (
         <form onSubmit={save} className="mt-4 flex flex-1 flex-col gap-3">
-          {m === "usdc" && <NetworkPicker value={network} onChange={setNetwork} />}
           <input value={value} onChange={(e) => setValue(e.target.value)} maxLength={64} autoComplete="off" spellCheck={false}
-            placeholder={m === "usdc" ? USDC_NETWORKS.find((n) => n.id === network)?.hint ?? "Pick a network" : `${PAYOUT_LABEL[m]} username`}
+            placeholder={m === "usdc" ? USDC_HINT : "Stake username"}
             aria-label={m === "usdc" ? "USDC wallet address" : `${PAYOUT_LABEL[m]} username`} className={`${input} ${m === "usdc" ? "font-mono" : ""}`} />
           <div className="mt-auto flex gap-2">
             <button disabled={busy} className="press inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-gold text-sm font-bold text-bg-0 hover:bg-gold-hi disabled:opacity-40"><Icon name="Check" className="h-4 w-4" /> Save</button>
@@ -395,10 +374,10 @@ export function PrizeDesk({ prizes, wallets, guildId }: { prizes: PrizeRow[]; wa
       <section id="wallets" className="scroll-mt-24 space-y-4">
         <div>
           <h2 className="font-display text-xl font-bold text-text-0">Payout wallets</h2>
-          <p className="mt-1 text-sm text-text-1">Save where you want to get paid. Each one is separate — set one, two or all three. The ⭐ one is used first for new claims, on the site and in your Discord ticket.</p>
+          <p className="mt-1 text-sm text-text-1">Save where you want to get paid. Each one is separate — set one or both. The ⭐ one is used first for new claims, on the site and in your Discord ticket.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {(["stake", "rainbet", "usdc"] as PayoutMethod[]).map((m) => <WalletCard key={m} m={m} wallets={wallets} />)}
+        <div className="grid gap-4 md:grid-cols-2">
+          {(["stake", "usdc"] as PayoutMethod[]).map((m) => <WalletCard key={m} m={m} wallets={wallets} />)}
         </div>
       </section>
     </div>

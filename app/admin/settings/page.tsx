@@ -135,8 +135,7 @@ export default async function AdminSettings() {
       <div className="surface p-6">
         <h2 className="text-lg">Partner casinos</h2>
         <p className="mt-1 text-sm text-text-2">
-          Set via environment variables (NEXT_PUBLIC_RAINBET_URL / NEXT_PUBLIC_STAKE_URL and their
-          codes). Shown here for reference.
+          Set via environment variables (NEXT_PUBLIC_STAKE_URL and NEXT_PUBLIC_STAKE_CODE). Shown here for reference.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {CASINOS.map((c) => (

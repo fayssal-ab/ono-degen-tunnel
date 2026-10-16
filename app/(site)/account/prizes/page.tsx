@@ -45,7 +45,7 @@ export default async function MyPrizesPage() {
   }
 
   const wallets: Wallets = {
-    preferred: account.payout_method, stake: account.stake_username, rainbet: account.rainbet_username,
+    preferred: account.payout_method, stake: account.stake_username,
     usdc: account.usdc_address, network: account.usdc_network,
   };
   const linked = new Set(account.identities.map((i) => i.provider));

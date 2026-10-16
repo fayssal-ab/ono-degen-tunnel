@@ -9,12 +9,9 @@ export const KICK_PLAYER_URL = "https://player.kick.com/onoefg";
 export const KICK_CHAT_URL = "https://kick.com/onoefg/chatroom";
 export const DISCORD_URL = "https://discord.gg/x5gv6vwNvw";
 
-// Partner casinos — viewers sign up with ONO's code and play there. Two
-// partners: Rainbet and Stake. All NEXT_PUBLIC (branding/links only, never a
-// secret). Rainbet also backs the leaderboard data (CASINO_* / provider §6).
-export const CASINO_NAME = process.env.NEXT_PUBLIC_CASINO_NAME ?? "Rainbet";
-export const CASINO_CODE = process.env.NEXT_PUBLIC_CASINO_CODE ?? "ONO";
-export const CASINO_URL = process.env.NEXT_PUBLIC_CASINO_URL ?? "https://rainbet.com";
+// Partner casino — viewers sign up on Stake with ONO's code and play there.
+// All NEXT_PUBLIC (branding/links only, never a secret).
+export const CASINO_CODE = process.env.NEXT_PUBLIC_STAKE_CODE ?? process.env.NEXT_PUBLIC_CASINO_CODE ?? "ONO";
 
 export interface Casino {
   name: string;
@@ -26,20 +23,17 @@ export interface Casino {
 
 export const CASINOS: Casino[] = [
   {
-    name: process.env.NEXT_PUBLIC_RAINBET_NAME ?? "Rainbet",
-    code: process.env.NEXT_PUBLIC_RAINBET_CODE ?? CASINO_CODE,
-    url: process.env.NEXT_PUBLIC_RAINBET_URL ?? "https://rainbet.com/?r=ONO",
-    tagline: "Instant crypto, daily rakeback",
-    accent: "gold",
-  },
-  {
-    name: process.env.NEXT_PUBLIC_STAKE_NAME ?? "Stake",
-    code: process.env.NEXT_PUBLIC_STAKE_CODE ?? CASINO_CODE,
+    name: "Stake",
+    code: CASINO_CODE,
     url: process.env.NEXT_PUBLIC_STAKE_URL ?? "https://stake.com/?c=ONO",
     tagline: "The original crypto casino",
-    accent: "volt",
+    accent: "gold",
   },
 ];
+
+/** The casino the leaderboard / races are about (Stake). */
+export const CASINO_NAME = CASINOS[0].name;
+export const CASINO_URL = CASINOS[0].url;
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 

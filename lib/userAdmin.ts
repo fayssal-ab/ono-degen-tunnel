@@ -9,7 +9,7 @@ export interface UserRow {
   id: number; display_name: string; avatar: string; created_at: string; last_login_at: string | null;
   banned: number; banned_reason: string;
   kick_id: string | null; kick_name: string | null; discord_id: string | null; discord_name: string | null;
-  payout_method: string | null; stake_username: string; rainbet_username: string; usdc_address: string; usdc_network: string;
+  payout_method: string | null; stake_username: string; usdc_address: string; usdc_network: string;
   sessions: number; prizes_won: number; prizes_open: number; prizes_paid: number; won_amount: string; paid_amount: string;
 }
 
@@ -28,9 +28,9 @@ export async function listUsers(opts: { q?: string; id?: number; filter?: "all" 
   const q = opts.q?.trim();
   if (q) {
     where.push(`(a.display_name LIKE ? OR k.username LIKE ? OR d.username LIKE ? OR k.provider_user_id = ? OR d.provider_user_id = ?
-      OR a.stake_username LIKE ? OR a.rainbet_username LIKE ? OR a.usdc_address = ? OR a.id = ?)`);
+      OR a.stake_username LIKE ? OR a.usdc_address = ? OR a.id = ?)`);
     const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    args.push(like, like, like, q, q, like, like, q, /^\d+$/.test(q) ? Number(q) : 0);
+    args.push(like, like, like, q, q, like, q, /^\d+$/.test(q) ? Number(q) : 0);
   }
   if (opts.id != null) { where.push("a.id = ?"); args.push(opts.id); }
   if (opts.filter === "banned") where.push("a.banned = 1");
@@ -44,7 +44,7 @@ export async function listUsers(opts: { q?: string; id?: number; filter?: "all" 
   const [[rows], [cnt]] = await Promise.all([
     pool.query<RowDataPacket[]>(
       `SELECT a.id, a.display_name, a.avatar, a.created_at, a.last_login_at, a.banned, a.banned_reason,
-              a.payout_method, a.stake_username, a.rainbet_username, a.usdc_address, a.usdc_network,
+              a.payout_method, a.stake_username, a.usdc_address, a.usdc_network,
               k.provider_user_id AS kick_id, k.username AS kick_name, d.provider_user_id AS discord_id, d.username AS discord_name,
               (SELECT COUNT(*) FROM user_sessions s WHERE s.account_id = a.id AND s.expires_at > CURRENT_TIMESTAMP) AS sessions,
               ${PRIZES("COUNT(*)", "<> 'void'")} AS prizes_won,
@@ -68,7 +68,7 @@ export async function getUserStats(): Promise<UserStats> {
             SUM(a.created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)) new7,
             SUM(a.banned) banned,
             SUM(a.last_login_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)) active24,
-            SUM(a.stake_username <> '' OR a.rainbet_username <> '' OR a.usdc_address <> '') with_wallet,
+            SUM(a.stake_username <> '' OR a.usdc_address <> '') with_wallet,
             (SELECT COUNT(DISTINCT pa.claim_account_id) FROM prize_awards pa WHERE pa.claim_account_id IS NOT NULL) winners
        FROM user_accounts a`);
   const r = rows[0];
