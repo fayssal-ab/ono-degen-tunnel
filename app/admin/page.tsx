@@ -12,6 +12,8 @@ import { getJobRuns, type JobRun } from "@/lib/events/common";
 import { getUserStats, type UserStats } from "@/lib/userAdmin";
 import { discordConfig } from "@/lib/discordTickets";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { BarChart, type BarDatum } from "@/components/admin/BarChart";
+import { CASINO_CODE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +135,7 @@ function PrizeDeskPanel({ desk }: { desk: Desk }) {
           ].map((t) => (
             <div key={t.label} className="rounded-xl border border-line bg-bg-0/40 p-3">
               <p className="label">{t.label}</p>
-              <p className={`mt-1 font-mono text-xl font-bold ${t.tone}`}>{t.value}</p>
+              <p className={`mt-1 truncate font-mono text-[1.15rem] font-bold leading-tight ${t.tone}`}>{t.value}</p>
               {t.hint && <p className="text-[11px] text-text-2">{t.hint}</p>}
             </div>
           ))}
@@ -191,6 +193,112 @@ function PrizeDeskPanel({ desk }: { desk: Desk }) {
   );
 }
 
+interface Charts {
+  wagerAllTime: number; wagerCurrent: number | null;
+  totals: { users: number; prizesPaid: number; prizeCount: number; giveaways: number; giveawayEntries: number; gbRounds: number; tournaments: number; challenges: number };
+  wagerByPeriod: BarDatum[]; usersDaily: BarDatum[]; payoutsMonthly: BarDatum[];
+}
+
+const MONTH = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+
+/** Site-wide numbers + the three dashboard charts. */
+async function getCharts(): Promise<Charts> {
+  const pool = getPool();
+  const q = async (sql: string, args: unknown[] = []) => (await pool.query<RowDataPacket[]>(sql, args))[0];
+  const [periods, users, payouts, [tot]] = await Promise.all([
+    // wager under the code per period: frozen final results when closed, the live board otherwise
+    q(`SELECT p.id, p.title, p.start_at, p.status,
+              IF(p.status = 'closed', (SELECT COALESCE(SUM(f.wagered),0) FROM final_results f WHERE f.period_id = p.id),
+                                      (SELECT COALESCE(SUM(l.wagered),0) FROM live_entries l WHERE l.period_id = p.id)) wagered
+         FROM periods p WHERE p.status <> 'upcoming' ORDER BY p.start_at DESC LIMIT 12`),
+    q(`SELECT DATE_FORMAT(created_at, '%Y-%m-%d') d, COUNT(*) n FROM user_accounts
+        WHERE created_at >= UTC_DATE() - INTERVAL 29 DAY GROUP BY d`),
+    q(`SELECT DATE_FORMAT(paid_at, '%Y-%m') m, COALESCE(SUM(amount),0) s FROM prize_awards
+        WHERE status = 'paid' AND paid_at >= DATE_FORMAT(UTC_DATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY m`),
+    q(`SELECT (SELECT COUNT(*) FROM user_accounts) users,
+              (SELECT COALESCE(SUM(amount),0) FROM prize_awards WHERE status = 'paid') paid,
+              (SELECT COUNT(*) FROM prize_awards WHERE status = 'paid') paid_n,
+              (SELECT COUNT(*) FROM giveaways) giveaways,
+              (SELECT COUNT(*) FROM giveaway_entries) entries,
+              (SELECT COUNT(*) FROM gb_rounds WHERE status = 'settled') gb,
+              (SELECT COUNT(*) FROM ko_tournaments WHERE status = 'finished') ko,
+              (SELECT COUNT(*) FROM challenges) ch,
+              (SELECT COALESCE(SUM(wagered),0) FROM final_results) closed_wager`),
+  ]);
+  const live = periods.find((p) => p.status === "live");
+  // all time = every closed period (frozen) + the live one
+  const wagerAllTime = Number(tot.closed_wager) + (live ? Number(live.wagered) : 0);
+
+  const byDay = new Map(users.map((r) => [String(r.d), Number(r.n)]));
+  const usersDaily: BarDatum[] = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10);
+    const label = new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    return { label, value: byDay.get(d) ?? 0, hint: `${label} · new users` };
+  });
+  const byMonth = new Map(payouts.map((r) => [String(r.m), Number(r.s)]));
+  const payoutsMonthly: BarDatum[] = Array.from({ length: 12 }, (_, i) => {
+    const dt = new Date(); dt.setUTCDate(1); dt.setUTCMonth(dt.getUTCMonth() - (11 - i));
+    const ym = dt.toISOString().slice(0, 7);
+    return { label: MONTH(ym), value: byMonth.get(ym) ?? 0, hint: `${MONTH(ym)} · prizes paid` };
+  });
+  const wagerByPeriod: BarDatum[] = periods.slice().reverse().map((p) => ({
+    label: MONTH(String(p.start_at).slice(0, 7)), value: Number(p.wagered),
+    hint: `${p.title || "Period"}${p.status === "live" ? " · live" : ""}`,
+  }));
+
+  return {
+    wagerAllTime, wagerCurrent: live ? Number(live.wagered) : null,
+    totals: { users: Number(tot.users), prizesPaid: Number(tot.paid), prizeCount: Number(tot.paid_n), giveaways: Number(tot.giveaways),
+      giveawayEntries: Number(tot.entries), gbRounds: Number(tot.gb), tournaments: Number(tot.ko), challenges: Number(tot.ch) },
+    wagerByPeriod, usersDaily, payoutsMonthly,
+  };
+}
+
+const compactNum = (n: number) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : n.toLocaleString("en-US"));
+
+function SiteStats({ c }: { c: Charts }) {
+  const tiles = [
+    ["Users", compactNum(c.totals.users)], ["Prizes paid", `$${compactNum(c.totals.prizesPaid)}`], ["Paid prizes", compactNum(c.totals.prizeCount)],
+    ["Giveaways", compactNum(c.totals.giveaways)], ["Giveaway entries", compactNum(c.totals.giveawayEntries)], ["GB rounds", compactNum(c.totals.gbRounds)],
+    ["Tournaments", compactNum(c.totals.tournaments)], ["Challenges", compactNum(c.totals.challenges)],
+  ];
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="surface flex flex-col justify-center p-6">
+          <p className="label">Total wagered under code {CASINO_CODE} · all time</p>
+          <p className="mt-2 font-sans text-[clamp(2rem,3.4vw,3rem)] font-semibold leading-tight tabular-nums text-gold">${c.wagerAllTime.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p>
+          <p className="mt-2 text-sm text-text-2">
+            {c.wagerCurrent != null ? <>This period so far: <span className="font-mono text-text-0">${c.wagerCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span></> : "No live period right now."}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {tiles.map(([l, v]) => (
+            <div key={l} className="surface p-4"><p className="label">{l}</p><p className="mt-1 font-sans text-[1.6rem] font-semibold leading-tight tabular-nums text-text-0">{v}</p></div>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="surface p-5 xl:col-span-2">
+          <p className="text-sm font-semibold text-text-0">Wagered under the code, per period</p>
+          <p className="mb-3 text-xs text-text-2">Last {c.wagerByPeriod.length} periods · final results once closed</p>
+          {c.wagerByPeriod.length ? <BarChart data={c.wagerByPeriod} color="#f5c451" money /> : <p className="py-10 text-center text-sm text-text-2">No period yet.</p>}
+        </div>
+        <div className="surface p-5">
+          <p className="text-sm font-semibold text-text-0">New users</p>
+          <p className="mb-3 text-xs text-text-2">Sign-ups per day · last 30 days</p>
+          <BarChart data={c.usersDaily} color="#22d3ee" labelEvery={7} />
+        </div>
+        <div className="surface p-5 xl:col-span-3">
+          <p className="text-sm font-semibold text-text-0">Prizes paid</p>
+          <p className="mb-3 text-xs text-text-2">Per month · last 12 months</p>
+          <BarChart data={c.payoutsMonthly} color="#f5c451" money height={170} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminDashboard() {
   const active = await getActivePeriod();
   let stats: Stats;
@@ -208,6 +316,10 @@ export default async function AdminDashboard() {
     );
   }
   const lbEnabled = await isLeaderboardEnabled();
+  const charts = await getCharts().catch((err) => {
+    console.error("admin dashboard charts failed", err instanceof Error ? err.message : "unknown");
+    return null;
+  });
   const desk = await getDesk().catch((err) => {
     console.error("admin prize desk stats failed", err instanceof Error ? err.message : "unknown");
     return null;
@@ -263,6 +375,8 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
+      {charts && <SiteStats c={charts} />}
+
       {desk ? <PrizeDeskPanel desk={desk} /> : (
         <p role="alert" className="rounded-xl border border-gold/40 bg-gold/10 p-4 text-sm">Prize desk unavailable — run <code>npm run migrate</code> (0016 / 0017).</p>
       )}
@@ -272,7 +386,7 @@ export default async function AdminDashboard() {
         {tiles.map((t) => (
           <div key={t.label} className="surface p-5">
             <p className="label">{t.label}</p>
-            <p className="mt-2 break-all font-mono text-xl font-bold tabular-nums xl:text-2xl">{t.value}</p>
+            <p className="mt-2 truncate font-mono text-[1.5rem] font-bold leading-tight tabular-nums">{t.value}</p>
             {t.sub && <p className="mt-1 text-xs text-text-2">{t.sub}</p>}
           </div>
         ))}
