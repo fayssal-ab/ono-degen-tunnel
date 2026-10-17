@@ -72,6 +72,10 @@ html {
   background: var(--color-bg-0);
   -webkit-text-size-adjust: 100%;
 }
+/* admin control room: full width on big screens, everything a notch larger */
+@media (min-width: 1280px) {
+  html:has(.admin-main) { font-size: 106.25%; }
+}
 
 body {
   background: var(--color-bg-0);

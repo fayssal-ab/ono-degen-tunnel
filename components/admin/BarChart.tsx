@@ -50,6 +50,8 @@ export function BarChart({ data, color, money = false, height = 200, labelEvery 
   const barW = Math.min(24, band * 0.62);
   const y = (v: number) => padT + plotH - (top ? (v / top) * plotH : 0);
   const r = 4;
+  // x labels: every `step` columns (at least ~46px apart), always the last one
+  const step = Math.max(labelEvery, Math.ceil(46 / band));
 
   return (
     <div ref={box} className="relative">
@@ -75,7 +77,7 @@ export function BarChart({ data, color, money = false, height = 200, labelEvery 
               {/* hit target: the whole band */}
               <rect x={padL + band * i} y={padT} width={band} height={plotH} fill="transparent" />
               {path && <path d={path} fill={color} opacity={hover == null || active ? 1 : 0.45} style={{ transition: "opacity 120ms" }} />}
-              {(i % Math.max(labelEvery, Math.ceil(46 / band)) === 0 || i === data.length - 1) && (
+              {(i === data.length - 1 || (i % step === 0 && data.length - 1 - i >= step)) && (
                 <text x={cx} y={H - 8} textAnchor="middle" className="fill-text-2" style={{ fontSize: 11 }}>{d.label}</text>
               )}
             </g>

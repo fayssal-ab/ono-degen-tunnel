@@ -278,8 +278,8 @@ function SiteStats({ c }: { c: Charts }) {
           ))}
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="surface p-5 xl:col-span-2">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="surface p-5">
           <p className="text-sm font-semibold text-text-0">Wagered under the code, per period</p>
           <p className="mb-3 text-xs text-text-2">Last {c.wagerByPeriod.length} periods · final results once closed</p>
           {c.wagerByPeriod.length ? <BarChart data={c.wagerByPeriod} color="#f5c451" money /> : <p className="py-10 text-center text-sm text-text-2">No period yet.</p>}
@@ -289,7 +289,7 @@ function SiteStats({ c }: { c: Charts }) {
           <p className="mb-3 text-xs text-text-2">Sign-ups per day · last 30 days</p>
           <BarChart data={c.usersDaily} color="#22d3ee" labelEvery={7} />
         </div>
-        <div className="surface p-5 xl:col-span-3">
+        <div className="surface p-5 xl:col-span-2">
           <p className="text-sm font-semibold text-text-0">Prizes paid</p>
           <p className="mb-3 text-xs text-text-2">Per month · last 12 months</p>
           <BarChart data={c.payoutsMonthly} color="#f5c451" money height={170} />

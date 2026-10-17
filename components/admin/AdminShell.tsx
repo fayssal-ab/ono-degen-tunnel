@@ -10,7 +10,6 @@ import { BRAND_NAME } from "@/lib/constants";
 // Admin chrome: grouped sections; on small screens the same list opens as a
 // drawer from the header (the sidebar is desktop-only).
 // Live control rooms and big tables use the full width.
-const WIDE = ["/admin/tournaments", "/admin/users", "/admin/giveaways"];
 const SECTIONS = [
   { label: "Overview", items: [
     { label: "Dashboard", href: "/admin", icon: "LayoutDashboard" },
@@ -127,7 +126,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <NavList pathname={pathname} onNavigate={() => setMenuOpen(false)} />
           </nav>
         )}
-        <main className={`mx-auto w-full flex-1 px-4 py-8 md:px-6 ${WIDE.some((p) => pathname.startsWith(p)) ? "max-w-none xl:px-10" : "max-w-4xl"}`}>{children}</main>
+        <main className="admin-main w-full flex-1 px-4 py-8 md:px-6 xl:px-10">{children}</main>
       </div>
     </div>
   );
