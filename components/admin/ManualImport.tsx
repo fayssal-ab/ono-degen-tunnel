@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { alertDialog } from "@/components/ui/ConfirmDialog";
 import { SubmitButton } from "./client";
 
 // Manual provider CSV import: preview (server-validated, per-line errors),
@@ -29,7 +30,7 @@ export function ManualImport({ periods, preview, commit }: {
 
   async function onFile(file: File | undefined) {
     if (!file) return;
-    if (file.size > 900_000) { alert("File too large (max ~900 KB)"); return; }
+    if (file.size > 900_000) { await alertDialog("That file is too large (max ~900 KB)."); return; }
     setText(await file.text());
   }
 

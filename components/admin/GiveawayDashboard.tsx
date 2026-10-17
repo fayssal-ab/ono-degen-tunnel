@@ -3,6 +3,7 @@
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 import { WinnerCheck, type ChatLine, type DrawnWinner } from "./WinnerCheck";
 
 // Kick giveaway control panel — same layout/workflow as the reference tool
@@ -328,7 +329,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
   }
 
   async function exclude(username: string, excluded: boolean) {
-    if (excluded && !confirm(`Exclude ${username} from this giveaway?`)) return;
+    if (excluded && !(await confirmDialog(`Exclude ${username} from this giveaway?`))) return;
     try {
       const res = await post("/exclude", { username, excluded });
       if (!res.ok) throw new Error();
@@ -339,7 +340,7 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
   }
 
   async function clearAll() {
-    if (!confirm("Clear ALL entries and winners for this giveaway?")) return;
+    if (!(await confirmDialog({ message: "Clear ALL entries and winners for this giveaway and start a new round?", confirmLabel: "Start new round", tone: "danger" }))) return;
     setBusy(true);
     try {
       const res = await post("/test", undefined, "DELETE");

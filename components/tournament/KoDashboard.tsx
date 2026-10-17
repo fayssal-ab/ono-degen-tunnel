@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 import type { KoState, KoMatch } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
 import { KickWebhookPanel } from "@/components/admin/KickWebhookPanel";
@@ -46,7 +47,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [form, setForm] = useState({ title: "", prize: "", p1: "", p2: "", p3: "" });
 
   const act = useCallback(async (action: string, extra: Record<string, unknown> = {}, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (confirmText && !(await confirmDialog(confirmText))) return;
     setBusy(action);
     setMsg(null);
     try {

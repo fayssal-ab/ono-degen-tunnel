@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { BRAND_NAME, STREAMER } from "@/lib/constants";
 import "./globals.css";
+import { ConfirmHost } from "@/components/ui/ConfirmDialog";
 
 // Canonical origin for absolute OG/Twitter image URLs. Netlify injects the real
 // site URL as process.env.URL (build + runtime), so share previews resolve to
@@ -83,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${clash.variable} ${interTight.variable} ${jetbrainsMono.variable} ${tag.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>{children}<ConfirmHost /></body>
     </html>
   );
 }

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface GiveawayOpt {
   id: number;
@@ -25,7 +26,7 @@ export function GiveawayAdminBar({ giveaways, selectedId }: { giveaways: Giveawa
 
   async function remove() {
     if (selectedId == null) return;
-    if (!confirm("Delete this giveaway permanently? Entries and winners are removed too.")) return;
+    if (!(await confirmDialog("Delete this giveaway permanently? Entries and winners are removed too."))) return;
     try {
       const res = await fetch(`/api/admin/giveaways/${selectedId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

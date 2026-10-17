@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouter } from "next/navigation";
 import type { Provider } from "@/lib/userAuth";
 
@@ -14,7 +15,7 @@ export function UnlinkButton({ provider, label }: { provider: Provider; label: s
     <span className="flex flex-col items-end gap-1">
       <button disabled={busy} className={`${ghost} border-line-strong text-text-1 hover:border-danger hover:text-danger`}
         onClick={async () => {
-          if (!window.confirm(`Unlink ${label}? You can link it again any time.`)) return;
+          if (!(await confirmDialog({ message: `Unlink ${label}? You can link it again any time.`, confirmLabel: `Unlink ${label}` }))) return;
           setBusy(true); setErr(null);
           try {
             const r = await fetch("/api/auth/user/unlink", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider }) });

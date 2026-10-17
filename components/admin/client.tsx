@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
+
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Decimal from "decimal.js";
@@ -15,8 +17,12 @@ export function SubmitButton({ children, className, confirm }: { children: React
       disabled={pending}
       aria-busy={pending}
       className={`${className} disabled:cursor-wait disabled:opacity-60`}
-      onClick={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+      onClick={async (e) => {
+        if (!confirm) return;
+        // ask in the site's own dialog, then submit with this button
+        e.preventDefault();
+        const btn = e.currentTarget;
+        if (await confirmDialog(confirm)) btn.form?.requestSubmit(btn);
       }}
     >
       {pending ? "Working…" : children}

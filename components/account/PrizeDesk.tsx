@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
@@ -163,7 +164,7 @@ function PrizeCard({ p, wallets, guildId, focused }: { p: PrizeRow; wallets: Wal
   const accent = stage === "claim" ? "from-gold" : stage === "claimed" ? "from-cyan" : stage === "paid" ? "from-plasma" : "from-volt";
 
   async function received() {
-    if (!window.confirm("Confirm you received this prize?")) return;
+    if (!(await confirmDialog({ title: "Got your prize?", message: "Confirm only once it's actually in your account.", confirmLabel: "Yes, I received it", tone: "gold" }))) return;
     setBusy(true); setErr(null);
     const e = await post("/api/account/prizes/received", { id: p.id });
     setBusy(false);
@@ -271,7 +272,7 @@ function WalletCard({ m, wallets }: { m: PayoutMethod; wallets: Wallets }) {
           <code className="block break-all rounded-lg border border-line bg-bg-1 px-3 py-2 font-mono text-sm text-text-0">{saved}</code>
           <div className="flex gap-2">
             <button type="button" onClick={() => { setEditing(true); setMsg(null); }} className="press inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line-strong text-sm text-text-1 hover:border-gold hover:text-gold"><Icon name="Pencil" className="h-3.5 w-3.5" /> Edit</button>
-            <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Remove your ${PAYOUT_LABEL[m]}?`)) run({ action: "clear", method: m }, "Removed.").then(() => setValue("")); }}
+            <button type="button" disabled={busy} onClick={async () => { if (await confirmDialog({ message: `Remove your ${PAYOUT_LABEL[m]}?`, confirmLabel: "Remove" })) run({ action: "clear", method: m }, "Removed.").then(() => setValue("")); }}
               className="press inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line px-3 text-sm text-text-2 hover:border-danger hover:text-danger" aria-label={`Remove ${PAYOUT_LABEL[m]}`}><Icon name="Trash2" className="h-3.5 w-3.5" /></button>
           </div>
         </div>
