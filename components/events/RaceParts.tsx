@@ -76,11 +76,42 @@ export function RaceRules({ race }: { race: Race }) {
   );
 }
 
-export function RaceTable({ entries }: { entries: PublicEntry[] }) {
+const MEDAL = [
+  { ring: "linear-gradient(140deg,#ffd97a,#c08a2a)", ink: "#3a2a07", glow: "0 0 30px -6px #f5c451" },
+  { ring: "linear-gradient(140deg,#e2e8f0,#8894a6)", ink: "#1f2733", glow: "none" },
+  { ring: "linear-gradient(140deg,#e0a066,#7a4a20)", ink: "#2a1708", glow: "none" },
+];
+
+/** Top 3 as medal cards (1st in the middle on wide screens). */
+export function RaceTop({ entries }: { entries: PublicEntry[] }) {
+  const top = entries.filter((e) => e.rank <= 3);
+  if (!top.length) return null;
   return (
-    <ol className="space-y-2">
+    <ol className="grid gap-3 sm:grid-cols-3">
+      {top.map((e) => {
+        const m = MEDAL[e.rank - 1];
+        return (
+          <li key={e.rank} className={`flex items-center gap-3 rounded-2xl border p-3 sm:flex-col sm:text-center ${e.rank === 1 ? "border-gold/50 bg-gold/10 sm:order-2" : e.rank === 2 ? "border-white/10 bg-white/[0.03] sm:order-1" : "border-white/10 bg-white/[0.03] sm:order-3"}`}
+            style={{ boxShadow: m.glow }}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full font-display text-lg font-extrabold" style={{ background: m.ring, color: m.ink }}>{e.rank}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-mono text-sm font-semibold text-text-0">{e.name}</span>
+              <span className="block font-mono text-xs tabular-nums text-text-1">{formatMoney(e.wagered)}</span>
+            </span>
+            {d(e.prize).gt(0) && <span className="font-mono text-sm font-bold tabular-nums text-gold">{formatMoney(e.prize)}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function RaceTable({ entries }: { entries: PublicEntry[] }) {
+  if (!entries.length) return null;
+  return (
+    <ol className="space-y-1.5">
       {entries.map((e) => (
-        <li key={e.rank} className="flex items-center gap-3 rounded-xl border border-line bg-bg-1 px-4 py-3 sm:gap-4">
+        <li key={e.rank} className="flex items-center gap-3 rounded-xl border border-white/10 bg-bg-0/40 px-4 py-2.5 sm:gap-4">
           <span className={`w-10 font-mono text-sm font-bold ${e.rank <= 3 ? "text-gold" : "text-text-2"}`}>#{e.rank}</span>
           <span className="min-w-0 flex-1 truncate font-mono text-sm text-text-0">{e.name}</span>
           <span className="font-mono text-sm tabular-nums text-text-1">{formatMoney(e.wagered)}</span>

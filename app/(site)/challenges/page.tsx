@@ -3,8 +3,7 @@ import { getChallenges, type Challenge } from "@/lib/challenges";
 import { formatMoney } from "@/lib/money";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Badge } from "@/components/ui/Badge";
-import { SlotThumb } from "@/components/ui/SlotThumb";
+import { ArtCard } from "@/components/ui/ArtCard";
 import { Icon } from "@/components/ui/Icon";
 import { SectionHeading } from "@/components/ui/Badge";
 import { DISCORD_URL } from "@/lib/constants";
@@ -20,7 +19,7 @@ import { isPageEnabled } from "@/lib/pages";
 export const dynamic = "force-dynamic";
 
 const STATUS: Record<Challenge["status"], { tone: "volt" | "gold" | "neutral"; label: string }> = {
-  open: { tone: "volt", label: "Open" },
+  open: { tone: "volt", label: "Active" },
   claimed: { tone: "gold", label: "Claimed" },
   expired: { tone: "neutral", label: "Expired" },
 };
@@ -28,7 +27,7 @@ const STATUS: Record<Challenge["status"], { tone: "volt" | "gold" | "neutral"; l
 export default async function ChallengesPage() {
   if (!(await isPageEnabled("/challenges"))) notFound();
   const result = await attempt(getChallenges);
-  const header = <PageHeader kicker="Compete" title="Challenges" lead="First to hit the target multiplier on the slot wins. Simple." />;
+  const header = <PageHeader kicker="Compete" title="Slot challenges" watermark="Challenges" lead="Hit the target multiplier on the slot first and the prize is yours. Claim your hit on Discord for verification." icon="Target" iconColor="magenta" />;
   if (!result.ok) return <div className="space-y-10">{header}<Unavailable what="Challenges" /></div>;
   const all = result.data;
   const live = all.filter((c) => c.status === "open");
@@ -75,50 +74,22 @@ export default async function ChallengesPage() {
 
 function Cards({ challenges }: { challenges: Challenge[] }) {
   return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {challenges.map((c) => {
-            const s = STATUS[c.status];
-            return (
-              <div key={c.id} className={`surface flex flex-col p-5 ${c.status === "expired" ? "opacity-60" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <SlotThumb name={c.slot_name} src={c.image_url} size={52} />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-text-0">{c.slot_name}</p>
-                      {c.provider && <p className="truncate text-xs text-text-2">{c.provider}</p>}
-                    </div>
-                  </div>
-                  <Badge tone={s.tone}>{s.label}</Badge>
-                </div>
-
-                <div className="mt-5 flex items-end justify-between">
-                  <div>
-                    <p className="label">Target</p>
-                    <p className="font-mono text-2xl font-bold text-gold">{d(c.required_multiplier).toString()}×</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="label">Prize</p>
-                    <p className="font-mono text-lg font-semibold text-text-0">{c.prize}</p>
-                  </div>
-                </div>
-
-                {c.status === "open" && c.expires_at && <p className="mt-3 text-xs text-text-2">Expires <UtcTime value={c.expires_at} /></p>}
-                {c.winning && <p className="mt-3 text-xs text-text-2">Winning hit {d(c.winning.multiplier).toString()}× on a {formatMoney(c.winning.bet)} bet</p>}
-                <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-xs text-text-2">
-                  <span>Min bet {formatMoney(c.min_bet)}</span>
-                  {c.status === "claimed" && c.claimedBy ? (
-                    <span className="inline-flex items-center gap-1 text-gold">
-                      <Icon name="Trophy" className="h-3.5 w-3.5" /> {c.claimedBy}
-                    </span>
-                  ) : c.status === "open" ? (
-                    <span className="text-volt">Up for grabs</span>
-                  ) : (
-                    <span>Closed</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {challenges.map((c) => {
+        const mult = `${d(c.required_multiplier).toString()}x`;
+        return (
+          <ArtCard key={c.id} tone={["#ff3d9a", "#5b1a6b"]} image={c.image_url} icon="Target" headline={mult}
+            badge={{ label: STATUS[c.status].label, live: c.status === "open" }} dim={c.status === "expired"}
+            title={`${c.slot_name} ${mult}`}
+            sub={<><span className="font-semibold text-gold">{c.prize}</span> · min bet {formatMoney(c.min_bet)}</>}
+            footer={c.status === "claimed" && c.claimedBy ? (
+              <span className="inline-flex items-center gap-1 text-gold"><Icon name="Trophy" className="h-3.5 w-3.5" /> {c.claimedBy}
+                {c.winning && <span className="text-text-2"> · hit {d(c.winning.multiplier).toString()}x on {formatMoney(c.winning.bet)}</span>}</span>
+            ) : c.status === "open" ? (
+              c.expires_at ? <>Expires <UtcTime value={c.expires_at} /></> : <span className="text-volt">Up for grabs</span>
+            ) : "Closed"} />
+        );
+      })}
+    </div>
   );
 }

@@ -7,12 +7,12 @@ export const dynamic = "force-dynamic";
 
 // OBS browser source (1920×1080, transparent). Read-only: no controls, no
 // admin data. Follows the admin dashboard by polling the public state.
-// Compact card sized to its content, bottom-left by default (?pos=br|tl|tr);
-// ?layout=full shows the big centred version instead.
+// Compact card, centred and scaled to the browser source by default
+// (?pos=bl|br|tl|tr pins it to a corner); ?layout=full is the big version.
 export default async function TournamentOverlay({ searchParams }: { searchParams: Promise<{ layout?: string; pos?: string }> }) {
   const sp = await searchParams;
   const layout = sp.layout === "full" ? "full" : "compact";
-  const pos: OverlayPos = sp.pos === "br" || sp.pos === "tl" || sp.pos === "tr" ? sp.pos : "bl";
+  const pos: OverlayPos = sp.pos === "bl" || sp.pos === "br" || sp.pos === "tl" || sp.pos === "tr" ? sp.pos : "c";
   let initial: KoState | null = null;
   try {
     const t = await getFeaturedKo();

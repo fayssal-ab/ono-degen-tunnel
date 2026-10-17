@@ -3,21 +3,23 @@
 import { useMemo, useState } from "react";
 import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { useKoState } from "./useKoState";
+import { FitScreen } from "@/components/overlay/FitScreen";
 import { Podium, RollReveal, RollSlot, VsScreen, matchLabel, SlotArt, useRollSpin } from "./parts";
 
-// Stream overlay. Default: a compact card, sized to its content, in a corner
-// of the 1920×1080 scene — registration call-to-action with the latest picks,
-// then the live battle (avatars, names, slots), then the podium. No title or
-// prize bar: only the players. `layout=full` keeps the big centred version.
-// Transparent everywhere except the card.
+// Stream overlay. Default: the compact card — registration call-to-action with
+// the latest picks, then the live battle (avatars, names, slots), then the
+// podium — centred and scaled to the OBS browser source, so resizing the
+// source in OBS resizes the card. ?pos=bl|br|tl|tr pins it to a corner of a
+// 1920×1080 scene instead. `layout=full` is the big centred version (also
+// scaled). Transparent everywhere except the card.
 
-export type OverlayPos = "bl" | "br" | "tl" | "tr";
+export type OverlayPos = "c" | "bl" | "br" | "tl" | "tr";
 const POS: Record<OverlayPos, string> = {
-  bl: "items-end justify-start", br: "items-end justify-end", tl: "items-start justify-start", tr: "items-start justify-end",
+  c: "items-center justify-center", bl: "items-end justify-start", br: "items-end justify-end", tl: "items-start justify-start", tr: "items-start justify-end",
 };
 const money = (v: string | number) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
-export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial: KoState | null; layout?: "compact" | "full"; pos?: OverlayPos }) {
+export function KoOverlay({ initial, layout = "compact", pos = "c" }: { initial: KoState | null; layout?: "compact" | "full"; pos?: OverlayPos }) {
   const { state } = useKoState(initial, 1200);
   const [revealed, setRevealed] = useState<number | null>(null);
   const pool = useMemo(() => state?.participants.filter((p) => p.state === "registered") ?? [], [state]);
@@ -44,13 +46,16 @@ export function KoOverlay({ initial, layout = "compact", pos = "bl" }: { initial
     return null;
   }
 
-  return (
-    <div className={`flex min-h-dvh p-10 ${POS[pos]}`}>
-      <div className="w-[660px] overflow-hidden rounded-3xl border border-white/10 shadow-2xl" style={{ background: "rgba(5,7,13,0.9)" }}>
-        {body}
-      </div>
+  const card = (
+    <div className="w-[660px] overflow-hidden rounded-3xl border border-white/10 shadow-2xl" style={{ background: "rgba(5,7,13,0.9)" }}>
+      {body}
     </div>
   );
+  // centred: the card's design box fills the source window (contain), so it is big and follows the window size
+  if (pos === "c") {
+    return <FitScreen width={700} height={560}><div className="flex h-full w-full items-center justify-center">{card}</div></FitScreen>;
+  }
+  return <div className={`flex min-h-dvh p-10 ${POS[pos]}`}>{card}</div>;
 }
 
 function CompactJoin({ state }: { state: KoState }) {
@@ -214,5 +219,5 @@ function FullOverlay({ state, pool, revealed, setRevealed }: { state: KoState; p
     body = <div className={`${card} w-[1500px]`} style={bg}><p className="label mb-2 text-center">Up next · {matchLabel(state.nextReady)}</p><VsScreen match={state.nextReady} big /></div>;
   }
 
-  return <div className="flex min-h-dvh items-center justify-center p-10">{body}</div>;
+  return <FitScreen width={1920} height={1080}><div className="flex h-full w-full items-center justify-center p-10">{body}</div></FitScreen>;
 }

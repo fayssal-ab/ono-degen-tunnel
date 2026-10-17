@@ -9,6 +9,7 @@ import { Preloader } from "./Preloader";
 import { ScrollProgress } from "./ScrollProgress";
 import { BackToTop } from "./BackToTop";
 import { ScrollToTop } from "./ScrollToTop";
+import { PageBackdrop } from "./PageBackdrop";
 import { PlanetGame } from "@/components/home/PlanetGame";
 import { AnnouncementBar } from "./AnnouncementBar";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -34,6 +35,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       <Preloader />
       <ScrollProgress />
       <StarField />
+      <PageBackdrop />
       <CustomCursor />
       <Sidebar live={live} hidden={hidden} />
       <TopBar live={live} viewers={viewers} />

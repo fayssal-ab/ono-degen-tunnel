@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/money";
 import { Icon } from "@/components/ui/Icon";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { DisplayRow } from "./types";
 
 function Delta({ delta }: { delta: number | null }) {
@@ -59,7 +60,10 @@ export function LeaderboardTable({
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="font-mono text-text-0">{row.maskedName}</span>
+                  <span className="inline-flex items-center gap-2.5">
+                    <UserAvatar name={row.maskedName} className="h-7 w-7 rounded-full text-xs" />
+                    <span className="font-mono text-text-0">{row.maskedName}</span>
+                  </span>
                   {me && <span className="ml-2 text-xs text-gold">you</span>}
                 </td>
                 <td className="px-4 py-3 text-right font-mono tabular-nums text-text-0">

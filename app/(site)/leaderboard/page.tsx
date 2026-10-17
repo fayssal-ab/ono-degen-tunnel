@@ -13,6 +13,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Podium } from "@/components/leaderboard/Podium";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { FindMe } from "@/components/leaderboard/FindMe";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ArtCard } from "@/components/ui/ArtCard";
+import { CopyChip } from "@/components/ui/CopyChip";
+import { Icon } from "@/components/ui/Icon";
 
 export const metadata: Metadata = {
   title: "Leaderboard",
@@ -46,28 +50,24 @@ export default async function LeaderboardPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="label">Compete</p>
-          <h1 className="mt-1 text-2xl md:text-3xl">Leaderboard</h1>
-        </div>
-        {isDemoMode() && <Badge tone="plasma">Demo data</Badge>}
-      </div>
+      <PageHeader kicker="Compete" title="Leaderboard" lead="Wager with the code, climb the board, take the prize." icon="Trophy" iconColor="gold" accent="gold"
+        right={isDemoMode() ? <Badge tone="plasma">Demo data</Badge> : undefined} />
 
       {/* tabs */}
-      <div className="flex gap-1 rounded-xl border border-line bg-bg-1 p-1">
+      <nav className="flex gap-1 rounded-2xl border border-gold/20 bg-bg-1/70 p-1.5 backdrop-blur">
         {TABS.map((t) => (
           <Link
             key={t.key}
             href={`/leaderboard?view=${t.key}`}
-            className={`flex-1 rounded-lg px-4 py-2 text-center text-sm transition-colors ${
-              view === t.key ? "bg-bg-3 text-text-0" : "text-text-1 hover:text-text-0"
+            aria-current={view === t.key ? "page" : undefined}
+            className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
+              view === t.key ? "bg-gold text-bg-0 shadow-[0_6px_20px_-8px_var(--color-gold)]" : "text-text-1 hover:bg-bg-2 hover:text-text-0"
             }`}
           >
             {t.label}
           </Link>
         ))}
-      </div>
+      </nav>
 
       {!enabled ? (
         <EmptyState
@@ -111,23 +111,30 @@ async function MonthlyView({ find }: { find: string }) {
 
   return (
     <div className="space-y-8">
-      {/* header card: prize + countdown */}
-      <div className="surface grid gap-6 p-6 md:grid-cols-[1fr_auto] md:items-center">
-        <div>
-          <p className="label">{period.title || "Current period"}</p>
-          <p className="mt-2 font-mono text-3xl font-bold tabular-nums text-gold">{topPrize}</p>
-          <p className="mt-1 text-sm text-text-1">
-            prize pool · wager with code{" "}
-            <span className="font-mono font-semibold text-gold">{casino.code}</span> at {casino.name}
-          </p>
-          {sync && (
-            <p className="mt-3 text-xs text-text-2">
-              <RelativeTime iso={sync.cache_updated_at ?? sync.fetched_at} prefix="Updated " />
+      {/* hero: prize pool + countdown */}
+      <section className="relative isolate overflow-hidden rounded-[26px] border border-gold/30 p-6 md:p-8"
+        style={{ background: "linear-gradient(150deg, color-mix(in srgb, #f5c451 16%, var(--color-bg-1)), var(--color-bg-1) 55%, color-mix(in srgb, #8b5cf6 10%, var(--color-bg-1)))" }}>
+        <div className="tunnel-grid pointer-events-none absolute inset-0 opacity-30" aria-hidden />
+        <Icon name="Trophy" strokeWidth={1.2} aria-hidden className="pointer-events-none absolute -right-10 -top-6 h-72 w-72 rotate-12 text-gold/10" />
+        <div className="relative grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
+          <div>
+            <p className="label inline-flex items-center gap-2 text-gold/90">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-volt opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-volt" /></span>
+              {period.title || "Current period"} · live
             </p>
-          )}
+            <p className="font-bang mt-3 text-5xl tracking-wide text-gold md:text-7xl [text-shadow:0_0_40px_rgba(245,196,81,0.35)]">{topPrize}</p>
+            <p className="mt-2 text-sm text-text-1">prize pool · wager on <b className="text-text-0">{casino.name}</b> with code</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <CopyChip value={casino.code} />
+              {sync && <span className="text-xs text-text-2"><RelativeTime iso={sync.cache_updated_at ?? sync.fetched_at} prefix="Updated " /></span>}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-bg-0/50 p-4 backdrop-blur">
+            <p className="label mb-2 text-center">Board resets in</p>
+            <Countdown target={resetInstant} />
+          </div>
         </div>
-        <Countdown target={resetInstant} />
-      </div>
+      </section>
 
       <FindMe initial={find} />
 
@@ -175,18 +182,11 @@ async function PreviousView() {
   return (
     <div>
       <SectionHeading kicker="Archive" title="Previous periods" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {closed.map((p) => (
-          <Link key={p.id} href={`/leaderboard/${p.id}`} className="surface gold-border press block p-5">
-            <p className="font-mono text-sm text-text-1">
-              {p.start_at} → {p.end_at}
-            </p>
-            <p className="mt-2 text-lg">{p.title || "Monthly"}</p>
-            <div className="mt-4 flex items-center justify-between">
-              <span className="font-mono text-gold">{formatMoney(p.prize_pool)}</span>
-              <span className="text-xs text-text-2">{p.winner_count} winners</span>
-            </div>
-          </Link>
+          <ArtCard key={p.id} href={`/leaderboard/${p.id}`} tone={["#f5c451", "#7a4a12"]} icon="Trophy" headline={formatMoney(p.prize_pool)}
+            badge={{ label: "Final" }} title={p.title || "Monthly"} sub={<span className="font-mono text-xs">{p.start_at} → {p.end_at}</span>}
+            footer={`${p.winner_count} winner${p.winner_count === 1 ? "" : "s"} · see results →`} />
         ))}
       </div>
     </div>
