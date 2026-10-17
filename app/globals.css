@@ -74,7 +74,7 @@ html {
 }
 /* admin control room: full width on big screens, everything a notch larger */
 @media (min-width: 1280px) {
-  html:has(.admin-main) { font-size: 103.125%; }
+  html:has(.admin-main) { font-size: 106.25%; }
 }
 
 body {

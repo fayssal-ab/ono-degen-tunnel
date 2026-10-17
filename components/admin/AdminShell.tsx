@@ -126,7 +126,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <NavList pathname={pathname} onNavigate={() => setMenuOpen(false)} />
           </nav>
         )}
-        <main className="admin-main w-full flex-1 px-4 py-8 md:px-6 xl:px-10">{children}</main>
+        <main className="admin-main mx-auto w-full flex-1 px-4 py-8 md:px-6 xl:w-[95%] xl:px-10">{children}</main>
       </div>
     </div>
   );
