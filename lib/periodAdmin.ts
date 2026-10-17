@@ -1,4 +1,5 @@
 import "server-only";
+import { deleteTicketChannel } from "./discordTickets";
 import type { RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import Decimal from "decimal.js";
 import { EventError, withTx, lockApp, DECIMAL_20_8, type DistEntry } from "./events/common";
@@ -71,15 +72,27 @@ export async function closePeriodAdmin(id: number): Promise<void> {
   await closePeriod(p);
 }
 
+/**
+ * Delete an upcoming or live period: its board, snapshots and imports go with
+ * it; races are detached (their history stays); unpaid leaderboard prizes go
+ * (with their Discord ticket), paid ones stay in Admin → Prizes. Closed
+ * periods are kept: their final results are immutable (golden rule 5, DB
+ * trigger). Refused while an unfinished race reads this period.
+ */
 export async function deletePeriod(id: number): Promise<void> {
-  await withTx(async (conn) => {
+  const channels = await withTx(async (conn) => {
     const [rows] = await conn.query<RowDataPacket[]>("SELECT status FROM periods WHERE id = ? FOR UPDATE", [id]);
     if (!rows[0]) throw new EventError("period_not_found");
-    if (rows[0].status !== "upcoming") throw new EventError("period_locked", "only upcoming periods can be deleted");
-    const [races] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM races WHERE period_id = ?", [id]);
-    if (Number(races[0].n) > 0) throw new EventError("period_has_races");
+    if (rows[0].status === "closed") throw new EventError("period_locked", "closed periods keep their final results for good");
+    const [races] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM races WHERE period_id = ? AND status IN ('upcoming','live','finalizing')", [id]);
+    if (Number(races[0].n) > 0) throw new EventError("period_has_races", "a race that hasn't finished uses this period — finish or delete it first");
+    const [awards] = await conn.query<RowDataPacket[]>(
+      "SELECT discord_channel_id FROM prize_awards WHERE source = 'leaderboard' AND source_ref LIKE ? AND status <> 'paid' FOR UPDATE", [`period:${id}:%`]);
+    await conn.query("DELETE FROM prize_awards WHERE source = 'leaderboard' AND source_ref LIKE ? AND status <> 'paid'", [`period:${id}:%`]);
     await conn.query("DELETE FROM periods WHERE id = ?", [id]);
+    return awards.map((a) => String(a.discord_channel_id ?? "")).filter(Boolean);
   });
+  for (const c of channels) deleteTicketChannel(c);
 }
 
 // ── manual CSV import ──

@@ -335,6 +335,29 @@ dbt("hunts and GB rounds can be deleted in any state; paid prizes stay", async (
   assert.equal(await one("SELECT COUNT(*) n FROM prize_awards WHERE source_ref = ? AND status = 'paid'", [`gb:${r2}`]), 1, "paid prize kept");
 });
 
+dbt("periods: upcoming and live can be deleted, closed ones are kept", async () => {
+  const pa = await import("../lib/periodAdmin");
+  const common = await import("../lib/events/common");
+  const pool = db.getPool();
+  const dist = JSON.stringify([{ rank: 1, percentage: 100 }]);
+  const mk = async (status: string) => Number(((await pool.query<mysql.ResultSetHeader>(
+    "INSERT INTO periods (title, kind, start_at, end_at, prize_pool, prize_distribution, status) VALUES ('P', 'monthly', CURDATE(), CURDATE() + INTERVAL 5 DAY, 100, ?, ?)", [dist, status]))[0]).insertId);
+  const live = await mk("live");
+  await pool.query("INSERT INTO live_entries (period_id, casino_id, username, wagered, `rank`) VALUES (?, 'c1', 'u1', 50, 1)", [live]);
+  const raceId = Number(((await pool.query<mysql.ResultSetHeader>(
+    "INSERT INTO races (name, kind, period_id, start_at, end_at, prize_pool, prize_distribution, status) VALUES ('R', '24h', ?, UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL 1 DAY, 10, ?, 'live')", [live, dist]))[0]).insertId);
+  await assert.rejects(pa.deletePeriod(live), (e: unknown) => e instanceof common.EventError && e.code === "period_has_races", "running race blocks it");
+  await pool.query("UPDATE races SET status = 'closed' WHERE id = ?", [raceId]);
+  await pa.deletePeriod(live);
+  const n = async (sql: string, a: unknown[]) => Number((((await pool.query<mysql.RowDataPacket[]>(sql, a))[0][0]) as { n: number }).n);
+  assert.equal(await n("SELECT COUNT(*) n FROM periods WHERE id = ?", [live]), 0);
+  assert.equal(await n("SELECT COUNT(*) n FROM live_entries WHERE period_id = ?", [live]), 0, "board deleted");
+  assert.equal(await n("SELECT COUNT(*) n FROM races WHERE id = ? AND period_id IS NULL", [raceId]), 1, "finished race kept, detached");
+  await pa.deletePeriod(await mk("upcoming"));
+  const closed = await mk("closed");
+  await assert.rejects(pa.deletePeriod(closed), (e: unknown) => e instanceof common.EventError && e.code === "period_locked");
+});
+
 dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {
   const ua = await import("../lib/userAdmin");
   const a = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);

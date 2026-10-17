@@ -17,8 +17,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   period_not_upcoming: "Only an upcoming period can be activated.",
   period_already_live: "Another period is live. Close it first — only one period runs at a time.",
   period_not_live: "Only the live period can be closed.",
-  period_locked: "This period can no longer be deleted.",
-  period_has_races: "Races use this period as their source. Delete or move those races first.",
+  period_locked: "Closed periods can't be deleted: their final results are the record of who won what.",
+  period_has_races: "A race that hasn't finished uses this period. Finish or delete that race first.",
   csv_invalid: "The CSV has errors. Fix every listed line and preview again.",
   // tournaments
   tournament_not_found: "That tournament no longer exists.",

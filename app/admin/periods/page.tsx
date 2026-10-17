@@ -162,8 +162,12 @@ export default async function AdminPeriods({ searchParams }: { searchParams: Sea
                 {p.status === "live" && (
                   <form action={closeAction}><Hidden fields={{ id: p.id }} /><SubmitButton className={btnGhost} confirm="Freeze final results now? This cannot be undone."><Icon name="Lock" className="h-4 w-4" /> Close</SubmitButton></form>
                 )}
-                {p.status === "upcoming" && (
-                  <form action={deleteAction}><Hidden fields={{ id: p.id }} /><SubmitButton className={btnDanger} confirm="Delete this period?"><Icon name="Trash2" className="h-4 w-4" /></SubmitButton></form>
+                {p.status !== "closed" && (
+                  <form action={deleteAction}><Hidden fields={{ id: p.id }} />
+                    <SubmitButton className={btnDanger} confirm={`Delete “${p.title || `period #${p.id}`}” for good?${p.status === "live" ? " It's LIVE: the leaderboard goes empty and its wagers are deleted." : ""} This can't be undone.`}>
+                      <Icon name="Trash2" className="h-4 w-4" />
+                    </SubmitButton>
+                  </form>
                 )}
               </div>
             </div>
