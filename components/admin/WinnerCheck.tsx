@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BrandIcon } from "@/components/ui/BrandIcon";
 import { Icon } from "@/components/ui/Icon";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { confirmDialog } from "@/components/ui/ConfirmDialog";
 
 // Giveaway winner check (dashboard modal). The drawn winner has WINDOW seconds
 // to type anything in Kick chat. Their messages show live; the first one
@@ -296,7 +297,10 @@ export function WinnerCheck({
                 className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong text-sm hover:border-volt hover:text-volt disabled:opacity-50">
                 <Icon name="UserCheck" className="h-4 w-4" /> Accept now
               </button>
-              <button disabled={phase === "saving"} onClick={async () => { decided.current = true; await decide("no_show"); onReroll(); }}
+              <button disabled={phase === "saving"} onClick={async () => {
+                  if (!(await confirmDialog({ message: `Skip ${winner.username}? They get no prize and a new winner is drawn.`, confirmLabel: "Skip & reroll", tone: "danger" }))) return;
+                  decided.current = true; await decide("no_show"); onReroll();
+                }}
                 className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong text-sm hover:border-danger hover:text-danger disabled:opacity-50">
                 <Icon name="RefreshCw" className="h-4 w-4" /> Skip & reroll
               </button>

@@ -174,7 +174,7 @@ export default async function AdminChallenges({ searchParams }: { searchParams: 
                           <form action={rejectAction} className="flex gap-2">
                             <Hidden fields={{ claim_id: cl.id }} />
                             <input name="note" maxLength={255} placeholder="Reason" className="h-9 rounded-lg border border-line bg-bg-2 px-2 text-sm" />
-                            <SubmitButton className={btnDanger}>Reject</SubmitButton>
+                            <SubmitButton className={btnDanger} confirm={`Reject ${cl.claimant}'s claim? The challenge stays open for others.`}>Reject</SubmitButton>
                           </form>
                         </div>
                       )}

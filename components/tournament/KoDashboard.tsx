@@ -161,7 +161,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               <button disabled={busy !== null || !canRoll} onClick={() => act("roll")} className={gold}>🎲 Roll 2 players</button>
               <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("confirm")} className={volt}>Confirm battle</button>
-              <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("cancel_roll")} className={ghost}>Cancel roll</button>
+              <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("cancel_roll", {}, "Cancel this roll? The two players go back into the pool.")} className={ghost}>Cancel roll</button>
               <button disabled={busy !== null || !!state.live || !!state.pendingRoll || !state.nextReady} onClick={() => act("start")} className={volt}>▶ Start battle</button>
             </div>
             {state.live && (

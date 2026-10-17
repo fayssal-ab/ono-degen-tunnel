@@ -255,7 +255,7 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
             {hunt.status === "finished" && (
               <form action={archiveAction}>
                 <Hidden fields={{ hunt_id: hunt.id }} />
-                <SubmitButton className={btnGhost}><Icon name="Archive" className="h-4 w-4" /> Archive</SubmitButton>
+                <SubmitButton className={btnGhost} confirm="Archive this hunt? It leaves the live page and stays in the history."><Icon name="Archive" className="h-4 w-4" /> Archive</SubmitButton>
               </form>
             )}
             <form action={deleteAction} className="ml-auto">
