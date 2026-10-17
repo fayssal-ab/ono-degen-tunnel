@@ -17,7 +17,7 @@ function parts(ms: number) {
   };
 }
 
-export function Countdown({ target, className = "", label = "Resets", doneText = "Resetting…" }: { target: string; className?: string; label?: string; doneText?: string }) {
+export function Countdown({ target, className = "", label = "Resets", doneText = "Resetting…", compact = false }: { target: string; className?: string; label?: string; doneText?: string; /** one inline line: "14d 05h 48m" */ compact?: boolean }) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -28,6 +28,15 @@ export function Countdown({ target, className = "", label = "Resets", doneText =
 
   const targetMs = new Date(target).getTime();
   const p = now == null ? null : parts(targetMs - now);
+
+  if (compact) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      <span className={`font-mono font-semibold tabular-nums text-text-0 ${className}`} suppressHydrationWarning>
+        {p == null ? "—" : p.done ? doneText : `${p.d ? `${p.d}d ` : ""}${pad(p.h)}h ${pad(p.m)}m${p.d ? "" : ` ${pad(p.s)}s`}`}
+      </span>
+    );
+  }
 
   const localLabel =
     now == null

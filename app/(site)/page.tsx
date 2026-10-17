@@ -10,6 +10,7 @@ import { KICK_URL, DISCORD_URL, CASINO_CODE } from "@/lib/constants";
 import { TunnelHero } from "@/components/home/TunnelHero";
 import { ParticleField } from "@/components/home/ParticleField";
 import { Casinos } from "@/components/home/Casinos";
+import { LiveNow, WinsTicker } from "@/components/home/LiveNow";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Badge, SectionHeading } from "@/components/ui/Badge";
@@ -67,6 +68,11 @@ export default async function HomePage() {
     <div className="space-y-14 md:space-y-20">
       <ParticleField />
       <TunnelHero stats={stats} />
+
+      <div className="-mt-6 space-y-8 md:-mt-10">
+        <WinsTicker />
+        <Reveal><LiveNow /></Reveal>
+      </div>
 
       {/* feature bento */}
       {features.length > 0 && (
@@ -135,22 +141,23 @@ export default async function HomePage() {
       {/* how it works */}
       <section>
         <Reveal><SectionHeading kicker="The tunnel" title="How it works" watermark="The Tunnel" accent="cyan" /></Reveal>
-        <RevealStagger className="grid gap-3 sm:gap-4 md:grid-cols-3">
-          {STEPS.map((s) => (
-            <RevealItem key={s.n}>
-              <div className="surface group relative h-full overflow-hidden p-6">
-                <div className="flex items-center justify-between">
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-bg-3 text-gold">
-                    <Icon name={s.icon} className="h-5 w-5" />
+        <div className="relative">
+          <div aria-hidden className="pointer-events-none absolute left-[16%] right-[16%] top-12 hidden h-px bg-gradient-to-r from-gold/0 via-gold/50 to-gold/0 md:block" />
+          <RevealStagger className="grid gap-3 sm:gap-4 md:grid-cols-3">
+            {STEPS.map((s) => (
+              <RevealItem key={s.n}>
+                <div className="surface group relative h-full overflow-hidden p-6 text-center transition-transform duration-300 hover:-translate-y-1">
+                  <span className="relative mx-auto grid h-24 w-24 place-items-center rounded-full border border-gold/30 bg-bg-0 shadow-[0_0_40px_-12px_var(--color-gold)]">
+                    <Icon name={s.icon} className="h-9 w-9 text-gold transition-transform duration-300 group-hover:scale-110" />
+                    <span className="absolute -right-1 -top-1 grid h-8 w-8 place-items-center rounded-full bg-gold font-display text-xs font-extrabold text-bg-0">{s.n}</span>
                   </span>
-                  <span className="font-display text-5xl font-extrabold text-bg-3 transition-colors group-hover:text-line-strong">{s.n}</span>
+                  <h3 className="font-bang mt-5 text-2xl tracking-wide">{s.title}</h3>
+                  <p className="mt-2 text-sm text-text-1">{s.body}</p>
                 </div>
-                <h3 className="mt-5 text-lg">{s.title}</h3>
-                <p className="mt-2 text-sm text-text-1">{s.body}</p>
-              </div>
-            </RevealItem>
-          ))}
-        </RevealStagger>
+              </RevealItem>
+            ))}
+          </RevealStagger>
+        </div>
       </section>
 
       {/* community banner */}

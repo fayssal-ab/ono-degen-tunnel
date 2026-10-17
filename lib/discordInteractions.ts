@@ -6,7 +6,7 @@ import { getPool } from "./db";
 import { EventError } from "./events/common";
 import { explainError } from "./events/messages";
 import { claimFromDiscord, confirmPaid, confirmReceivedFromDiscord, voidAward } from "./prizes";
-import { closeTicket, deleteTicket } from "./discordTickets";
+import { closeTicket, deleteChallengeClaimTicket, deleteTicket } from "./discordTickets";
 import { getProfileData, getTopWinners, renderProfileCard, renderTopCard } from "./discordCards";
 import { USDC_HINT, USDC_NETWORK, checkDestination, describeDestination, type PayoutMethod } from "./payout";
 
@@ -19,6 +19,7 @@ import { USDC_HINT, USDC_NETWORK, checkDestination, describeDestination, type Pa
 //     USDC wallet    → form: Ethereum address
 //   ✅ I received it → marks it received
 //   /profile [user] → player card image · /top → top winners image
+//   challenge claim ticket: 🗑️ Delete (staff)
 //   staff: 💸 Mark paid (form: amount + note / tx id) · 🔒 Close (winner loses access) · ❌ Reject (voids the prize →
 //          REJECTED category) · 🗑️ Delete (asks, then removes the channel)
 //
@@ -189,6 +190,21 @@ export async function handleInteraction(i: Interaction): Promise<object> {
   const perms = BigInt(i.member?.permissions ?? "0");
   const staff = (perms & (ADMINISTRATOR | MANAGE_GUILD | MODERATE_MEMBERS)) !== 0n;
   const parts = (i.data?.custom_id ?? "").split(":");
+
+  // challenge claim tickets: staff delete (asks first)
+  if (i.type === 3 && parts[0] === "chclaim") {
+    if (!staff) return reply("❌ Staff only.");
+    const channelId = parts[2] ?? "";
+    if (!/^\d{5,25}$/.test(channelId)) return reply("❌ Unknown ticket.");
+    if (parts[1] === "delete") {
+      return { type: 4, data: msg("🗑️ **Delete this claim ticket?** The player can open a new one from the site.", [
+        { type: 1, components: [{ type: 2, style: 4, custom_id: `chclaim:delete-yes:${channelId}`, label: "Yes, delete it" }] },
+      ]) };
+    }
+    if (parts[1] === "delete-yes") return deferred(i, async () => { await deleteChallengeClaimTicket(channelId); return msg("🗑️ Deleted."); });
+    return reply("❌ Unknown action.");
+  }
+
   if (parts[0] !== "prize") return reply("❌ Unknown action.");
   const id = Number(parts[parts.length - 1]);
   if (!Number.isInteger(id) || id <= 0) return reply("❌ Unknown prize.");

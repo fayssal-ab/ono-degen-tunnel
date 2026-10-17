@@ -4,7 +4,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { CopyChip } from "@/components/ui/CopyChip";
 import { Magnetic } from "@/components/ui/Magnetic";
 import { Icon } from "@/components/ui/Icon";
-import { formatMoneyCompact } from "@/lib/money";
+import { CountUp } from "@/components/ui/CountUp";
 import { BRAND_NAME, STREAMER, KICK_URL, CASINO_CODE } from "@/lib/constants";
 
 // Hero reworked into an asymmetric "event banner" (structure inspired by the
@@ -13,11 +13,11 @@ import { BRAND_NAME, STREAMER, KICK_URL, CASINO_CODE } from "@/lib/constants";
 // row → an inline real-stats strip. Colours stay 100% ONO tokens.
 
 
-function HeroStat({ label, value }: { label: string; value: string }) {
+function HeroStat({ label, value, money = false, tone = "text-text-0" }: { label: string; value: number; money?: boolean; tone?: string }) {
   return (
     <div className="hero-stat">
-      <p className="font-mono text-2xl font-bold tabular-nums text-text-0">{value}</p>
-      <p className="label mt-0.5">{label}</p>
+      <p className={`font-bang text-[clamp(1.6rem,2.4vw,2.4rem)] leading-none tracking-wide tabular-nums ${tone}`}><CountUp value={value} money={money} /></p>
+      <p className="label mt-1">{label}</p>
     </div>
   );
 }
@@ -64,11 +64,14 @@ export function TunnelHero({
           height={292}
           fetchPriority="high"
           decoding="async"
-          className="mt-3 w-60 drop-shadow-[0_0_40px_rgba(245,196,81,0.25)] md:w-80"
+          className="hero-float mt-3 w-44 drop-shadow-[0_0_40px_rgba(245,196,81,0.3)] md:w-60"
         />
 
-        <p className="mt-5 max-w-md text-lg text-text-1">
-          Wager. Climb. Get paid. Sign up with the code and ride the tunnel.
+        <p className="font-bang mt-6 text-[clamp(2.4rem,6vw,4.6rem)] leading-[0.92] tracking-wide text-text-0">
+          Wager. Climb.<br /><span className="text-shimmer">Get paid.</span>
+        </p>
+        <p className="mt-4 max-w-md text-lg text-text-1">
+          Sign up on Stake with the code, play like you always do, and take a cut of every board, race and giveaway on stream.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -96,10 +99,10 @@ export function TunnelHero({
         {hasStats && (
           <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-line pt-6">
             <Link href="/prizes" className="rounded-lg transition-opacity hover:opacity-80" aria-label="See all prizes awarded">
-              <HeroStat label="Prizes awarded →" value={formatMoneyCompact(stats!.paidOut)} />
+              <HeroStat label="Prizes awarded →" value={stats!.paidOut} money tone="text-gold" />
             </Link>
-            <HeroStat label="Players on the board" value={stats!.players.toLocaleString()} />
-            <HeroStat label="Giveaways run" value={stats!.giveaways.toLocaleString()} />
+            <HeroStat label="Players on the board" value={stats!.players} />
+            <HeroStat label="Giveaway winners" value={stats!.giveaways} />
           </div>
         )}
       </div>

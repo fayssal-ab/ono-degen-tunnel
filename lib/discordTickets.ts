@@ -91,9 +91,17 @@ async function getMember(token: string, guildId: string, userId: string): Promis
   catch (e) { if (e instanceof DiscordError && e.status === 404) return null; throw e; }
 }
 
-export function ticketChannelName(winner: string, emoji = "🏆"): string {
-  const slug = winner.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "winner";
-  return `${emoji}｜prize-${slug}`;
+const slugify = (v: string, max = 60) => v.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max);
+const ORDINAL = ["", "1st", "2nd", "3rd"];
+const ordinal = (n: number | null) => (n ? ORDINAL[n] ?? `${n}th` : "");
+
+/** "🏆｜1st-tournament-yuuukine", "🏆｜giveaway-bob", "🏆｜gb-win-amy": what was won, then who. */
+export function ticketChannelName(a: { winner: string; source: string; place: number | null }, emoji = "🏆"): string {
+  const what: Record<string, string> = {
+    tournament: `${ordinal(a.place) || "top"}-tournament`, race: `${ordinal(a.place) || "top"}-race`, leaderboard: `${ordinal(a.place) || "top"}-leaderboard`,
+    giveaway: "giveaway", gb: "gb-win", challenge: "challenge", manual: "prize",
+  };
+  return `${emoji}｜${what[a.source] ?? "prize"}-${slugify(a.winner) || "winner"}`.slice(0, 100);
 }
 
 // ── ticket message ────────────────────────────────────────────────────────
@@ -220,7 +228,11 @@ const staffRoles = async (token: string, guildId: string) =>
 const categoryIds = new Map<string, string>();
 /** The status category's id, created (private: staff only) when the server doesn't have it yet. */
 async function categoryFor(token: string, guildId: string, stage: Stage, staff: Role[]): Promise<string> {
-  const name = CATEGORY[stage];
+  return categoryNamed(token, guildId, CATEGORY[stage], staff);
+}
+
+/** A staff-only category by name, created when missing. */
+async function categoryNamed(token: string, guildId: string, name: string, staff: Role[]): Promise<string> {
   const cached = categoryIds.get(name);
   if (cached) return cached;
   const channels = await discord<{ id: string; name: string; type: number }[]>(token, `/guilds/${guildId}/channels`);
@@ -258,7 +270,7 @@ async function openTicket(token: string, guildId: string, a: TicketAward): Promi
   const channel = await discord<{ id: string }>(token, `/guilds/${guildId}/channels`, {
     method: "POST",
     body: {
-      name: ticketChannelName(a.winner, STAGE[stageOf(a)].emoji), type: 0, parent_id: parent, permission_overwrites: overwrites,
+      name: ticketChannelName(a, STAGE[stageOf(a)].emoji), type: 0, parent_id: parent, permission_overwrites: overwrites,
       topic: `Prize #${a.id} · ${a.winner} · ${SOURCE_LABEL[a.source] ?? a.source}: ${a.title}`.slice(0, 1024),
     },
   });
@@ -344,7 +356,7 @@ export async function refreshTicket(id: number, note?: string): Promise<void> {
   }
   const jobs: Promise<unknown>[] = [
     // moving category keeps the channel's own permissions (lock_permissions false)
-    discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a.winner, STAGE[stage].emoji), ...(parent ? { parent_id: parent, lock_permissions: false } : {}) } })
+    discord(token, `/channels/${a.discord_channel_id}`, { method: "PATCH", body: { name: ticketChannelName(a, STAGE[stage].emoji), ...(parent ? { parent_id: parent, lock_permissions: false } : {}) } })
       .catch((e) => {
         // a category deleted by hand: forget it, the next update recreates it
         if (e instanceof DiscordError && e.status === 400) categoryIds.clear();
@@ -428,6 +440,81 @@ export function deleteTicketChannel(channelId: string | null): void {
     if (!(e instanceof DiscordError && e.status === 404)) console.error(`discord ticket channel ${channelId} delete failed`, e);
   });
   try { after(run); } catch { void run(); }
+}
+
+// ── challenge claim tickets ───────────────────────────────────────────────
+const CLAIM_CATEGORY = "🎯 CHALLENGE CLAIMS";
+
+export interface ClaimTicketInput {
+  challenge: { id: number; slot_name: string; provider: string | null; image_url: string | null; required_multiplier: string; min_bet: string; prize: string; expires_at: string | null };
+  discordUserId: string;
+  player: string;
+}
+
+/** Private channel where a player proves a challenge hit: "🎯｜claim-<slot>-<player>". Returns the channel id. */
+export async function openChallengeClaimTicket(t: ClaimTicketInput): Promise<string> {
+  const cfg = discordConfig();
+  if (!cfg) throw new Error("discord_not_configured");
+  const { token, guildId } = cfg;
+  const staff = await staffRoles(token, guildId);
+  const parent = await categoryNamed(token, guildId, CLAIM_CATEGORY, staff);
+  const c = t.challenge;
+  const mult = `${Number(c.required_multiplier)}x`;
+  const channel = await discord<{ id: string }>(token, `/guilds/${guildId}/channels`, {
+    method: "POST",
+    body: {
+      name: `🎯｜claim-${slugify(c.slot_name, 40)}-${slugify(t.player, 40) || "player"}`.slice(0, 100), type: 0, parent_id: parent,
+      topic: `Challenge #${c.id} · ${c.slot_name} ${mult} · ${t.player}`.slice(0, 1024),
+      permission_overwrites: [
+        { id: guildId, type: 0, allow: "0", deny: String(VIEW) },
+        ...staff.map((r) => ({ id: r.id, type: 0, allow: String(VIEW | SEND | HISTORY | EMBED | ATTACH), deny: "0" })),
+        { id: t.discordUserId, type: 1, allow: String(VIEW | SEND | HISTORY | ATTACH | EMBED), deny: "0" },
+      ],
+    },
+  });
+  const fields = [
+    { name: "🎰 Slot", value: `${c.slot_name}${c.provider ? `\n${c.provider}` : ""}`, inline: true },
+    { name: "🎯 Target", value: `**${mult}**`, inline: true },
+    { name: "💰 Prize", value: c.prize || "—", inline: true },
+    { name: "🪙 Min bet", value: `$${Number(c.min_bet).toFixed(2)}`, inline: true },
+    ...(c.expires_at ? [{ name: "⏳ Expires", value: `<t:${Math.floor(new Date(`${c.expires_at.replace(" ", "T")}Z`).getTime() / 1000)}:R>`, inline: true }] : []),
+    { name: "📸 Send here", value: "1. Your **replay link**\n2. Your **Stake username**\n3. Your **bet** and the **multiplier** you hit\nThe team checks it by hand — the first valid hit wins." },
+  ];
+  await discord(token, `/channels/${channel.id}/messages`, {
+    method: "POST",
+    body: {
+      content: [`<@${t.discordUserId}>`, ...staff.map((r) => `<@&${r.id}>`)].join(" "),
+      embeds: [{
+        author: { name: `CHALLENGE CLAIM · #${c.id}` },
+        title: `🎯 ${c.slot_name} ${mult}`,
+        description: `<@${t.discordUserId}> says they hit it! Drop the proof below.`,
+        color: 0xff3d9a, fields,
+        ...(c.image_url ? { thumbnail: { url: c.image_url } } : {}),
+        footer: { text: "ONO DEGEN TUNNEL · Challenges" }, timestamp: new Date().toISOString(),
+      }],
+      components: [{ type: 1, components: [
+        { type: 2, style: 5, url: `${SITE}/challenges`, label: "Challenges", emoji: { name: "🌐" } },
+        { type: 2, style: 4, custom_id: `chclaim:delete:${channel.id}`, label: "Delete", emoji: { name: "🗑️" } },
+      ] }],
+      allowed_mentions: { users: [t.discordUserId], roles: staff.map((r) => r.id) },
+    },
+  });
+  return channel.id;
+}
+
+/** Staff removed a claim ticket: drop the channel and its record (the player may claim again). */
+export async function deleteChallengeClaimTicket(channelId: string): Promise<void> {
+  const cfg = discordConfig();
+  await getPool().query("DELETE FROM challenge_claim_tickets WHERE channel_id = ?", [channelId]);
+  if (cfg) await discord(cfg.token, `/channels/${channelId}`, { method: "DELETE" }).catch((e) => { if (!(e instanceof DiscordError && e.status === 404)) throw e; });
+}
+
+/** Does this channel still exist? (a claim ticket deleted by hand in Discord) */
+export async function channelExists(channelId: string): Promise<boolean> {
+  const cfg = discordConfig();
+  if (!cfg) return false;
+  try { await discord(cfg.token, `/channels/${channelId}`); return true; }
+  catch (e) { if (e instanceof DiscordError && (e.status === 404 || e.status === 403)) return false; throw e; }
 }
 
 /** (Re)register the server's slash commands for this bot: /profile and /top. Idempotent. */

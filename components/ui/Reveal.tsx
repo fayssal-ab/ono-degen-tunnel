@@ -46,11 +46,12 @@ export function RevealStagger({
   gap?: number;
 }) {
   const reduce = useReducedMotion();
-  if (reduce) return <div className={className}>{children}</div>;
+  // always the same element on server and client (switching to a plain div on
+  // the client left the server's hidden styles in place → cards never showed)
   return (
     <motion.div
       className={className}
-      initial="hidden"
+      initial={reduce ? false : "hidden"}
       whileInView="show"
       viewport={{ once: true, margin: "-60px" }}
       variants={{ show: { transition: { staggerChildren: gap } } }}
@@ -61,8 +62,6 @@ export function RevealStagger({
 }
 
 export function RevealItem({ children, className }: { children: ReactNode; className?: string }) {
-  const reduce = useReducedMotion();
-  if (reduce) return <div className={className}>{children}</div>;
   return (
     <motion.div className={className} variants={itemV}>
       {children}

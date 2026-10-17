@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/money";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ArtCard } from "@/components/ui/ArtCard";
+import { ClaimChallengeButton } from "@/components/events/ClaimChallengeButton";
 import { Icon } from "@/components/ui/Icon";
 import { SectionHeading } from "@/components/ui/Badge";
 import { DISCORD_URL } from "@/lib/constants";
@@ -42,12 +43,12 @@ export default async function ChallengesPage() {
           <p className="label mb-2">How to claim</p>
           <ol className="list-decimal space-y-1 pl-5">
             <li>Hit at least the target multiplier on that slot, with at least the minimum bet, before the challenge expires.</li>
-            <li>Post your replay link, casino username, bet and multiplier in the <strong className="text-text-0">#challenges</strong> channel on Discord.</li>
+            <li>Press <strong className="text-text-0">I hit it — claim</strong> on that challenge: a private ticket opens for you on Discord. Post your replay link, Stake username, bet and multiplier there.</li>
             <li>The team checks the replay by hand. The first valid win is accepted and shown here — nothing is claimed until it&apos;s verified.</li>
           </ol>
         </div>
-        <a href={DISCORD_URL} target="_blank" rel="noreferrer" className="press inline-flex h-11 items-center gap-2 rounded-xl bg-gold px-5 text-sm font-semibold text-bg-0 hover:bg-gold-hi">
-          <Icon name="MessageSquare" className="h-4 w-4" /> Claim on Discord
+        <a href={DISCORD_URL} target="_blank" rel="noreferrer" className="press inline-flex h-11 items-center gap-2 rounded-xl border border-[#5865F2]/60 bg-[#5865F2]/15 px-5 text-sm font-semibold text-[#c4caff] hover:bg-[#5865F2]/25">
+          <Icon name="MessageSquare" className="h-4 w-4" /> Join the Discord
         </a>
       </section>
 
@@ -86,7 +87,10 @@ function Cards({ challenges }: { challenges: Challenge[] }) {
               <span className="inline-flex items-center gap-1 text-gold"><Icon name="Trophy" className="h-3.5 w-3.5" /> {c.claimedBy}
                 {c.winning && <span className="text-text-2"> · hit {d(c.winning.multiplier).toString()}x on {formatMoney(c.winning.bet)}</span>}</span>
             ) : c.status === "open" ? (
-              c.expires_at ? <>Expires <UtcTime value={c.expires_at} /></> : <span className="text-volt">Up for grabs</span>
+              <div className="space-y-2">
+                <p>{c.expires_at ? <>Expires <UtcTime value={c.expires_at} /></> : <span className="text-volt">Up for grabs</span>}</p>
+                <ClaimChallengeButton id={c.id} />
+              </div>
             ) : "Closed"} />
         );
       })}
