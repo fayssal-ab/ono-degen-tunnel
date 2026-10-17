@@ -1,4 +1,6 @@
 import "server-only";
+import { deleteRoundInTx } from "./guessBalance";
+import { deleteTicketChannel } from "./discordTickets";
 import type { RowDataPacket } from "mysql2";
 import { getPool } from "./db";
 import type { PoolConnection, ResultSetHeader } from "mysql2/promise";
@@ -197,10 +199,15 @@ export async function createHunt(input: { title: string; start_balance: string; 
   });
 }
 
+/** Title can change at any time; the start balance only while the hunt is still being built (it drives GB maths). */
 export async function updateHunt(id: number, input: { title: string; start_balance: string }): Promise<void> {
   await withTx(async (conn) => {
-    await lockEditableHunt(conn, id);
-    await conn.query("UPDATE bonus_hunt SET title = ?, start_balance = ? WHERE id = ?", [input.title, input.start_balance, id]);
+    const hunt = await lockHunt(conn, id);
+    const editable = hunt.status === "active" && !hunt.opening_started_at;
+    if (!editable && String(input.start_balance) !== String(hunt.start_balance) && Number(input.start_balance) !== Number(hunt.start_balance)) {
+      throw new EventError("hunt_opening_started", "the start balance is locked once opening starts — only the title can change");
+    }
+    await conn.query("UPDATE bonus_hunt SET title = ?, start_balance = ? WHERE id = ?", [input.title, editable ? input.start_balance : hunt.start_balance, id]);
   });
 }
 
@@ -325,13 +332,17 @@ export async function archiveHunt(huntId: number): Promise<void> {
   });
 }
 
+/** Delete a hunt in any state: its bonuses, and the Guess the Balance rounds attached to it (unpaid GB prizes too). */
 export async function deleteHunt(huntId: number): Promise<void> {
-  await withTx(async (conn) => {
-    await lockEditableHunt(conn, huntId);
-    const [rounds] = await conn.query<RowDataPacket[]>("SELECT id FROM gb_rounds WHERE hunt_id = ? AND status <> 'draft' LIMIT 1", [huntId]);
-    if (rounds.length) throw new EventError("hunt_has_gb_round");
+  const channels = await withTx(async (conn) => {
+    await lockHunt(conn, huntId);
+    const [rounds] = await conn.query<RowDataPacket[]>("SELECT id FROM gb_rounds WHERE hunt_id = ? FOR UPDATE", [huntId]);
+    const out: string[] = [];
+    for (const r of rounds) out.push(...await deleteRoundInTx(conn, Number(r.id)));
     await conn.query("DELETE FROM bonus_hunt WHERE id = ?", [huntId]);
+    return out;
   });
+  for (const c of channels) deleteTicketChannel(c);
 }
 
 /** Final balance of a finished hunt under the MVP convention (sum of payouts). */

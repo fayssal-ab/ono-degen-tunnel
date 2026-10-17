@@ -5,7 +5,7 @@ import type { RowDataPacket } from "mysql2";
 import { getPool } from "@/lib/db";
 import { adminAction, requireAdmin } from "@/lib/adminAction";
 import {
-  getAllRounds, countRoundGuesses, createRound, updateRound, deleteRound, openRound, closeRound,
+  getAllRounds, countRoundGuesses, createRound, updateRound, renameRound, deleteRound, openRound, closeRound,
   previewSettlement, settleRound, getCollectionStatus, type GbRound, type SettlementPreview,
 } from "@/lib/guessBalance";
 import { parseForm, zId, zText, zRequiredText, zOptionalUtcDateTime, toInputValue, DECIMAL_20_8, EventError } from "@/lib/events/common";
@@ -40,6 +40,14 @@ async function updateAction(formData: FormData) {
   "use server";
   await adminAction({ path: PATH, audit: "gb.update", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
     await updateRound(parseForm(IdForm, { id: formData.get("id") }).id, parseForm(RoundForm, formData));
+  });
+}
+
+async function renameAction(formData: FormData) {
+  "use server";
+  await adminAction({ path: PATH, audit: "gb.rename", target: String(formData.get("id")), revalidate: REVALIDATE }, async () => {
+    const f = parseForm(z.object({ id: zId, title: zText(120), prize: zText(120) }), formData);
+    await renameRound(f.id, f.title, f.prize);
   });
 }
 
@@ -194,7 +202,6 @@ export default async function AdminGuessBalance({ searchParams }: { searchParams
               </details>
               <div className="flex flex-wrap gap-2">
                 <form action={openAction}><Hidden fields={{ id: r.id }} /><SubmitButton className={btnVolt}><Icon name="Play" className="h-4 w-4" /> Open guesses</SubmitButton></form>
-                <form action={deleteAction}><Hidden fields={{ id: r.id }} /><SubmitButton className={btnDanger} confirm="Delete this draft?"><Icon name="Trash2" className="h-4 w-4" /> Delete</SubmitButton></form>
               </div>
             </>
           )}
@@ -223,6 +230,26 @@ export default async function AdminGuessBalance({ searchParams }: { searchParams
               )}
             </div>
           )}
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-line/60 pt-3">
+            {r.status !== "draft" && (
+              <details className="flex-1">
+                <summary className="cursor-pointer text-sm text-text-2 hover:text-text-0">Edit title / prize</summary>
+                <form action={renameAction} className="mt-2 flex flex-wrap items-center gap-2">
+                  <Hidden fields={{ id: r.id }} />
+                  <input name="title" defaultValue={r.title} maxLength={120} aria-label="Title" className={`${inputCls} w-56`} />
+                  <input name="prize" defaultValue={r.prize} maxLength={120} aria-label="Prize" className={`${inputCls} w-40`} />
+                  <SubmitButton className={btnGhost}>Save</SubmitButton>
+                </form>
+              </details>
+            )}
+            <form action={deleteAction} className="ml-auto">
+              <Hidden fields={{ id: r.id }} />
+              <SubmitButton className={btnDanger} confirm={`Delete “${r.title || "this round"}” and its ${counts[i]} guesses for good?${r.status === "settled" ? " An unpaid prize from it is removed too (paid ones stay in Admin → Prizes)." : ""} This can't be undone.`}>
+                <Icon name="Trash2" className="h-4 w-4" /> Delete
+              </SubmitButton>
+            </form>
+          </div>
         </div>
       ))}
 

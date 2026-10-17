@@ -338,17 +338,6 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
     }
   }
 
-  async function addTest() {
-    setBusy(true);
-    try {
-      const res = await post("/test");
-      if (!res.ok) throw new Error();
-      await refresh();
-      flash("Added test entrants (preview)");
-    } catch { flash("Start a new round before adding test entrants"); } finally {
-      setBusy(false);
-    }
-  }
   async function clearAll() {
     if (!confirm("Clear ALL entries and winners for this giveaway?")) return;
     setBusy(true);
@@ -577,9 +566,6 @@ export function GiveawayDashboard({ id, initial, defaultChannel, guildId = null 
               );
             })}
             <div className="ml-auto flex items-center gap-1.5">
-              <button onClick={addTest} disabled={busy || spinning} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-text-2 hover:text-text-0 disabled:opacity-50" title="Load sample entrants to rehearse the reel">
-                <Icon name="FlaskConical" className="h-3.5 w-3.5" /> Test
-              </button>
               <button onClick={clearAll} disabled={busy || spinning} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-text-2 hover:border-danger hover:text-danger disabled:opacity-50">
                 <Icon name="RotateCcw" className="h-3.5 w-3.5" /> New round
               </button>

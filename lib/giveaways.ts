@@ -2,7 +2,6 @@ import "server-only";
 import type { RowDataPacket, ResultSetHeader, PoolConnection } from "mysql2/promise";
 import { getPool } from "./db";
 import { generateServerSeed, sha256, entriesHash, winnerIndex } from "./fair";
-import { resolveKickAvatar } from "./kickChat";
 import { entryEligible, collectionOpen } from "./giveawayRules";
 import { recordAward } from "./prizes";
 
@@ -260,33 +259,6 @@ export async function createGiveaway(input: {
 
 export async function addManualEntry(giveawayId: number, username: string): Promise<void> {
   await recordLiveEntry(giveawayId, username, false);
-}
-
-// Preview-only: load sample entrants so the operator can rehearse the reel
-// before going live. Clearly a test action in the UI; wiped by clearEntries.
-// Real Kick handles so the rehearsal reel shows REAL profile avatars (resolved
-// on insert). Unknown/404 handles just fall back to initials — never faked.
-const TEST_HANDLES = [
-  "xqc", "trainwreckstv", "roshtein", "adinross", "ac7ionman", "nickmercs",
-  "westcol", "ibai", "amouranth", "buddha", "yuuukine", "mellstroy",
-];
-export async function addTestEntrants(giveawayId: number, n = 8): Promise<void> {
-  const picks = [...TEST_HANDLES].sort(() => Math.random() - 0.5).slice(0, Math.min(n, TEST_HANDLES.length));
-  // resolve real avatars in parallel (cached; null → initials fallback)
-  const avatars = await Promise.all(
-    picks.map((u) => resolveKickAvatar(u).catch(() => null))
-  );
-  await withGiveaway(giveawayId, async (conn, g) => {
-    if (!collectionOpen(g)) throw new Error("collection_closed");
-    for (let i = 0; i < picks.length; i++) {
-      await conn.query(
-        `INSERT INTO giveaway_entries (giveaway_id, kick_username, avatar, is_subscriber, message_count)
-         VALUES (?, ?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE avatar = COALESCE(VALUES(avatar), avatar), message_count = message_count + 1`,
-        [giveawayId, picks[i], avatars[i], Math.random() < 0.4 ? 1 : 0]
-      );
-    }
-  });
 }
 
 export async function clearEntries(giveawayId: number): Promise<void> {

@@ -5,6 +5,7 @@ import { maskUsername } from "./mask";
 import { EventError, withTx, lockApp, DECIMAL_20_8 } from "./events/common";
 import { getHuntFinalBalance } from "./bonusHunt";
 import { recordAward } from "./prizes";
+import { deleteTicketChannel } from "./discordTickets";
 
 // Guess the Balance (prompt §5.7). Viewers type `!gb <amount>` in Kick chat;
 // the signed Kick webhook records it. Rules (shown on the public page):
@@ -259,11 +260,32 @@ export async function updateRound(id: number, input: RoundInput): Promise<void> 
   });
 }
 
+/**
+ * Delete a round in any state, with its guesses. An unpaid prize it created
+ * goes too (with its Discord ticket); a paid one stays in Admin → Prizes.
+ */
 export async function deleteRound(id: number): Promise<void> {
+  const channels = await withTx(async (conn) => {
+    await lockRound(conn, id);
+    return deleteRoundInTx(conn, id);
+  });
+  for (const c of channels) deleteTicketChannel(c);
+}
+
+/** Inside a transaction: drop the round (+ guesses by cascade) and its unpaid prize. Returns ticket channels to delete. */
+export async function deleteRoundInTx(conn: PoolConnection, id: number): Promise<string[]> {
+  const [awards] = await conn.query<RowDataPacket[]>(
+    "SELECT id, discord_channel_id FROM prize_awards WHERE source = 'gb' AND source_ref = ? AND status <> 'paid' FOR UPDATE", [`gb:${id}`]);
+  if (awards.length) await conn.query("DELETE FROM prize_awards WHERE source = 'gb' AND source_ref = ? AND status <> 'paid'", [`gb:${id}`]);
+  await conn.query("DELETE FROM gb_rounds WHERE id = ?", [id]);
+  return awards.map((a) => String(a.discord_channel_id ?? "")).filter(Boolean);
+}
+
+/** Title / prize can be fixed at any time (the rest only while it's a draft: updateRound). */
+export async function renameRound(id: number, title: string, prize: string): Promise<void> {
   await withTx(async (conn) => {
-    const round = await lockRound(conn, id);
-    if (round.status !== "draft") throw new EventError("round_locked", "only draft rounds can be deleted");
-    await conn.query("DELETE FROM gb_rounds WHERE id = ?", [id]);
+    await lockRound(conn, id);
+    await conn.query("UPDATE gb_rounds SET title = ?, prize = ? WHERE id = ?", [title, prize, id]);
   });
 }
 

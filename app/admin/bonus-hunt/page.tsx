@@ -221,17 +221,17 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
             <p>{stats.complete ? "Final balance" : "Payouts so far"} <span className="block font-mono text-sm text-volt">{formatMoney(stats.currentWin)}</span></p>
           </div>
 
-          {hunt.status === "active" && !hunt.opening_started_at && (
-            <details>
-              <summary className="cursor-pointer text-sm text-text-2 hover:text-text-0">Edit hunt</summary>
-              <form action={updateAction} className="mt-2 grid gap-2 sm:grid-cols-3">
-                <Hidden fields={{ hunt_id: hunt.id }} />
-                <input name="title" defaultValue={hunt.title} required maxLength={120} className={inputCls} />
-                <input name="start_balance" defaultValue={hunt.start_balance} required inputMode="decimal" className={inputCls} />
-                <SubmitButton className={btnGhost}>Save</SubmitButton>
-              </form>
-            </details>
-          )}
+          <details>
+            <summary className="cursor-pointer text-sm text-text-2 hover:text-text-0">Edit hunt</summary>
+            <form action={updateAction} className="mt-2 grid gap-2 sm:grid-cols-3">
+              <Hidden fields={{ hunt_id: hunt.id }} />
+              <input name="title" defaultValue={hunt.title} required maxLength={120} aria-label="Title" className={inputCls} />
+              {hunt.status === "active" && !hunt.opening_started_at
+                ? <input name="start_balance" defaultValue={hunt.start_balance} required inputMode="decimal" aria-label="Start balance" className={inputCls} />
+                : <><Hidden fields={{ start_balance: hunt.start_balance }} /><p className="self-center text-xs text-text-2">Start balance locked once opening started</p></>}
+              <SubmitButton className={btnGhost}>Save</SubmitButton>
+            </form>
+          </details>
 
           <ol className="space-y-2">
             {entries.map((e, i) => <EntryRow key={e.id} hunt={hunt} e={e} i={i} last={i === entries.length - 1} />)}
@@ -258,12 +258,12 @@ export default async function AdminBonusHunt({ searchParams }: { searchParams: S
                 <SubmitButton className={btnGhost}><Icon name="Archive" className="h-4 w-4" /> Archive</SubmitButton>
               </form>
             )}
-            {hunt.status === "active" && !hunt.opening_started_at && (
-              <form action={deleteAction}>
-                <Hidden fields={{ hunt_id: hunt.id }} />
-                <SubmitButton className={btnDanger} confirm="Delete this hunt and its bonuses?"><Icon name="Trash2" className="h-4 w-4" /> Delete</SubmitButton>
-              </form>
-            )}
+            <form action={deleteAction} className="ml-auto">
+              <Hidden fields={{ hunt_id: hunt.id }} />
+              <SubmitButton className={btnDanger} confirm={`Delete “${hunt.title || "this hunt"}” for good? Its bonuses and any Guess the Balance round attached to it are deleted too (paid prizes stay in Admin → Prizes). This can't be undone.`}>
+                <Icon name="Trash2" className="h-4 w-4" /> Delete
+              </SubmitButton>
+            </form>
           </div>
         </div>
       ))}

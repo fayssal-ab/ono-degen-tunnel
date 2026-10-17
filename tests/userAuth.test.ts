@@ -301,6 +301,40 @@ dbt("rejected prizes can be deleted for good, others can't", async () => {
   assert.deepEqual(left, [keep], "only the pending prize remains");
 });
 
+dbt("hunts and GB rounds can be deleted in any state; paid prizes stay", async () => {
+  const hunts = await import("../lib/bonusHunt");
+  const gb = await import("../lib/guessBalance");
+  const pool = db.getPool();
+  const one = async (sql: string, args: unknown[]) => Number(((await pool.query<mysql.RowDataPacket[]>(sql, args))[0][0] as { n: number }).n);
+
+  // a finished hunt with a settled GB round, guesses and an unpaid prize
+  const hunt = await hunts.createHunt({ title: "Del hunt", start_balance: "1000", image_url: "" });
+  const r1 = await gb.createRound({ title: "Del round", prize: "$50", hunt_id: hunt, deadline_at: null });
+  await pool.query("UPDATE bonus_hunt SET status = 'finished' WHERE id = ?", [hunt]);
+  await pool.query("UPDATE gb_rounds SET status = 'settled', actual_balance = 1200 WHERE id = ?", [r1]);
+  await pool.query("INSERT INTO gb_guesses (round_id, kick_username, identity_key, amount, guessed_at) VALUES (?, 'g1', 'k:g1', 1100, UTC_TIMESTAMP())", [r1]);
+  await pool.query("INSERT INTO prize_awards (source, source_ref, title, winner, status) VALUES ('gb', ?, 'Del round', 'g1', 'pending')", [`gb:${r1}`]);
+
+  // title can change even when finished; start balance can't
+  await hunts.updateHunt(hunt, { title: "Renamed hunt", start_balance: "1000" });
+  await assert.rejects(hunts.updateHunt(hunt, { title: "x", start_balance: "5" }));
+  await hunts.deleteHunt(hunt);
+  assert.equal(await one("SELECT COUNT(*) n FROM bonus_hunt WHERE id = ?", [hunt]), 0);
+  assert.equal(await one("SELECT COUNT(*) n FROM gb_rounds WHERE id = ?", [r1]), 0, "attached round deleted");
+  assert.equal(await one("SELECT COUNT(*) n FROM gb_guesses WHERE round_id = ?", [r1]), 0, "its guesses too");
+  assert.equal(await one("SELECT COUNT(*) n FROM prize_awards WHERE source_ref = ?", [`gb:${r1}`]), 0, "unpaid prize removed");
+
+  // a settled standalone round whose prize was paid: round goes, the paid prize stays
+  const r2 = await gb.createRound({ title: "Paid round", prize: "$20", hunt_id: null, deadline_at: null });
+  await pool.query("UPDATE gb_rounds SET status = 'settled', actual_balance = 900 WHERE id = ?", [r2]);
+  await pool.query("INSERT INTO prize_awards (source, source_ref, title, winner, status, paid_at) VALUES ('gb', ?, 'Paid round', 'g2', 'paid', UTC_TIMESTAMP())", [`gb:${r2}`]);
+  await gb.renameRound(r2, "Paid round (fixed)", "$25");
+  assert.equal(((await pool.query<mysql.RowDataPacket[]>("SELECT title FROM gb_rounds WHERE id = ?", [r2]))[0][0] as { title: string }).title, "Paid round (fixed)");
+  await gb.deleteRound(r2);
+  assert.equal(await one("SELECT COUNT(*) n FROM gb_rounds WHERE id = ?", [r2]), 0);
+  assert.equal(await one("SELECT COUNT(*) n FROM prize_awards WHERE source_ref = ? AND status = 'paid'", [`gb:${r2}`]), 1, "paid prize kept");
+});
+
 dbt("admin: list/search users, ban blocks sign-in and sessions, sign out, delete", async () => {
   const ua = await import("../lib/userAdmin");
   const a = await auth.signInWith("kick", { id: "k-ban", username: "BadActor", avatar: "" }, null);
